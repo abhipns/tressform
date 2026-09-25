@@ -1,0 +1,200 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tressform — Modern Hairstyling Studio</title>
+  <meta name="description" content="Tressform is a modern hairstyling studio offering cuts, color, styling, and treatments." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a href="#home" class="logo">Tress<span>form</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#services">Services</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#about">About</a>
+        <a href="#testimonials">Reviews</a>
+        <a href="#contact" class="btn btn-primary btn-sm">Book Now</a>
+      </nav>
+      <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section id="home" class="hero">
+      <div class="container hero-inner">
+        <p class="eyebrow">Hair. Confidence. Transformation.</p>
+        <h1>Where your hair gets the <em>reset</em> it deserves.</h1>
+        <p class="lede">Personalized cuts, color, and care — crafted by stylists who actually listen.</p>
+        <div class="hero-cta">
+          <a href="#contact" class="btn btn-primary">Book an appointment</a>
+          <a href="#services" class="btn btn-ghost">See services</a>
+        </div>
+        <ul class="hero-meta">
+          <li><strong>10+</strong><span>Years of artistry</span></li>
+          <li><strong>4.9★</strong><span>Client rating</span></li>
+          <li><strong>100%</strong><span>Vegan-friendly products</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Services -->
+    <section id="services" class="section">
+      <div class="container">
+        <header class="section-head">
+          <p class="eyebrow">What we do</p>
+          <h2>Services tailored to you</h2>
+          <p class="muted">From a quick refresh to a full transformation, every service starts with a consultation.</p>
+        </header>
+        <div class="grid services">
+          <article class="card">
+            <h3>Signature Cut</h3>
+            <p>Consultation, shampoo, precision cut, and blow-dry styled to your face shape and lifestyle.</p>
+            <p class="price">from $65</p>
+          </article>
+          <article class="card">
+            <h3>Color &amp; Balayage</h3>
+            <p>Hand-painted highlights, full color, gloss, and toning using gentle, vegan formulas.</p>
+            <p class="price">from $150</p>
+          </article>
+          <article class="card">
+            <h3>Blowout &amp; Styling</h3>
+            <p>Event-ready waves, sleek blowouts, and updos for weddings, photos, and big nights out.</p>
+            <p class="price">from $55</p>
+          </article>
+          <article class="card">
+            <h3>Treatments</h3>
+            <p>Deep conditioning, bond repair, scalp rituals, and keratin smoothing for healthy hair.</p>
+            <p class="price">from $45</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Gallery -->
+    <section id="gallery" class="section section-alt">
+      <div class="container">
+        <header class="section-head">
+          <p class="eyebrow">Recent work</p>
+          <h2>Gallery</h2>
+          <p class="muted">A peek at some of our favorite transformations.</p>
+        </header>
+        <div class="grid gallery">
+          <figure class="tile t-1" aria-label="Blonde balayage"></figure>
+          <figure class="tile t-2" aria-label="Sleek bob"></figure>
+          <figure class="tile t-3" aria-label="Rich brunette"></figure>
+          <figure class="tile t-4" aria-label="Soft waves"></figure>
+          <figure class="tile t-5" aria-label="Curly cut"></figure>
+          <figure class="tile t-6" aria-label="Updo"></figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="section">
+      <div class="container about">
+        <div>
+          <p class="eyebrow">About</p>
+          <h2>A studio, not a salon.</h2>
+          <p>Tressform is a small, appointment-only studio built around a simple idea: great hair starts with great listening. We take time to understand your routine, your vibe, and your goals — then craft a look that grows out beautifully.</p>
+          <p>Our team is trained in modern cutting and color techniques, and we use only cruelty-free, sulfate-free products.</p>
+        </div>
+        <aside class="about-card">
+          <h3>Hours</h3>
+          <ul class="hours">
+            <li><span>Tue – Fri</span><span>10:00 – 19:00</span></li>
+            <li><span>Saturday</span><span>09:00 – 17:00</span></li>
+            <li><span>Sun – Mon</span><span>Closed</span></li>
+          </ul>
+          <h3>Address</h3>
+          <p>123 Main Street<br/>Your City, ST 00000</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section id="testimonials" class="section section-alt">
+      <div class="container">
+        <header class="section-head">
+          <p class="eyebrow">Kind words</p>
+          <h2>What clients say</h2>
+        </header>
+        <div class="grid testimonials">
+          <blockquote class="quote">
+            <p>“Best haircut I've had in years. They really listened, and the color is gorgeous.”</p>
+            <footer>— Sam R.</footer>
+          </blockquote>
+          <blockquote class="quote">
+            <p>“The studio vibe is so calm, and my balayage still looks amazing four months in.”</p>
+            <footer>— Priya N.</footer>
+          </blockquote>
+          <blockquote class="quote">
+            <p>“I came in nervous about a big change. They made me feel totally at ease.”</p>
+            <footer>— Jordan M.</footer>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact / Booking -->
+    <section id="contact" class="section">
+      <div class="container contact">
+        <div>
+          <p class="eyebrow">Book a visit</p>
+          <h2>Ready for your transformation?</h2>
+          <p>Send us a note and we'll get back within one business day. For same-day appointments, please call.</p>
+          <p class="phone"><a href="tel:+10000000000">📞 (000) 000-0000</a></p>
+        </div>
+        <form class="form" id="bookingForm" novalidate>
+          <label>
+            <span>Name</span>
+            <input type="text" name="name" required autocomplete="name" />
+          </label>
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
+          <label>
+            <span>Service</span>
+            <select name="service" required>
+              <option value="">Select a service…</option>
+              <option>Signature Cut</option>
+              <option>Color &amp; Balayage</option>
+              <option>Blowout &amp; Styling</option>
+              <option>Treatments</option>
+              <option>Not sure yet</option>
+            </select>
+          </label>
+          <label>
+            <span>Message</span>
+            <textarea name="message" rows="4" placeholder="Tell us a bit about your hair goals…"></textarea>
+          </label>
+          <button type="submit" class="btn btn-primary">Request appointment</button>
+          <p class="form-status" id="formStatus" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>© <span id="year"></span> Tressform Studio. All rights reserved.</p>
+      <div class="social">
+        <a href="#" aria-label="Instagram">Instagram</a>
+        <a href="#" aria-label="TikTok">TikTok</a>
+        <a href="#" aria-label="Facebook">Facebook</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
