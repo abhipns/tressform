@@ -1,8 +1,18 @@
+// Master Section Plan doc, row 21 "Privacy + Trust + AI Transparency" —
+// added the plain-language storage/deletion explanation the row asks for,
+// matching the actual policy in the doc's "Technical & compliance
+// requirements" section (90-day auto-delete, DPDP Act 2023).
 const POINTS = [
   { title: "Never used for AI training.", body: "Your photos are only used to generate your own results — never to train our models." },
-  { title: "Deleted automatically.", body: "Uploaded photos are removed from our servers after a set period." },
+  {
+    title: "Deleted automatically after 90 days.",
+    body: "Uploaded photos and low-resolution previews are auto-deleted 90 days after upload, unless your account is still active and using them — then they're kept only as long as you keep using them.",
+  },
   { title: "Encrypted, always.", body: "Your photos are encrypted both in transit and at rest." },
-  { title: "Delete anytime.", body: "You can request full deletion of your photos and data whenever you like." },
+  {
+    title: "Delete anytime.",
+    body: "You can request full deletion of your photos and data whenever you like — it doesn't have to wait for the 90-day auto-delete.",
+  },
 ];
 
 export default function Trust() {
@@ -28,7 +38,7 @@ export default function Trust() {
             ))}
           </ul>
           <p className="mt-5">
-            <a href="#" className="font-semibold text-mint-deep">
+            <a href="/privacy" className="font-semibold text-mint-deep">
               Read our Privacy Policy →
             </a>
           </p>

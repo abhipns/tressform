@@ -1,5 +1,8 @@
-// Part B (revised sequence) — section 5, "Introduce Tressform". CTA: "See
-// How It Works", scrolling to the 4-step explainer (section 6, id="how").
+// Part B (revised sequence) — section 5, "Introduce Tressform".
+//
+// 24.09.2026: removed the "See How It Works" CTA per user feedback — the
+// How It Works section (id="how") renders immediately next, so the button
+// was a duplicate of the section right below it.
 
 export default function IntroduceTressform() {
   return (
@@ -12,9 +15,6 @@ export default function IntroduceTressform() {
           your barber can follow — before a single snip.
         </p>
       </div>
-      <a href="#how" className="btn-secondary">
-        See How It Works
-      </a>
     </section>
   );
 }

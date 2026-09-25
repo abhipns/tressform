@@ -9,6 +9,7 @@
   }
   body {
     @apply bg-bg text-ink-body font-body antialiased;
+    overflow-x: hidden;
   }
   /* Part A.1 — the sticky header (72px) would otherwise cover the top of
      whatever section an in-page nav link (or #hash link) scrolls to. Every
@@ -56,7 +57,7 @@
     @apply text-[12.5px] font-bold uppercase tracking-[.14em] text-mint-deep;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md2 bg-mint px-6 py-3 font-heading font-semibold text-white shadow-card transition hover:bg-mint-deep;
+    @apply inline-flex items-center justify-center rounded-md2 bg-mint px-6 py-3 font-heading font-semibold text-white shadow-card transition hover:bg-mint-deep disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-muted disabled:shadow-none disabled:hover:bg-line;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-md2 border border-line bg-surface px-6 py-3 font-heading font-semibold text-ink-heading transition hover:border-ink-heading;

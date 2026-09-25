@@ -2,9 +2,12 @@
 // Hairstyles", leading straight to plan selection/checkout per the doc.
 
 const ITEMS = [
-  { title: "Matched hairstyles", body: "Every style scored against your actual face shape and hair type." },
-  { title: "Every angle", body: "Front, left, right, and back views once a style is unlocked — not just one photo." },
-  { title: "Barber-ready instructions", body: "Exact lengths, technique, and product guidance you can hand to a barber." },
+  { title: "Hairstyles Matched to You", body: "Recommendations tailored to your face shape and hair type." },
+  { title: "Four-Side Preview", body: "Front, left, right, and back views of your selected hairstyle." },
+  {
+    title: "Barber-Ready Instructions",
+    body: "Exact lengths, cutting technique, and styling guidance to help your barber recreate the look.",
+  },
 ];
 
 export default function WhatYouGet() {

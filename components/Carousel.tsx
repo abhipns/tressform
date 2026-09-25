@@ -1,9 +1,13 @@
-// Part C — "Real Portraits. Multiple AI Transformations Each." marquee.
+// Part C — marquee of before/AI-generated portrait sets.
 //
 // Renders real photos from lib/content/carousel.ts once you've added any —
 // see that file for how to add your own. Until then, it falls back to the
 // original generated placeholder illustrations (no real photos used) so the
 // homepage never looks broken.
+//
+// 24.09.2026: eyebrow copy changed from "Real Portraits. Multiple AI
+// Transformations Each." to "See Your Real Self in Multiple Hairstyles."
+// per user feedback.
 
 import { CAROUSEL_SESSIONS, type CarouselSession } from "@/lib/content/carousel";
 
@@ -66,27 +70,26 @@ function TagBadge({ tag }: { tag: string }) {
   );
 }
 
-function buildPlaceholderCard(seed: number) {
+function buildPlaceholderCard(seed: number, keyPrefix: string) {
   const boxes = HAIR_STYLES.map((hair, i) => {
     const pal = PALETTES[(seed + i) % PALETTES.length];
     return { hair, pal, tag: i === 0 ? "Model" : "AI Generated" };
   });
 
   return (
-    <div className="w-[300px] shrink-0 rounded-md2 bg-surface p-2.5 shadow-card" key={`placeholder-${seed}`}>
-      <div className="grid grid-cols-3 gap-1.5">
+    <div className="w-[460px] shrink-0 rounded-md2 bg-surface p-3.5 shadow-card" key={`placeholder-${keyPrefix}-${seed}`}>
+      <div className="grid grid-cols-3 gap-2.5">
         {boxes.map((b, i) => (
-          <div key={i} className="relative flex aspect-[0.78/1] items-end overflow-hidden rounded-[9px]">
+          <div key={i} className="relative flex aspect-[0.78/1] items-end overflow-hidden rounded-[10px]">
             <span
               className="absolute inset-0 h-full w-full"
-              dangerouslySetInnerHTML={{ __html: avatarSvgMarkup(b.pal[0], b.pal[1], b.hair, `g${seed}-${i}`) }}
+              dangerouslySetInnerHTML={{
+                __html: avatarSvgMarkup(b.pal[0], b.pal[1], b.hair, `g${keyPrefix}${seed}-${i}`),
+              }}
             />
             <TagBadge tag={b.tag} />
           </div>
         ))}
-      </div>
-      <div className="px-1.5 pb-1 pt-2 text-[12px] font-medium text-ink-muted">
-        Session {seed + 1} · {HAIR_STYLES.length - 1} AI transformations
       </div>
     </div>
   );
@@ -94,10 +97,10 @@ function buildPlaceholderCard(seed: number) {
 
 function buildPhotoCard(session: CarouselSession, keyPrefix: string) {
   return (
-    <div className="w-[300px] shrink-0 rounded-md2 bg-surface p-2.5 shadow-card" key={`${keyPrefix}-${session.id}`}>
-      <div className="grid grid-cols-3 gap-1.5">
+    <div className="w-[460px] shrink-0 rounded-md2 bg-surface p-3.5 shadow-card" key={`${keyPrefix}-${session.id}`}>
+      <div className="grid grid-cols-3 gap-2.5">
         {session.photos.map((photo, i) => (
-          <div key={i} className="relative flex aspect-[0.78/1] items-end overflow-hidden rounded-[9px] bg-bg-soft">
+          <div key={i} className="relative flex aspect-[0.78/1] items-end overflow-hidden rounded-[10px] bg-bg-soft">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={photo.src} alt={photo.alt} className="absolute inset-0 h-full w-full object-cover" />
             <TagBadge tag={photo.tag} />
@@ -118,20 +121,31 @@ export default function Carousel() {
         ...CAROUSEL_SESSIONS.map((s) => buildPhotoCard(s, "b")),
       ]
     : [
-        ...Array.from({ length: 8 }, (_, i) => buildPlaceholderCard(i)),
-        ...Array.from({ length: 8 }, (_, i) => buildPlaceholderCard(i + 100)),
+        // Two IDENTICAL sets of the same 11 seeds — the marquee track translates
+        // by exactly -50% (see globals.css's scroll-left keyframe), so the
+        // second half must be a pixel-for-pixel duplicate of the first for the
+        // loop to be seamless. The old version seeded the second half at
+        // i+100 (different avatars/colors), which is what caused the visible
+        // jump at the card 8 → card 9 boundary. Bumped from 8 to 11 cards (+3)
+        // per feedback, larger card size above makes the extra cards read as
+        // one continuous, unbroken strip rather than a fixed 8-card row.
+        ...Array.from({ length: 11 }, (_, i) => buildPlaceholderCard(i, "a")),
+        ...Array.from({ length: 11 }, (_, i) => buildPlaceholderCard(i, "b")),
       ];
 
   return (
     <section id="browse" className="overflow-hidden bg-bg pb-2 pt-9">
       <div className="wrap mb-4 text-center">
-        <p className="eyebrow">Real Portraits. Multiple AI Transformations Each.</p>
+        <p className="eyebrow">See Your Real Self in Multiple Hairstyles.</p>
       </div>
       <div
         className="w-full overflow-hidden"
         style={{ maskImage: "linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)" }}
       >
-        <div className="flex w-max animate-[scroll-left_46s_linear_infinite] gap-4 hover:[animation-play-state:paused]">
+        {/* Cards grew from 360px to 460px (per feedback) — duration bumped
+            64s → 80s to hold the same px/sec scroll speed rather than
+            suddenly speeding up the marquee. */}
+        <div className="flex w-max animate-[scroll-left_80s_linear_infinite] gap-5 hover:[animation-play-state:paused]">
           {cards}
         </div>
       </div>

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Tressform",
@@ -7,6 +9,10 @@ export const metadata: Metadata = {
     "Find your perfect haircut before you cut, using AI face analysis and style previews.",
 };
 
+// Header/Footer moved here from app/page.tsx so every route (the new
+// /login, /blog, /refer, /about, /contact, /careers, /privacy, /terms,
+// /refund, /money-back-guarantee pages — built per the nav-links decision:
+// "Build all of them") gets consistent site chrome, not just the homepage.
 export default function RootLayout({
   children,
 }: {
@@ -26,7 +32,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <Header />
+        {children}
+        <Footer />
+      </body>
     </html>
   );
 }

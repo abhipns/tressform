@@ -4,12 +4,17 @@
 // wholesale — the shape is kept intentionally close to the generator's output
 // (Database → public → Tables → <table> → Row/Insert/Update) so that swap is
 // a drop-in later.
+//
+// This file was missing from the project folder entirely (lib/supabaseClient.ts
+// imports it, so nothing importing that module could build) — restored here,
+// updated to match db/schema.sql as of the referral-credits rework and the
+// carousel_sessions/carousel_photos + admin-upload additions (23.09.2026).
 
 export type UserRole = "CUSTOMER" | "SALON" | "ADMIN";
-export type PackTier = "STARTER" | "STYLE" | "COMPLETE" | "FULL_EXPLORE";
+export type PackTier = "STARTER" | "STYLE" | "COMPLETE" | "FULL_EXPLORE"; // COMPLETE kept only for historical orders, see db/schema.sql
 export type AddonKind = "BACKGROUND" | "OUTFIT";
 export type OrderStatus = "CREATED" | "PAID" | "FAILED" | "REFUNDED";
-export type PayoutStatus = "PENDING" | "ELIGIBLE" | "PAID" | "INELIGIBLE";
+export type PayoutStatus = "PENDING" | "ELIGIBLE" | "PAID" | "INELIGIBLE"; // PAID means "credited," not "cashed out" — referral rewards are non-withdrawable credits
 export type GenerationStatus = "QUEUED" | "PROCESSING" | "SUCCEEDED" | "FAILED";
 export type MarketTier = "Standard" | "Premium" | "Luxury" | "Ultra Luxury";
 
@@ -23,6 +28,7 @@ export interface ProfileRow {
   free_previews_limit: number;
   referral_code: string;
   referred_by: string | null;
+  credit_balance_paise: number;
   first_purchase_order_id: string | null;
   created_at: string;
   updated_at: string;
@@ -78,7 +84,7 @@ export interface OrderRow {
   gateway_fee_paise: number;
   profit_before_referral_paise: number;
   is_referred_first_purchase: boolean;
-  referral_payout_paise: number;
+  referral_credits_paise: number; // flat per-tier credit, see lib/pricing.ts REFERRAL_CREDITS_BY_TIER_PAISE — was referral_payout_paise (10% of profit) before 21.09.2026
   status: OrderStatus;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
@@ -93,9 +99,10 @@ export interface ReferralRow {
   referred_id: string;
   referral_code_used: string;
   first_purchase_order_id: string | null;
+  first_purchase_qualified: boolean;
   payout_status: PayoutStatus;
-  payout_paise: number;
-  payout_tds_paise: number;
+  credits_paise: number;
+  credits_tds_paise: number;
   paid_at: string | null;
   created_at: string;
 }
@@ -113,6 +120,23 @@ export interface AffiliateProductRow {
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface CarouselSessionRow {
+  id: string;
+  caption: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CarouselPhotoRow {
+  id: string;
+  session_id: string;
+  src: string;
+  tag: string;
+  alt: string;
+  sort_order: number;
 }
 
 export interface NotificationsLogRow {
@@ -158,6 +182,16 @@ export interface Database {
         Row: AffiliateProductRow;
         Insert: Partial<AffiliateProductRow> & { title: string; original_url: string; earnkaro_tracked_url: string };
         Update: Partial<AffiliateProductRow>;
+      };
+      carousel_sessions: {
+        Row: CarouselSessionRow;
+        Insert: Partial<CarouselSessionRow> & { caption: string };
+        Update: Partial<CarouselSessionRow>;
+      };
+      carousel_photos: {
+        Row: CarouselPhotoRow;
+        Insert: Partial<CarouselPhotoRow> & { session_id: string; src: string };
+        Update: Partial<CarouselPhotoRow>;
       };
       notifications_log: {
         Row: NotificationsLogRow;

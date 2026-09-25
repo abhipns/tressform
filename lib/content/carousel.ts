@@ -1,11 +1,19 @@
 // Real-photo content for the homepage carousel ("Real Portraits. Multiple
 // AI Transformations Each.").
 //
-// HOW TO ADD PHOTOS:
-//   1. Drop your image files into public/carousel/ (any name, .jpg/.png/.webp).
-//   2. Add one entry below per customer "session" — each session renders as
-//      one card in the carousel, showing up to 6 photos in a grid.
-//   3. Save this file and refresh — no other code changes needed.
+// HOW TO ADD PHOTOS — two ways:
+//   A) Edit this file directly: drop image files into public/carousel/ (any
+//      name, .jpg/.png/.webp), add one entry below per customer "session"
+//      (each session = one card, up to 6 photos), save and refresh.
+//   B) Upload without touching code: visit /admin/carousel (per doc thread
+//      f3588221-19c8) — it posts to app/api/admin/carousel, which writes to
+//      the carousel_sessions/carousel_photos tables (db/schema.sql). NOTE:
+//      this component still only reads the static array below — sessions
+//      added via the admin page won't appear here automatically yet.
+//      Wiring this file to fetch from that table (or replacing it with a
+//      server component that queries carousel_sessions directly) is the
+//      next step; until then, mirror anything uploaded there into the array
+//      below if you want it live on the homepage immediately.
 //
 // Until you add at least one session here, the carousel falls back to the
 // original placeholder illustrations so the homepage never looks broken.

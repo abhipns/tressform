@@ -1,13 +1,29 @@
-// Part B (revised sequence) — section 12, "Why your hairstyle should be
-// personal". A one-line visual strip per the doc — deliberately not a repeat
-// of section 4's infographic, and no CTA.
+// Doc table row 5, "Your Haircut Should Be Personal" — base for introducing
+// Tressform, right before AI is explained. Copy is the suggested copy from
+// the comment on this row, verbatim. No CTA specified.
+
+const REASONS = [
+  "Your face shape isn't their face shape.",
+  "Your hair's texture and density are different.",
+  "Your hairline shapes what works and what doesn't.",
+];
 
 export default function WhyPersonal() {
   return (
-    <section className="wrap py-10 text-center">
-      <p className="mx-auto max-w-[640px] text-[15px] font-medium text-ink-muted">
-        Your face is one of a kind — your haircut should start from it, not from a trend.
-      </p>
+    <section className="wrap py-14 text-center">
+      <div className="section-head">
+        <p className="eyebrow">Why It's Personal</p>
+        <h2>Your Haircut Should Be Personal</h2>
+        <p>Before explaining AI, here&apos;s why generic haircut advice fails.</p>
+      </div>
+      <ul className="mx-auto flex max-w-[520px] flex-col gap-3 text-left">
+        {REASONS.map((r) => (
+          <li key={r} className="flex items-start gap-2.5 text-[15px] font-medium text-ink-heading">
+            <span className="mt-[3px] text-mint-deep">✓</span>
+            {r}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

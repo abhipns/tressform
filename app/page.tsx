@@ -1,79 +1,92 @@
-// Homepage — rebuilt per Part B's "Update — revised landing page sequence &
-// CTA structure," which supersedes the original 19-section order. Numbered
-// comments below match the doc's 23-row table exactly, so drift is easy to
-// spot on the next spec revision.
+// Homepage — physically resequenced 24.09.2026 to match the Master Section
+// Plan doc's finalized 1–20 order (the doc's own "#" column was resequenced
+// on 23.09.2026 but the actual component order here was deliberately left
+// untouched at the time — see that doc's changelog). Numbered comments below
+// match the doc's new numbering exactly.
 //
-// Two rows from that table are NOT rendered here by design:
-//   #17 Post-Payment Bump Offer — a transactional upsell screen shown after
-//        payment, before results are ready. Not a homepage section — belongs
-//        in the checkout/payment flow once that's built.
-// Everything else, in order, with its section's own CTA(s) per the table.
+// Row #11 (Personalised Product Recommendations) is NOT rendered here by
+// design — it's a transactional post-payment screen
+// (components/results/ProductRecommendations.tsx), not a homepage section;
+// it belongs in the checkout/results flow once that's built. So the numbered
+// sequence below has an intentional gap between #10 and #12.
 //
-// A few sections beyond the 23 (HolisticApproach, TriviaTeaser) come from
-// Part J and aren't in the revised table — the doc only reorders/fixes CTAs
-// for the 23 listed rows, it doesn't say to drop other Part J content, so
-// they're kept, slotted in where they fit thematically.
+// Sections outside the doc's 20-row table, and what happened to each in this
+// pass (all per your 24.09.2026 call):
+//   - Announcement Strip — REMOVED. Doc: "Needs removal — still live."
+//   - Cost of Getting It Wrong — KEPT, unnumbered. Placed right after
+//     Possible Reasons, its natural pairing (both are Problem-side content).
+//   - "3-Step Confidence Journey" (components/GetStarted.tsx) — KEPT,
+//     unnumbered. Placed right after How Tressform Diagnoses Your Look
+//     (#3), since both walk through how the product works.
+//   - IntroduceTressform — KEPT. Placed right before #3, as the short lead-in
+//     that CTAs into it. (Checked for the duplicate id="how" bug flagged in
+//     the doc's gap list: only HowItWorks.tsx actually has id="how" in the
+//     DOM — IntroduceTressform.tsx only links to #how in a comment/CTA, it
+//     doesn't render a second id="how" element. No code fix needed there.)
+//   - Hair Care — KEPT (Part J, content-marketing). Placed near Salons, same
+//     relative spot as before.
+//   - Trivia Teaser — KEPT (Part J). Stays as the closing content hook right
+//     before the footer.
+//
+// Header (row 1) and Footer (row 20) live in app/layout.tsx so every route
+// gets them, not just this homepage — see that file's comment.
 
-import AnnouncementStrip from "@/components/AnnouncementStrip"; // 1
-import Header from "@/components/Header"; // 2
-import Hero from "@/components/Hero"; // 3
-import Carousel from "@/components/Carousel"; // Part C, id="browse" — not its own row in the 23-row table, but the header's "Hairstyles" nav link and the footer's "Hairstyles" link both point here, so it stays rendered
-import TheProblem from "@/components/TheProblem"; // 4
-import IntroduceTressform from "@/components/IntroduceTressform"; // 5
-import HowItWorks from "@/components/HowItWorks"; // 6
-import UploadFlow from "@/components/UploadFlow"; // 7 "Try Tressform"
-import WhatYouGet from "@/components/WhatYouGet"; // 8
-import GuidedHaircut from "@/components/GuidedHaircut"; // 9
-import PlanSelection from "@/components/PlanSelection"; // 10
-import GetStarted from "@/components/GetStarted"; // 11 "How To Get Started"
-import WhyPersonal from "@/components/WhyPersonal"; // 12
-import BeforeAiAfter from "@/components/BeforeAiAfter"; // 13 "Results showcase"
-import HolisticApproach from "@/components/HolisticApproach"; // Part J, not in the 23-row table — kept near the other trust content
-import HonestExpectations from "@/components/HonestExpectations"; // 14
-import TressformSalons from "@/components/TressformSalons"; // 15
-import HairCare from "@/components/HairCare"; // 16
-// 17 Post-Payment Bump Offer — deliberately not rendered here, see file header
-import GoogleRating from "@/components/GoogleRating"; // 18 "Reviews / Social proof"
-import Pricing from "@/components/Pricing"; // 19
-import Trust from "@/components/Trust"; // 20 "Privacy / Trust"
-import Faq from "@/components/Faq"; // 21
-import FinalCta from "@/components/FinalCta"; // 22
-import TriviaTeaser from "@/components/TriviaTeaser"; // Part J, not in the 23-row table — kept as a closing content hook before the footer
-import Footer from "@/components/Footer"; // 23
+import Hero from "@/components/Hero"; // 1
+import StickyCta from "@/components/StickyCta"; // global — persistent "Try It Free" pill, hidden over the Hero, appears once it scrolls out
+import BeforeAiAfter from "@/components/BeforeAiAfter"; // 2 "Before → AI → Real Result" — folds in the Holistic Approach 3-pointer (Part J)
+import IntroduceTressform from "@/components/IntroduceTressform"; // unnumbered — short lead-in, CTAs into #3 below
+import HowItWorks from "@/components/HowItWorks"; // 3 "How Tressform Diagnoses Your Look"
+import GetStarted from "@/components/GetStarted"; // unnumbered — "3-Step Confidence Journey," kept per your call, placed next to #3
+import Carousel from "@/components/Carousel"; // 4
+import UploadFlow from "@/components/UploadFlow"; // 5 "Personal Hair & Style Assessment"
+import HairProfile from "@/components/HairProfile"; // 6+7 "Your Personal Hair Profile" merged with "Guided Haircut" — see that file's header comment; GuidedHaircut.tsx's own section is no longer rendered here
+import WhatYouGet from "@/components/WhatYouGet"; // 8 "Maintain + Recreate Your Look"
+import TressformSalons from "@/components/TressformSalons"; // 9 "Get Your Tressform Look at a Matching Salon"
+import HairCare from "@/components/HairCare"; // unnumbered — Part J, content-marketing, kept
+import Pricing from "@/components/Pricing"; // 10 "Unlock Your Top Matches + Pricing"
+// 11 Personalised Product Recommendations — deliberately not rendered here, see file header
+import GoogleRating from "@/components/GoogleRating"; // 12 "Real Results + Customer Stories"
+import TheProblem from "@/components/TheProblem"; // 13
+import PossibleReasons from "@/components/PossibleReasons"; // 14 "The Possible Reasons"
+import CostOfGettingItWrong from "@/components/CostOfGettingItWrong"; // unnumbered — kept per your call, placed right after Possible Reasons
+import WhyPersonal from "@/components/WhyPersonal"; // 15 "Your Haircut Should Be Personal"
+import HonestExpectations from "@/components/HonestExpectations"; // 16 "What Tressform Can — and Can't — Predict"
+import Trust from "@/components/Trust"; // 17 "Privacy + Trust + AI Transparency"
+import Faq from "@/components/Faq"; // 18 "FAQ + Objection Handling"
+import FinalCta from "@/components/FinalCta"; // 19 "Final Confidence CTA"
+import TriviaTeaser from "@/components/TriviaTeaser"; // unnumbered — Part J, closing content hook before the footer
 
 export default function Home() {
   return (
     <>
-      <AnnouncementStrip />
-      <Header />
       <div id="top" />
 
       <Hero />
-      <Carousel />
-      <TheProblem />
+      <StickyCta />
+      <BeforeAiAfter />
       <IntroduceTressform />
       <HowItWorks />
-      <UploadFlow />
-      <WhatYouGet />
-      <GuidedHaircut />
-      <PlanSelection />
       <GetStarted />
-      <WhyPersonal />
-
-      <BeforeAiAfter />
-      <HolisticApproach />
-      <HonestExpectations />
+      <Carousel />
+      <UploadFlow />
+      <HairProfile />
+      <WhatYouGet />
       <TressformSalons />
       <HairCare />
 
-      <GoogleRating />
       <Pricing />
+      <GoogleRating />
+
+      <TheProblem />
+      <PossibleReasons />
+      <CostOfGettingItWrong />
+      <WhyPersonal />
+      <HonestExpectations />
+
       <Trust />
       <Faq />
       <FinalCta />
       <TriviaTeaser />
-
-      <Footer />
     </>
   );
 }
