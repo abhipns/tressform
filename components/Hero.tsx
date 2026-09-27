@@ -3,22 +3,19 @@
 // previous "Find My Perfect Cut" mismatch. "Quick Checkout" stays removed
 // (Open Conflict #3, confirmed everywhere).
 //
-// Visual: per the row's comment, this should ideally be a short looping
-// video/GIF of the 3-selfie → AI preview transformation. What's playing now
-// (public/hero-transformation.mp4 + its poster frame) is a built, abstract/
-// illustrative motion graphic — line-art selfie icons feeding into a scan +
-// hairstyle-silhouette reveal, same visual language as the face-shape icons
-// in PossibleReasons.tsx — NOT a real customer's photos or a real product
-// screen capture. It communicates the concept honestly (a stylised diagram
-// of the flow) without claiming to be an actual before/after result, which
-// would misrepresent what the product does. Swap in real captured footage
-// of the actual upload → analysis → preview flow whenever that's ready —
-// same file paths, no code change needed.
-//
 // 24.09.2026: swapped the sub-headline and the small tagline line per user
 // feedback — "Personalized hairstyles • Barber-ready guidance • No
 // guesswork" now reads first (right under the H1), and the longer selfie
 // explainer now sits as the smaller line above the video.
+//
+// 27.09.2026: replaced the abstract motion-graphic placeholder with real
+// captured footage of the AI face-analysis flow (a man and a woman, each
+// generated separately). The two clips now play one after another in
+// randomized order via HeroVideoShuffle (client component) — see that file
+// for the shuffle/no-repeat logic. Both source files ship with no audio
+// track; the <video> element is muted regardless.
+
+import HeroVideoShuffle from "./HeroVideoShuffle";
 
 export default function Hero() {
   return (
@@ -40,16 +37,7 @@ export default function Hero() {
       </p>
 
       <div className="mx-auto mt-9 aspect-video w-full max-w-[720px] overflow-hidden rounded-lg2 bg-gradient-to-br from-mint-pale to-white shadow-card">
-        <video
-          className="h-full w-full object-cover"
-          poster="/hero-transformation-poster.jpg"
-          autoPlay
-          muted
-          loop
-          playsInline
-        >
-          <source src="/hero-transformation.mp4" type="video/mp4" />
-        </video>
+        <HeroVideoShuffle />
       </div>
     </section>
   );
