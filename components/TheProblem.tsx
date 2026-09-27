@@ -9,6 +9,16 @@
 // photorealistic (not illustrated/cartoon) scene with Indian characters,
 // shot with real-camera framing, in a premium salon/barbershop/home
 // setting, matching its question.
+//
+// 27.09.2026 (later same day): sized the images up (320px -> 420px max
+// width, section max-width widened to match) so facial expressions read
+// clearly instead of shrinking to a thumbnail. Added a small line+dot
+// connector between each image and its question — a thin vertical line on
+// mobile (stacked layout) and a thin horizontal line on desktop (side by
+// side layout) — so the pairing between photo and problem is visually
+// obvious rather than relying on proximity alone. The connector sits as
+// the middle child between image and text, so it stays "between" them
+// automatically even on the alternating (image-left vs image-right) rows.
 
 import Image from "next/image";
 
@@ -40,6 +50,16 @@ const QUESTIONS = [
   },
 ];
 
+function Connector() {
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-1.5 py-1 md:flex-row md:gap-2 md:px-1">
+      <span className="h-7 w-px bg-gradient-to-b from-transparent via-lilac/70 to-lilac/70 md:h-px md:w-8 md:bg-gradient-to-r md:from-transparent md:via-lilac/70 md:to-lilac/70" />
+      <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-lilac" />
+      <span className="h-7 w-px bg-gradient-to-b from-lilac/70 via-lilac/70 to-transparent md:h-px md:w-8 md:bg-gradient-to-r md:from-lilac/70 md:via-lilac/70 md:to-transparent" />
+    </div>
+  );
+}
+
 export default function TheProblem() {
   return (
     <section id="problem" className="wrap py-16">
@@ -48,23 +68,24 @@ export default function TheProblem() {
         <h2>We&apos;ve all had these moments&hellip;</h2>
       </div>
 
-      <div className="mx-auto flex max-w-[860px] flex-col gap-12">
+      <div className="mx-auto flex max-w-[980px] flex-col gap-12">
         {QUESTIONS.map((q, i) => {
           const imageFirst = i % 2 === 0;
           return (
             <div
               key={q.text}
-              className={`flex flex-col items-center gap-6 md:flex-row ${imageFirst ? "" : "md:flex-row-reverse"}`}
+              className={`flex flex-col items-center gap-2 md:flex-row md:gap-2 ${imageFirst ? "" : "md:flex-row-reverse"}`}
             >
-              <div className="aspect-[4/3] w-full max-w-[320px] shrink-0 overflow-hidden rounded-lg2 bg-gradient-to-br from-mint-pale to-white shadow-card">
+              <div className="aspect-[4/3] w-full max-w-[420px] shrink-0 overflow-hidden rounded-lg2 bg-gradient-to-br from-mint-pale to-white shadow-card">
                 <Image
                   src={q.image}
                   alt={q.alt}
-                  width={480}
-                  height={360}
+                  width={560}
+                  height={420}
                   className="h-full w-full object-cover"
                 />
               </div>
+              <Connector />
               <p className="text-center text-[19px] font-semibold leading-[1.4] text-ink-heading md:text-left">
                 {q.text}
               </p>
