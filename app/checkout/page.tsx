@@ -13,12 +13,19 @@
 // Reuses the same per-browser demo user id UploadFlow.tsx already
 // establishes (tressform_mock_user_id), so a single demo session's free
 // previews, generations, and purchases all tie back to one identity.
+//
+// 09.10.2026 (real sign-in): with a real database connected, the buyer
+// must be logged in (the Pay button becomes "Log in to continue" and brings
+// them straight back here), requests carry their login token, and if the
+// server reports that payments aren't switched on yet the page says so
+// instead of showing a raw error.
 
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PACK_TIERS, calculatePackPnl, paiseToRupees, type PackTier, isEarlyBirdActive } from "@/lib/pricing";
+import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
@@ -26,19 +33,6 @@ declare global {
   interface Window {
     Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
   }
-}
-
-function getUserId(): string {
-  if (typeof window === "undefined") return "ssr-user";
-  const existing = window.localStorage?.getItem("tressform_mock_user_id");
-  if (existing) return existing;
-  const id = `demo_${Math.random().toString(36).slice(2, 10)}`;
-  try {
-    window.localStorage?.setItem("tressform_mock_user_id", id);
-  } catch {
-    /* private browsing / storage blocked — fine, just not persisted */
-  }
-  return id;
 }
 
 function loadRazorpayScript(): Promise<boolean> {
@@ -59,6 +53,8 @@ function CheckoutContent() {
 
   const [status, setStatus] = useState<"idle" | "paying" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const { session, loading: sessionLoading } = useSession();
+  const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
 
   const validTier = SELLABLE_TIERS.includes(tierParam) ? tierParam : null;
 
@@ -71,13 +67,17 @@ function CheckoutContent() {
     setError(null);
 
     try {
-      const userId = getUserId();
+      const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
       const createRes = await fetch("/api/payment/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, tier: validTier }),
+        headers,
+        body: JSON.stringify(SUPABASE_MOCK_MODE ? { userId: getMockUserId(), tier: validTier } : { tier: validTier }),
       });
       const createData = await createRes.json();
+      if (createRes.status === 401) {
+        window.location.assign(loginUrl(`/checkout?tier=${validTier}`));
+        return;
+      }
       if (!createRes.ok) throw new Error(createData.error || "Could not start checkout.");
 
       const { orderId, razorpayOrderId, amountPaise, keyId, mockMode } = createData;
@@ -85,7 +85,7 @@ function CheckoutContent() {
       if (mockMode) {
         const verifyRes = await fetch("/api/payment/verify", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             orderId,
             razorpayOrderId,
@@ -117,7 +117,8 @@ function CheckoutContent() {
           try {
             const verifyRes = await fetch("/api/payment/verify", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              // Fresh token: the customer may have spent a while in the widget.
+              headers: { "Content-Type": "application/json", ...(await authHeaders()) },
               body: JSON.stringify({
                 orderId,
                 razorpayOrderId: response.razorpay_order_id,
@@ -198,9 +199,15 @@ function CheckoutContent() {
           <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
         )}
 
-        <button className="btn-primary w-full" disabled={status === "paying"} onClick={handlePay}>
-          {status === "paying" ? "Processing…" : `Pay ₹${paiseToRupees(pnl.pricePaise).split(".")[0]}`}
-        </button>
+        {needsLogin ? (
+          <a href={loginUrl(`/checkout?tier=${validTier}`)} className="btn-primary w-full">
+            Log in to continue
+          </a>
+        ) : (
+          <button className="btn-primary w-full" disabled={status === "paying" || sessionLoading} onClick={handlePay}>
+            {status === "paying" ? "Processing…" : `Pay ₹${paiseToRupees(pnl.pricePaise).split(".")[0]}`}
+          </button>
+        )}
 
         <p className="mt-4 text-center text-[12px] text-ink-muted">
           Payments are processed securely by Razorpay. See our{" "}

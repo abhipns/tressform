@@ -8,6 +8,12 @@
 // Only STARTER and STYLE are sellable right now — FULL_EXPLORE is shown
 // "🔒 Not yet available" in Pricing.tsx, so this route rejects it too,
 // rather than letting a direct API call buy a pack the UI itself blocks.
+//
+// 09.10.2026 (real sign-in): in real mode the buyer is identified from
+// their login token, not the request body. And one safety rule: when a real
+// database is connected but Razorpay is still in mock mode, this route
+// refuses to create orders at all — otherwise the mock "payment" (which
+// accepts any signature) would mark real orders PAID for free.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -18,15 +24,14 @@ import {
   type PackTier,
   type AddonKind,
 } from "@/lib/pricing";
-import { createOrder as createRazorpayOrder } from "@/lib/integrations/razorpay";
+import { createOrder as createRazorpayOrder, RAZORPAY_MOCK_MODE } from "@/lib/integrations/razorpay";
 import { mockStore } from "@/lib/mockStore";
-
-const SUPABASE_MOCK_MODE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
 interface CreateOrderBody {
-  userId?: string;
+  userId?: string; // mock mode only — ignored when a real project is connected
   tier?: PackTier;
   addonKind?: AddonKind;
   addonPhotoCount?: number;
@@ -40,9 +45,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { userId, tier, addonKind, addonPhotoCount } = body;
+  const { tier, addonKind, addonPhotoCount } = body;
 
-  if (!userId) return NextResponse.json({ error: "userId is required." }, { status: 400 });
+  if (!SUPABASE_MOCK_MODE && RAZORPAY_MOCK_MODE) {
+    return NextResponse.json({ error: "Payments aren't switched on yet — please check back soon.", paymentsOff: true }, { status: 503 });
+  }
+
+  const auth = await requireUser(req, body.userId);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const userId = auth.userId;
 
   const isAddon = Boolean(addonKind);
   if (!tier && !isAddon) {

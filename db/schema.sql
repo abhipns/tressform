@@ -354,3 +354,103 @@ create policy carousel_sessions_public_select on carousel_sessions for select us
 create policy carousel_photos_public_select on carousel_photos for select using (
   exists (select 1 from carousel_sessions cs where cs.id = session_id and cs.is_active = true)
 );
+
+-- ============================================================================
+-- 09.10.2026 — additions applied when the real Supabase project was set up
+-- (real sign-in work). Everything below is ALREADY in the live database; it
+-- is recorded here so this file stays a complete description of it. On a
+-- brand-new project, run this whole file top to bottom once.
+-- ============================================================================
+
+-- A profile row is created automatically for every new sign-up (email or
+-- Google). Without this, photos/orders can't be saved for a new customer,
+-- because they all reference profiles(id).
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.profiles (id, email)
+  values (new.id, new.email)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+-- Customers may edit only their own name and phone. The original
+-- "profiles_update_own" policy let a signed-in customer update ANY column of
+-- their own row from the browser — including role, credit_balance_paise and
+-- free_previews_used.
+drop policy if exists profiles_update_own on public.profiles;
+create policy profiles_update_own on public.profiles for update
+  using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
+revoke insert, update, delete on public.profiles from anon, authenticated;
+grant update (full_name, phone) on public.profiles to authenticated;
+
+-- photos / style_results are written by the server (service role) only.
+-- Customers can read their own, and delete their own photos.
+drop policy if exists photos_owner_all on public.photos;
+drop policy if exists photos_owner_select on public.photos;
+drop policy if exists photos_owner_delete on public.photos;
+create policy photos_owner_select on public.photos for select using (user_id = (select auth.uid()));
+create policy photos_owner_delete on public.photos for delete using (user_id = (select auth.uid()));
+drop policy if exists style_results_owner_all on public.style_results;
+drop policy if exists style_results_owner_select on public.style_results;
+create policy style_results_owner_select on public.style_results for select using (user_id = (select auth.uid()));
+drop policy if exists salons_manage_own on public.salons;
+drop policy if exists salons_update_own on public.salons;
+create policy salons_update_own on public.salons for update
+  using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+create index if not exists idx_style_results_photo on public.style_results (photo_id);
+
+-- Referral credit top-up, called by app/api/payment/verify (server only).
+create or replace function public.increment_credit_balance(profile_id uuid, amount_paise integer)
+returns void
+language sql
+set search_path = ''
+as $$
+  update public.profiles
+     set credit_balance_paise = credit_balance_paise + amount_paise
+   where id = profile_id;
+$$;
+revoke execute on function public.increment_credit_balance(uuid, integer) from public, anon, authenticated;
+grant execute on function public.increment_credit_balance(uuid, integer) to service_role;
+
+-- Storage buckets: customer photos and generated results are PRIVATE;
+-- carousel images are public. Each customer's files live under a folder
+-- named with their own user id.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values
+  ('photos',   'photos',   false, 10485760, array['image/jpeg','image/png','image/webp']),
+  ('results',  'results',  false, 10485760, array['image/jpeg','image/png','image/webp']),
+  ('carousel', 'carousel', true,  10485760, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
+
+drop policy if exists "photos owner read" on storage.objects;
+drop policy if exists "photos owner upload" on storage.objects;
+drop policy if exists "photos owner delete" on storage.objects;
+drop policy if exists "results owner read" on storage.objects;
+create policy "photos owner read" on storage.objects for select to authenticated
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy "photos owner upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy "photos owner delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy "results owner read" on storage.objects for select to authenticated
+  using (bucket_id = 'results' and (storage.foldername(name))[1] = (select auth.uid())::text);

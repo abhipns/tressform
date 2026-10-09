@@ -20,13 +20,17 @@
 // but a production build should also add a webhook route
 // (verifyWebhookSignature in lib/integrations/razorpay.ts is already there
 // for it) so a payment can't be marked paid purely by a client call.
+//
+// 09.10.2026 (real sign-in): in real mode the caller must be logged in and
+// must own the order; an order that is already PAID is acknowledged without
+// settling referral credit a second time; and — same rule as create-order —
+// nothing is confirmed while Razorpay itself is still in mock mode.
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPaymentSignature } from "@/lib/integrations/razorpay";
+import { verifyPaymentSignature, RAZORPAY_MOCK_MODE } from "@/lib/integrations/razorpay";
 import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/pricing";
 import { mockStore } from "@/lib/mockStore";
-
-const SUPABASE_MOCK_MODE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 interface VerifyBody {
   orderId?: string;
@@ -44,6 +48,16 @@ export async function POST(req: NextRequest) {
   }
 
   const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = body;
+
+  let callerId: string | null = null;
+  if (!SUPABASE_MOCK_MODE) {
+    if (RAZORPAY_MOCK_MODE) {
+      return NextResponse.json({ error: "Payments aren't switched on yet — please check back soon.", paymentsOff: true }, { status: 503 });
+    }
+    const auth = await requireUser(req);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    callerId = auth.userId;
+  }
 
   if (!orderId || !razorpayOrderId || !razorpayPaymentId) {
     return NextResponse.json(
@@ -91,9 +105,15 @@ export async function POST(req: NextRequest) {
   const admin = getSupabaseAdmin();
 
   const { data: order, error: fetchError } = await admin.from("orders").select("*").eq("id", orderId).single();
-  if (fetchError || !order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  if (fetchError || !order || order.user_id !== callerId) {
+    return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  }
   if (order.razorpay_order_id !== razorpayOrderId) {
     return NextResponse.json({ error: "Order/payment mismatch." }, { status: 400 });
+  }
+  if (order.status === "PAID") {
+    // Already confirmed (double click, page refresh) — don't settle twice.
+    return NextResponse.json({ mockMode: false, success: true, orderId, status: "PAID" });
   }
 
   const { error: updateError } = await admin

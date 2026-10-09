@@ -26,9 +26,15 @@
 // Quick Checkout is gone everywhere (Open Conflict #3, already confirmed)
 // — replaced by "Get Started" as the header CTA, matching the Hero's
 // "Try It Free" language elsewhere on the page.
+//
+// 09.10.2026: "Log in" now reflects the real session — once a customer is
+// signed in it becomes "Log out" (same two places: the sm+ header link and
+// the mobile ☰ menu). Mock mode has no sessions, so it always shows Log in.
 
 import { useState } from "react";
 import Logo from "./Logo";
+import { supabase } from "@/lib/supabaseClient";
+import { useSession } from "@/lib/authClient";
 
 const DIRECT_LINKS = [
   { href: "#how", label: "How It Works" },
@@ -45,6 +51,13 @@ const MENU_LINKS = [
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { session } = useSession();
+
+  async function handleLogout() {
+    setMenuOpen(false);
+    await supabase.auth.signOut();
+    window.location.assign("/");
+  }
 
   return (
     <header className="sticky top-0 z-[100] border-b border-white/[0.06] bg-gradient-to-b from-header-dark to-header-dark-2">
@@ -68,9 +81,20 @@ export default function Header() {
             ▶ Android
           </a>
 
-          <a href="/login" className="hidden text-[14.5px] font-medium text-white/85 hover:text-white sm:inline">
-            Log in
-          </a>
+          {session ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              title={session.user.email ?? undefined}
+              className="hidden text-[14.5px] font-medium text-white/85 hover:text-white sm:inline"
+            >
+              Log out
+            </button>
+          ) : (
+            <a href="/login" className="hidden text-[14.5px] font-medium text-white/85 hover:text-white sm:inline">
+              Log in
+            </a>
+          )}
 
           <a href="#upload" className="btn-primary rounded-full !py-2.5 !px-5 text-[14.5px]">
             Get Started
@@ -122,9 +146,19 @@ export default function Header() {
                 </span>
 
                 <div className="my-1.5 h-px bg-white/10 sm:hidden" />
-                <a href="/login" className="block px-4 py-2 text-[14px] text-white/80 hover:bg-white/5 hover:text-white sm:hidden">
-                  Log in
-                </a>
+                {session ? (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="block w-full px-4 py-2 text-left text-[14px] text-white/80 hover:bg-white/5 hover:text-white sm:hidden"
+                  >
+                    Log out
+                  </button>
+                ) : (
+                  <a href="/login" className="block px-4 py-2 text-[14px] text-white/80 hover:bg-white/5 hover:text-white sm:hidden">
+                    Log in
+                  </a>
+                )}
               </div>
             )}
           </div>

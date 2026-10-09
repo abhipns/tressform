@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import ProductRecommendations from "@/components/results/ProductRecommendations";
 import { paiseToRupees } from "@/lib/pricing";
+import { authHeaders, loginUrl } from "@/lib/authClient";
 
 interface OrderSummary {
   id: string;
@@ -32,8 +33,14 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/payment/order/${params.orderId}`);
+        // 09.10.2026: orders are private to their owner once a real database
+        // is connected, so send the login token and bounce to /login without one.
+        const res = await fetch(`/api/payment/order/${params.orderId}`, { headers: await authHeaders() });
         const data = await res.json();
+        if (res.status === 401) {
+          window.location.assign(loginUrl(`/results/${params.orderId}`));
+          return;
+        }
         if (!res.ok) throw new Error(data.error || "Order not found.");
         if (!cancelled) setOrder(data.order);
       } catch (err) {

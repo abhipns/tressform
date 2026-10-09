@@ -14,21 +14,32 @@
 //   - SUPABASE_MOCK_MODE (lib/supabaseClient.ts): whether the resulting
 //     photo row is persisted to a real Supabase project or kept in
 //     lib/mockStore.ts for this process's lifetime only.
+//
+// 09.10.2026 (real sign-in): in real mode the caller is identified from
+// their login token (lib/serverAuth.ts), never from the request body, and
+// the photo arrives as a path in the private "photos" storage bucket that
+// the browser has already uploaded to — not as a data: URL. The path must
+// sit inside the caller's own folder ("<their user id>/…").
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { detectFace } from "@/lib/integrations/rekognition";
 import { classifyFaceShape } from "@/lib/faceShape";
 import { mockStore } from "@/lib/mockStore";
+import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
-// Mirrors lib/supabaseClient.ts's own check — see app/api/admin/carousel/route.ts
-// for why this route doesn't import that module directly.
-const SUPABASE_MOCK_MODE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SIGNED_URL_SECONDS = 600;
 
 interface AnalyzeBody {
-  userId?: string;
+  userId?: string; // mock mode only — ignored when a real project is connected
   consentGiven?: boolean;
-  photoUrl?: string; // data: URL from the browser's FileReader, or a Supabase Storage URL once upload is wired client-side
+  photoUrl?: string; // mock mode: data: URL of the (browser-shrunk) front photo
+  storagePath?: string; // real mode: front photo's path in the "photos" bucket
+  extraPaths?: string[]; // real mode: the left/right photos, same folder
+}
+
+function ownsPath(path: unknown, userId: string): path is string {
+  return typeof path === "string" && path.startsWith(`${userId}/`) && !path.includes("..");
 }
 
 export async function POST(req: NextRequest) {
@@ -39,10 +50,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { userId, consentGiven, photoUrl } = body;
+  const { consentGiven, photoUrl, storagePath, extraPaths } = body;
 
-  if (!userId) return NextResponse.json({ error: "userId is required." }, { status: 400 });
-  if (!photoUrl) return NextResponse.json({ error: "photoUrl is required — upload a photo first." }, { status: 400 });
+  const auth = await requireUser(req, body.userId);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const userId = auth.userId;
+
+  if (SUPABASE_MOCK_MODE && !photoUrl) {
+    return NextResponse.json({ error: "photoUrl is required — upload a photo first." }, { status: 400 });
+  }
+  if (!SUPABASE_MOCK_MODE) {
+    if (!ownsPath(storagePath, userId) || (extraPaths ?? []).some((p) => !ownsPath(p, userId))) {
+      return NextResponse.json({ error: "We couldn't find your uploaded photos — please upload them again." }, { status: 400 });
+    }
+  }
   if (!consentGiven) {
     return NextResponse.json(
       { error: "Consent is required before we can analyze your photos." },
@@ -50,9 +71,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // What face detection reads: the data: URL in mock mode, or a short-lived
+  // signed link to the private file in real mode (which also proves the
+  // file really exists before we record it).
+  let imageForDetection = photoUrl ?? "";
+  if (!SUPABASE_MOCK_MODE) {
+    const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
+    const { data: signed, error: signError } = await getSupabaseAdmin()
+      .storage.from("photos")
+      .createSignedUrl(storagePath!, SIGNED_URL_SECONDS);
+    if (signError || !signed?.signedUrl) {
+      return NextResponse.json({ error: "We couldn't find your uploaded photos — please upload them again." }, { status: 400 });
+    }
+    imageForDetection = signed.signedUrl;
+  }
+
   let detection;
   try {
-    detection = await detectFace(photoUrl);
+    detection = await detectFace(imageForDetection);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Face detection failed." },
@@ -73,7 +109,7 @@ export async function POST(req: NextRequest) {
     const photo = mockStore.addPhoto({
       id: randomUUID(),
       userId,
-      storagePath: photoUrl,
+      storagePath: photoUrl!,
       faceShape: classification.faceShape,
       faceShapeConfidence: classification.confidence,
       rekognitionRaw: detection.raw,
@@ -90,16 +126,14 @@ export async function POST(req: NextRequest) {
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
 
-  // Real mode still stores the incoming data: URL directly in storage_path
-  // for now — uploading it to Supabase Storage first (and swapping this for
-  // the resulting object path) is a separate, small follow-up once a real
-  // project is connected; the row shape below already matches db/schema.sql
-  // so that swap won't require a migration.
+  // One row per analysis, pointing at the FRONT photo (the one face
+  // detection ran on). The left/right photos live beside it in the same
+  // storage folder, so they can be found from this path when needed.
   const { data: photo, error } = await admin
     .from("photos")
     .insert({
       user_id: userId,
-      storage_path: photoUrl,
+      storage_path: storagePath,
       face_shape: classification.faceShape,
       face_shape_confidence: classification.confidence,
       rekognition_raw: detection.raw,

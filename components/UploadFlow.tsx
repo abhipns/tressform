@@ -27,8 +27,24 @@
 // same as the old lookGoal/stylePref fields — the /api/generate payload
 // doesn't carry them yet (see handleSubmit), matching the previous
 // implementation's actual behaviour, not a regression.
+//
+// 09.10.2026: real sign-in. When a real Supabase project is connected:
+//   - a customer must be logged in before uploading (free previews are
+//     counted per account, so there is nothing useful to do anonymously) —
+//     logged-out visitors see a "Log in to start" card instead of the
+//     upload frames;
+//   - the three photos are uploaded to the PRIVATE "photos" storage bucket
+//     under the customer's own folder, and the API routes receive the
+//     storage path + the customer's login token instead of a raw image and
+//     a browser-made id.
+// Every photo is also shrunk in the browser first (longest side 1600px,
+// JPEG) — phone photos are routinely 5–10MB, which is slow to upload and
+// over the request-size limit of the hosting platform. Mock mode (no
+// Supabase env vars) behaves exactly as before, just with smaller images.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
@@ -47,6 +63,37 @@ const OPTIONS = [
 const STYLE_NAMES = ["Textured Quiff — Low Taper", "Classic Crop — Mid Fade", "Curl Definition Crop"];
 
 const SLOT_LABEL: Record<Slot, string> = { front: "Front", left: "Left", right: "Right" };
+
+const MAX_SIDE_PX = 1600;
+const JPEG_QUALITY = 0.85;
+
+/** Shrink a photo in the browser and re-encode it as JPEG. */
+async function shrinkPhoto(file: File): Promise<{ dataUrl: string; blob: Blob }> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("unreadable"));
+      el.src = objectUrl;
+    });
+    const scale = Math.min(1, MAX_SIDE_PX / Math.max(img.naturalWidth, img.naturalHeight));
+    const width = Math.max(1, Math.round(img.naturalWidth * scale));
+    const height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no-canvas");
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode"))), "image/jpeg", JPEG_QUALITY)
+    );
+    return { dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY), blob };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 function CameraIcon() {
   return (
@@ -69,21 +116,17 @@ export default function UploadFlow() {
   const [faceShape, setFaceShape] = useState<string | null>(null);
   const [results, setResults] = useState<{ styleName: string; imageUrl: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [samplePreviews, setSamplePreviews] = useState(false);
+  // The shrunk JPEGs that actually get uploaded (photos{} above only holds
+  // their data: URLs, for the on-screen previews).
+  const blobs = useRef<Record<Slot, Blob | null>>({ front: null, left: null, right: null });
 
-  // One mock user id per browser session, so repeated visits exercise the
-  // free-preview cap the same way a real logged-in user would.
-  const userId = useMemo(() => {
-    if (typeof window === "undefined") return "ssr-user";
-    const existing = window.localStorage?.getItem("tressform_mock_user_id");
-    if (existing) return existing;
-    const id = `demo_${Math.random().toString(36).slice(2, 10)}`;
-    try {
-      window.localStorage?.setItem("tressform_mock_user_id", id);
-    } catch {
-      /* private browsing / storage blocked — fine, just not persisted */
-    }
-    return id;
-  }, []);
+  const { session, loading: sessionLoading } = useSession();
+  const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
+
+  // Mock mode only: one demo id per browser, so repeated visits exercise
+  // the free-preview cap the same way a real logged-in user would.
+  const mockUserId = useMemo(() => getMockUserId(), []);
 
   const allUploaded = photos.front && photos.left && photos.right;
   const canSubmit = allUploaded && consent;
@@ -121,22 +164,61 @@ export default function UploadFlow() {
     );
   }
 
-  function handleFile(slot: Slot, file: File) {
-    const reader = new FileReader();
-    reader.onload = (e) => setPhotos((prev) => ({ ...prev, [slot]: e.target?.result as string }));
-    reader.readAsDataURL(file);
+  async function handleFile(slot: Slot, file: File) {
+    setError(null);
+    try {
+      const { dataUrl, blob } = await shrinkPhoto(file);
+      blobs.current[slot] = blob;
+      setPhotos((prev) => ({ ...prev, [slot]: dataUrl }));
+    } catch {
+      setError("We couldn't read that photo. Please try a JPG or PNG image.");
+    }
+  }
+
+  /** Real mode: put the three photos in the customer's private storage folder. */
+  async function uploadToStorage(userId: string): Promise<Record<Slot, string>> {
+    const batch = crypto.randomUUID();
+    const paths = {} as Record<Slot, string>;
+    for (const slot of ["front", "left", "right"] as Slot[]) {
+      const blob = blobs.current[slot];
+      if (!blob) throw new Error("Please add all three photos first.");
+      const path = `${userId}/${batch}/${slot}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("photos")
+        .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+      if (uploadError) {
+        throw new Error("We couldn't upload your photos. Please check your connection and try again.");
+      }
+      paths[slot] = path;
+    }
+    return paths;
   }
 
   async function handleSubmit() {
     setError(null);
+    setSamplePreviews(false);
     setStep("analyzing");
     try {
-      const analyzeRes = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, consentGiven: consent, photoUrl: photos.front }),
-      });
+      const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
+
+      let analyzeBody: Record<string, unknown>;
+      if (SUPABASE_MOCK_MODE) {
+        analyzeBody = { userId: mockUserId, consentGiven: consent, photoUrl: photos.front };
+      } else {
+        if (!session) {
+          window.location.assign(loginUrl("/#upload"));
+          return;
+        }
+        const paths = await uploadToStorage(session.user.id);
+        analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [paths.left, paths.right] };
+      }
+
+      const analyzeRes = await fetch("/api/analyze", { method: "POST", headers, body: JSON.stringify(analyzeBody) });
       const analyzeData = await analyzeRes.json();
+      if (analyzeRes.status === 401) {
+        window.location.assign(loginUrl("/#upload"));
+        return;
+      }
       if (!analyzeRes.ok) throw new Error(analyzeData.error || "Analysis failed.");
       setFaceShape(analyzeData.faceShape);
 
@@ -144,14 +226,18 @@ export default function UploadFlow() {
       for (const styleName of STYLE_NAMES) {
         const res = await fetch("/api/generate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId,
-            photoId: "demo-photo",
-            sourceImageUrl: photos.front,
-            styleName,
-            faceShape: analyzeData.faceShape,
-          }),
+          headers,
+          body: JSON.stringify(
+            SUPABASE_MOCK_MODE
+              ? {
+                  userId: mockUserId,
+                  photoId: "demo-photo",
+                  sourceImageUrl: photos.front,
+                  styleName,
+                  faceShape: analyzeData.faceShape,
+                }
+              : { photoId: analyzeData.photoId, styleName, faceShape: analyzeData.faceShape }
+          ),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -161,6 +247,7 @@ export default function UploadFlow() {
           break;
         }
         generated.push({ styleName, imageUrl: data.resultImageUrl });
+        if (data.samplePreview) setSamplePreviews(true);
       }
       setResults(generated);
       setStep("results");
@@ -177,7 +264,28 @@ export default function UploadFlow() {
           <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
         )}
 
-        {step === "capture" && (
+        {step === "capture" && sessionLoading && (
+          // Real mode only (mock mode never "loads"): hold the space for a
+          // moment while we check whether the visitor is already logged in,
+          // rather than flashing the upload frames and then swapping them out.
+          <div className="flex min-h-[220px] items-center justify-center">
+            <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
+          </div>
+        )}
+
+        {step === "capture" && needsLogin && (
+          <div className="mx-auto max-w-[460px] py-6 text-center">
+            <h3 className="mb-2 text-[22px]">Log in to get your free previews</h3>
+            <p className="mb-6 text-[14px] leading-[1.6] text-ink-muted">
+              It takes a few seconds. Your 2 free previews and your photos are kept safely in your own account.
+            </p>
+            <a href={loginUrl("/#upload")} className="btn-primary w-full">
+              Log in or create an account
+            </a>
+          </div>
+        )}
+
+        {step === "capture" && !sessionLoading && !needsLogin && (
           <div>
             <div className="mx-auto mb-2 max-w-[560px] text-center">
               <h3 className="mb-2 text-[22px]">Take 3 Selfies or Upload Your Photos</h3>
@@ -286,6 +394,12 @@ export default function UploadFlow() {
               <p className="text-[14.5px] text-ink-muted">
                 Based on your {faceShape ? faceShape.toLowerCase() : ""} face shape and preferences.
               </p>
+              {samplePreviews && !SUPABASE_MOCK_MODE && (
+                <p className="mt-3 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[12.5px] font-medium text-ink-muted">
+                  These are placeholder images while we finish switching on live previews — they don&apos;t use up
+                  your free previews.
+                </p>
+              )}
             </div>
             <div className="grid gap-5 sm:grid-cols-3">
               {results.map((r) => (
@@ -303,6 +417,8 @@ export default function UploadFlow() {
               onClick={() => {
                 setStep("capture");
                 setPhotos({ front: null, left: null, right: null });
+                blobs.current = { front: null, left: null, right: null };
+                setSamplePreviews(false);
                 setConsent(false);
                 setResults([]);
                 setError(null);

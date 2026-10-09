@@ -1,17 +1,17 @@
 // GET /api/payment/order/[orderId] — lets app/results/[orderId]/page.tsx
 // (a client component) fetch the order it should be confirming, instead of
 // reaching into lib/mockStore.ts directly from a page that also needs to
-// run against a real Supabase project. Read-only, no auth check yet — same
-// "no role/session system wired up" caveat as the rest of this codebase
-// (see app/api/admin/carousel/route.ts's header comment).
+// run against a real Supabase project. Read-only.
+//
+// 09.10.2026 (real sign-in): in real mode only the logged-in owner of an
+// order can read it — anyone else gets the same "not found" as a wrong id.
 
 import { NextRequest, NextResponse } from "next/server";
 import { mockStore } from "@/lib/mockStore";
 import { PACK_TIERS, type PackTier } from "@/lib/pricing";
+import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
-const SUPABASE_MOCK_MODE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-export async function GET(_req: NextRequest, { params }: { params: { orderId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { orderId: string } }) {
   const { orderId } = params;
 
   if (SUPABASE_MOCK_MODE) {
@@ -36,10 +36,15 @@ export async function GET(_req: NextRequest, { params }: { params: { orderId: st
     });
   }
 
+  const auth = await requireUser(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
-  const { data: order, error } = await admin.from("orders").select("*").eq("id", orderId).single();
-  if (error || !order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  const { data: order, error } = await admin.from("orders").select("*").eq("id", orderId).maybeSingle();
+  if (error || !order || order.user_id !== auth.userId) {
+    return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  }
 
   return NextResponse.json({
     mockMode: false,
