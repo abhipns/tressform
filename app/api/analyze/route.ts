@@ -4,15 +4,14 @@
 //
 // Flow (per spec Part H, "our stack"): AWS Rekognition DetectFaces for
 // landmarks (lib/integrations/rekognition.ts) → our own classifier turns
-// those landmarks into a face shape (lib/faceShape.ts, currently the
-// placeholder heuristic — see that file's header for the real-model plan).
+// those landmarks into a face shape (lib/faceShape.ts — rule-based for now,
+// see that file's header for the trained-model plan).
 //
 // Mock mode is two independent layers, same as the rest of the app:
 //   - REKOGNITION_MOCK_MODE (lib/integrations/rekognition.ts): fakes the AWS
-//     call when REKOGNITION_AWS_* env vars are absent. Runs the SAME either
-//     way — this route never branches on it directly.
-//   - SUPABASE_MOCK_MODE (lib/supabaseClient.ts): whether the resulting
-//     photo row is persisted to a real Supabase project or kept in
+//     call when REKOGNITION_AWS_* env vars are absent.
+//   - SUPABASE_MOCK_MODE (lib/serverAuth.ts): whether the resulting photo
+//     row is persisted to a real Supabase project or kept in
 //     lib/mockStore.ts for this process's lifetime only.
 //
 // 09.10.2026 (real sign-in): in real mode the caller is identified from
@@ -20,15 +19,30 @@
 // the photo arrives as a path in the private "photos" storage bucket that
 // the browser has already uploaded to — not as a data: URL. The path must
 // sit inside the caller's own folder ("<their user id>/…").
+//
+// 09.10.2026 (real face analysis): the server now reads the photo's actual
+// bytes (from private storage) and sends those to Rekognition, turns a
+// photo we can't use into a specific, fixable message ("more than one
+// face", "take off your sunglasses", …) instead of a wrong answer, deletes
+// the uploaded files when a photo is turned away, and stores the
+// classifier's measurements alongside the result so its thresholds can be
+// tuned from real photos.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { detectFace } from "@/lib/integrations/rekognition";
+import {
+  detectFace,
+  toImageBytes,
+  MOCK_IMAGE_SIZE,
+  REKOGNITION_MOCK_MODE,
+  type DetectFaceResult,
+} from "@/lib/integrations/rekognition";
 import { classifyFaceShape } from "@/lib/faceShape";
+import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
-const SIGNED_URL_SECONDS = 600;
+const NOT_FOUND_MESSAGE = "We couldn't find your uploaded photos — please upload them again.";
 
 interface AnalyzeBody {
   userId?: string; // mock mode only — ignored when a real project is connected
@@ -40,6 +54,26 @@ interface AnalyzeBody {
 
 function ownsPath(path: unknown, userId: string): path is string {
   return typeof path === "string" && path.startsWith(`${userId}/`) && !path.includes("..");
+}
+
+/** Why this front photo can't be analysed — or null if it's fine. */
+function photoProblem(d: DetectFaceResult): string | null {
+  if (!d.faceDetected) {
+    return "We couldn't detect a face in that photo — try a clearer, front-facing shot.";
+  }
+  if (d.faceCount > 1) {
+    return "We found more than one face in your Front photo — please use a photo of just you.";
+  }
+  if (d.sunglasses) {
+    return "Please take off your sunglasses for the Front photo — we need to see your whole face.";
+  }
+  if (d.boundingBox.height < 0.12) {
+    return "Your face is too small in the Front photo — please move closer to the camera.";
+  }
+  if (d.pose && (Math.abs(d.pose.yaw) > 25 || Math.abs(d.pose.pitch) > 25)) {
+    return "Please look straight at the camera for the Front photo — your head is turned or tilted.";
+  }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -61,7 +95,7 @@ export async function POST(req: NextRequest) {
   }
   if (!SUPABASE_MOCK_MODE) {
     if (!ownsPath(storagePath, userId) || (extraPaths ?? []).some((p) => !ownsPath(p, userId))) {
-      return NextResponse.json({ error: "We couldn't find your uploaded photos — please upload them again." }, { status: 400 });
+      return NextResponse.json({ error: NOT_FOUND_MESSAGE }, { status: 400 });
     }
   }
   if (!consentGiven) {
@@ -71,48 +105,72 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // What face detection reads: the data: URL in mock mode, or a short-lived
-  // signed link to the private file in real mode (which also proves the
-  // file really exists before we record it).
-  let imageForDetection = photoUrl ?? "";
-  if (!SUPABASE_MOCK_MODE) {
-    const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
-    const { data: signed, error: signError } = await getSupabaseAdmin()
-      .storage.from("photos")
-      .createSignedUrl(storagePath!, SIGNED_URL_SECONDS);
-    if (signError || !signed?.signedUrl) {
-      return NextResponse.json({ error: "We couldn't find your uploaded photos — please upload them again." }, { status: 400 });
-    }
-    imageForDetection = signed.signedUrl;
+  const admin = SUPABASE_MOCK_MODE ? null : (await import("@/lib/supabaseClient")).getSupabaseAdmin();
+
+  /** Real mode: a photo we're turning away shouldn't be left sitting in storage. */
+  async function discardUploads() {
+    if (!admin) return;
+    const paths = [storagePath!, ...(extraPaths ?? [])];
+    const { error } = await admin.storage.from("photos").remove(paths);
+    if (error) console.error("[Tressform] Could not remove rejected uploads:", error.message);
   }
 
-  let detection;
+  // The front photo's bytes: from private storage in real mode (which also
+  // proves the file exists), or from the data: URL in mock mode. Mock-mode
+  // face detection never reads them, so they're only decoded when needed.
+  let bytes: Uint8Array | null = null;
   try {
-    detection = await detectFace(imageForDetection);
+    if (admin) {
+      const { data: file, error: downloadError } = await admin.storage.from("photos").download(storagePath!);
+      if (downloadError || !file) {
+        return NextResponse.json({ error: NOT_FOUND_MESSAGE }, { status: 400 });
+      }
+      bytes = new Uint8Array(await file.arrayBuffer());
+    } else if (!REKOGNITION_MOCK_MODE) {
+      bytes = await toImageBytes(photoUrl!);
+    }
+  } catch {
+    return NextResponse.json({ error: "We couldn't read that photo — please try another one." }, { status: 400 });
+  }
+
+  let detection: DetectFaceResult;
+  try {
+    detection = await detectFace(bytes ?? photoUrl!);
   } catch (err) {
+    await discardUploads();
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Face detection failed." },
       { status: 502 }
     );
   }
 
-  if (!detection.faceDetected) {
-    return NextResponse.json(
-      { error: "We couldn't detect a face in that photo — try a clearer, front-facing shot." },
-      { status: 422 }
-    );
+  const problem = photoProblem(detection);
+  if (problem) {
+    await discardUploads();
+    return NextResponse.json({ error: problem }, { status: 422 });
   }
 
-  const classification = classifyFaceShape(detection);
+  const imageSize = detection.mock ? MOCK_IMAGE_SIZE : bytes ? readImageSize(bytes) : null;
+  const classification = classifyFaceShape(detection, imageSize);
 
-  if (SUPABASE_MOCK_MODE) {
+  // Stored with the photo for audit and for tuning the classifier later.
+  const analysisRecord = {
+    ...detection.raw,
+    tressform: {
+      classifier: classification.version,
+      features: classification.features,
+      imageSize,
+    },
+  };
+
+  if (!admin) {
     const photo = mockStore.addPhoto({
       id: randomUUID(),
       userId,
       storagePath: photoUrl!,
       faceShape: classification.faceShape,
       faceShapeConfidence: classification.confidence,
-      rekognitionRaw: detection.raw,
+      rekognitionRaw: analysisRecord,
       createdAt: new Date().toISOString(),
     });
     return NextResponse.json({
@@ -122,9 +180,6 @@ export async function POST(req: NextRequest) {
       confidence: classification.confidence,
     });
   }
-
-  const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
-  const admin = getSupabaseAdmin();
 
   // One row per analysis, pointing at the FRONT photo (the one face
   // detection ran on). The left/right photos live beside it in the same
@@ -136,7 +191,7 @@ export async function POST(req: NextRequest) {
       storage_path: storagePath,
       face_shape: classification.faceShape,
       face_shape_confidence: classification.confidence,
-      rekognition_raw: detection.raw,
+      rekognition_raw: analysisRecord,
     })
     .select()
     .single();

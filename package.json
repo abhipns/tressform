@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.1148.0",
     "@supabase/supabase-js": "^2.45.4",
     "next": "^14.2.15",
     "react": "^18.3.1",
