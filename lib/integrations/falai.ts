@@ -54,6 +54,8 @@ export interface GenerateHairstyleParams {
   sourceImageUrl: string; // a link FAL can open: a signed storage URL, or a data: URL
   styleName: string; // e.g. "Textured Quiff — Low Taper"
   faceShape?: string | null;
+  /** From face analysis: tells the model what to do about facial hair instead of leaving it to guess. */
+  facialHair?: "beard" | "moustache" | "clean" | null;
   addonKind?: "BACKGROUND" | "OUTFIT" | null;
 }
 
@@ -84,16 +86,40 @@ export function describeStyle(styleName: string): string {
   return STYLE_DESCRIPTIONS[styleName] ?? styleName;
 }
 
-/** The instruction for the two editing models: change the hair, touch nothing else. */
+// 09.10.2026, after the first real previews: one of two came back with a
+// beard the customer doesn't have. The first version of this prompt said
+// "keep … any beard or moustache", and naming a beard is enough to make
+// these models paint one. The facial-hair line is now a plain statement of
+// fact taken from the face analysis.
+function facialHairLine(facialHair: GenerateHairstyleParams["facialHair"]): string {
+  switch (facialHair) {
+    case "clean":
+      return "They are clean-shaven: keep the face clean-shaven, with no beard, moustache or stubble added.";
+    case "beard":
+      return "Keep their beard and moustache exactly as they are now: the same length, shape and coverage.";
+    case "moustache":
+      return "Keep their moustache exactly as it is now and do not add a beard.";
+    default:
+      return "Do not add, remove or change any facial hair.";
+  }
+}
+
+/**
+ * The instruction for the two editing models: change the hair, keep the
+ * person. Also asks for a flattering, well-lit, sharp result (requested
+ * 09.10.2026) — but explicitly NOT by altering features, face shape or
+ * skin tone: the site promises a realistic preview, not a retouched one.
+ */
 export function buildEditPrompt(params: GenerateHairstyleParams): string {
   const shape = params.faceShape ? ` It should suit their ${params.faceShape.toLowerCase()} face shape.` : "";
   return (
     `Change only this person's hairstyle to ${describeStyle(params.styleName)}.${shape} ` +
-    "Keep everything else exactly as it is in the photo: the same person, face, facial features, skin tone, " +
-    "expression, any beard or moustache, head position, camera angle, clothing, background and lighting. " +
-    "Keep their natural hair colour. The new haircut must look photorealistic — like a real photograph taken " +
-    "just after a professional barber finished the cut, with natural hair texture and a realistic hairline. " +
-    "Do not add text, logos, watermarks, borders or other people."
+    `${facialHairLine(params.facialHair)} ` +
+    "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
+    "expression, head position, camera angle, clothing and background. Keep their natural hair colour. " +
+    "Make it a flattering, high-quality photograph: soft, even, natural light on the face, crisp focus and clean detail, " +
+    "with hair that looks neatly styled and freshly finished by a professional barber, natural hair texture and a " +
+    "realistic hairline. Do not add text, logos, watermarks, borders or other people."
   );
 }
 

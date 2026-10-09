@@ -120,16 +120,30 @@ export async function POST(req: NextRequest) {
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
 
-  // The photo must be one of the caller's own.
-  const { data: photo, error: photoError } = await admin
-    .from("photos")
-    .select("id, storage_path")
-    .eq("id", photoId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  // The photo must be one of the caller's own. Its row and the caller's
+  // profile are fetched together (09.10.2026: the server and database sit
+  // far apart, and doing these one after another was most of the wait).
+  const [{ data: photo, error: photoError }, { data: profile, error: profileError }] = await Promise.all([
+    admin
+      .from("photos")
+      .select("id, storage_path, face_shape, rekognition_raw")
+      .eq("id", photoId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+    admin.from("profiles").select("id, free_previews_used, free_previews_limit").eq("id", userId).maybeSingle(),
+  ]);
   if (photoError || !photo) {
     return NextResponse.json({ error: "We couldn't find that photo — please upload it again." }, { status: 404 });
   }
+
+  // What the analysis recorded about this photo — trusted over anything
+  // the browser sends.
+  const analysed = (photo.rekognition_raw as { tressform?: { facialHair?: unknown } } | null)?.tressform;
+  const facialHair =
+    analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean"
+      ? analysed.facialHair
+      : null;
+  const analysedFaceShape: string | null = photo.face_shape ?? faceShape ?? null;
 
   const { data: signed, error: signError } = await admin.storage
     .from("photos")
@@ -138,11 +152,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "We couldn't open that photo — please upload it again." }, { status: 404 });
   }
 
-  const { data: profile, error: profileError } = await admin
-    .from("profiles")
-    .select("id, free_previews_used, free_previews_limit")
-    .eq("id", userId)
-    .single();
   if (profileError || !profile) {
     console.error("[Tressform] No profile row for signed-in user", userId, profileError?.message);
     return NextResponse.json(
@@ -186,7 +195,12 @@ export async function POST(req: NextRequest) {
 
   let result;
   try {
-    result = await generateHairstyle({ sourceImageUrl: signed.signedUrl, styleName, faceShape });
+    result = await generateHairstyle({
+      sourceImageUrl: signed.signedUrl,
+      styleName,
+      faceShape: analysedFaceShape,
+      facialHair,
+    });
   } catch (err) {
     await giveBack();
     return NextResponse.json({ error: err instanceof Error ? err.message : "Generation failed." }, { status: 502 });

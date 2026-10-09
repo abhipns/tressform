@@ -41,13 +41,25 @@
 // JPEG) — phone photos are routinely 5–10MB, which is slow to upload and
 // over the request-size limit of the hosting platform. Mock mode (no
 // Supabase env vars) behaves exactly as before, just with smaller images.
+//
+// 09.10.2026 (speed, after the first real run took ~43s for two previews):
+//   - the three photos upload together instead of one after another;
+//   - the previews are created together instead of one after another, and
+//     each one appears on screen the moment it is ready;
+//   - the page only asks for as many previews as the customer has left
+//     (the analysis reply says how many), instead of always asking for a
+//     third that was then refused — and says so plainly, with a link to
+//     pricing, rather than showing a red error;
+//   - a returning customer with no free previews left is told before they
+//     upload anything.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
+type PreviewCard = { styleName: string; imageUrl: string | null; state: "loading" | "done" | "failed" };
 
 const OPTIONS = [
   "Everyday",
@@ -114,7 +126,13 @@ export default function UploadFlow() {
   const [step, setStep] = useState<Step>("capture");
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [faceShape, setFaceShape] = useState<string | null>(null);
-  const [results, setResults] = useState<{ styleName: string; imageUrl: string | null }[]>([]);
+  const [results, setResults] = useState<PreviewCard[]>([]);
+  // True when the customer got fewer previews than there are styles because
+  // their free allowance ran out — shown as a friendly note, not an error.
+  const [allowanceSpent, setAllowanceSpent] = useState(false);
+  // Real mode: how many free previews this account has left, looked up when
+  // the page loads. null = not known (logged out, mock mode, or still loading).
+  const [previewsLeft, setPreviewsLeft] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [samplePreviews, setSamplePreviews] = useState(false);
   // What the spinner screen says — real previews take 10–30 seconds each, so
@@ -131,8 +149,27 @@ export default function UploadFlow() {
   // the free-preview cap the same way a real logged-in user would.
   const mockUserId = useMemo(() => getMockUserId(), []);
 
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    if (SUPABASE_MOCK_MODE || !userId) return;
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("free_previews_used, free_previews_limit")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setPreviewsLeft(Math.max(0, data.free_previews_limit - data.free_previews_used));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const noPreviewsLeft = previewsLeft === 0;
   const allUploaded = photos.front && photos.left && photos.right;
-  const canSubmit = allUploaded && consent;
+  const canSubmit = allUploaded && consent && !noPreviewsLeft;
 
   function toggleOption(opt: string) {
     setSelectedOptions((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
@@ -181,20 +218,22 @@ export default function UploadFlow() {
   /** Real mode: put the three photos in the customer's private storage folder. */
   async function uploadToStorage(userId: string): Promise<Record<Slot, string>> {
     const batch = crypto.randomUUID();
-    const paths = {} as Record<Slot, string>;
-    for (const slot of ["front", "left", "right"] as Slot[]) {
-      const blob = blobs.current[slot];
-      if (!blob) throw new Error("Please add all three photos first.");
-      const path = `${userId}/${batch}/${slot}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from("photos")
-        .upload(path, blob, { contentType: "image/jpeg", upsert: false });
-      if (uploadError) {
-        throw new Error("We couldn't upload your photos. Please check your connection and try again.");
-      }
-      paths[slot] = path;
-    }
-    return paths;
+    const slots = ["front", "left", "right"] as Slot[];
+    const uploaded = await Promise.all(
+      slots.map(async (slot) => {
+        const blob = blobs.current[slot];
+        if (!blob) throw new Error("Please add all three photos first.");
+        const path = `${userId}/${batch}/${slot}.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from("photos")
+          .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+        if (uploadError) {
+          throw new Error("We couldn't upload your photos. Please check your connection and try again.");
+        }
+        return [slot, path] as const;
+      })
+    );
+    return Object.fromEntries(uploaded) as Record<Slot, string>;
   }
 
   async function handleSubmit() {
@@ -227,36 +266,60 @@ export default function UploadFlow() {
       if (!analyzeRes.ok) throw new Error(analyzeData.error || "Analysis failed.");
       setFaceShape(analyzeData.faceShape);
 
-      const generated: { styleName: string; imageUrl: string | null }[] = [];
-      for (const [index, styleName] of STYLE_NAMES.entries()) {
-        setProgress(`Creating your preview ${index + 1} of ${STYLE_NAMES.length}…`);
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(
-            SUPABASE_MOCK_MODE
-              ? {
-                  userId: mockUserId,
-                  photoId: "demo-photo",
-                  sourceImageUrl: photos.front,
-                  styleName,
-                  faceShape: analyzeData.faceShape,
-                }
-              : { photoId: analyzeData.photoId, styleName, faceShape: analyzeData.faceShape }
-          ),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          // Free-preview cap hit mid-loop — stop and show what we have, with
-          // a clear message rather than a silent failure.
-          setError(data.error || "Could not generate more previews.");
-          break;
-        }
-        generated.push({ styleName, imageUrl: data.resultImageUrl });
-        if (data.samplePreview) setSamplePreviews(true);
-      }
-      setResults(generated);
+      // How many previews to start: all of them, unless the analysis says
+      // the customer has fewer free ones left than there are styles.
+      const left: number | null = typeof analyzeData.previewsLeft === "number" ? analyzeData.previewsLeft : null;
+      const styles = left === null ? STYLE_NAMES : STYLE_NAMES.slice(0, left);
+      setAllowanceSpent(styles.length < STYLE_NAMES.length);
+      setResults(styles.map((styleName) => ({ styleName, imageUrl: null, state: "loading" })));
       setStep("results");
+
+      const finish = (styleName: string, patch: Partial<PreviewCard>) =>
+        setResults((prev) => prev.map((r) => (r.styleName === styleName ? { ...r, ...patch } : r)));
+
+      // All previews at once; each card fills in as soon as its image is ready.
+      await Promise.all(
+        styles.map(async (styleName) => {
+          try {
+            const res = await fetch("/api/generate", {
+              method: "POST",
+              headers,
+              body: JSON.stringify(
+                SUPABASE_MOCK_MODE
+                  ? {
+                      userId: mockUserId,
+                      photoId: "demo-photo",
+                      sourceImageUrl: photos.front,
+                      styleName,
+                      faceShape: analyzeData.faceShape,
+                    }
+                  : { photoId: analyzeData.photoId, styleName, faceShape: analyzeData.faceShape }
+              ),
+            });
+            const data = await res.json();
+            if (res.status === 402) {
+              // Allowance ran out between the analysis and this request —
+              // drop the card and show the same friendly note.
+              setResults((prev) => prev.filter((r) => r.styleName !== styleName));
+              setAllowanceSpent(true);
+              return;
+            }
+            if (!res.ok) {
+              finish(styleName, { state: "failed" });
+              setError(data.error || "One of your previews couldn't be created.");
+              return;
+            }
+            finish(styleName, { state: "done", imageUrl: data.resultImageUrl });
+            if (data.samplePreview) setSamplePreviews(true);
+            if (typeof data.freePreviewsUsed === "number" && typeof data.freePreviewsLimit === "number" && !data.samplePreview) {
+              setPreviewsLeft(Math.max(0, data.freePreviewsLimit - data.freePreviewsUsed));
+            }
+          } catch {
+            finish(styleName, { state: "failed" });
+            setError("One of your previews couldn't be created. Please check your connection and try again.");
+          }
+        })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong analyzing your photos.");
       setStep("capture");
@@ -378,9 +441,20 @@ export default function UploadFlow() {
             </div>
 
             <div className="mx-auto max-w-[420px]">
-              <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
-                Upload
-              </button>
+              {noPreviewsLeft ? (
+                <div className="rounded-md2 bg-bg-soft px-5 py-4 text-center">
+                  <p className="mb-3 text-[13.5px] font-medium text-ink-body">
+                    You&apos;ve used your free previews. Choose a pack to see more styles on your own photo.
+                  </p>
+                  <a href="#pricing" className="btn-primary w-full">
+                    See packs
+                  </a>
+                </div>
+              ) : (
+                <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
+                  Upload
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -389,9 +463,7 @@ export default function UploadFlow() {
           <div className="py-[50px] text-center">
             <div className="mx-auto mb-[18px] h-11 w-11 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
             <h3 className="mb-1.5 text-[17px]">{progress}</h3>
-            <p className="text-[13.5px] text-ink-muted">
-              Each preview can take up to half a minute — please keep this page open.
-            </p>
+            <p className="text-[13.5px] text-ink-muted">This takes just a few seconds.</p>
           </div>
         )}
 
@@ -412,14 +484,37 @@ export default function UploadFlow() {
             <div className="grid gap-5 sm:grid-cols-3">
               {results.map((r) => (
                 <div key={r.styleName} className="card">
-                  {r.imageUrl && (
+                  {r.state === "done" && r.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={r.imageUrl} alt={r.styleName} className="mb-3 w-full rounded-sm2" />
+                  ) : (
+                    <div className="mb-3 flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-sm2 bg-bg-soft px-4 text-center">
+                      {r.state === "loading" ? (
+                        <>
+                          <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
+                          <p className="text-[12.5px] font-medium text-ink-muted">Creating your preview…</p>
+                        </>
+                      ) : (
+                        <p className="text-[12.5px] font-medium text-ink-muted">This preview couldn&apos;t be created.</p>
+                      )}
+                    </div>
                   )}
                   <p className="text-[13.5px] font-semibold text-ink-heading">{r.styleName}</p>
                 </div>
               ))}
             </div>
+            {allowanceSpent && !results.some((r) => r.state === "loading") && (
+              <div className="mt-6 rounded-md2 bg-bg-soft px-5 py-4 text-center">
+                <p className="mb-3 text-[13.5px] font-medium text-ink-body">
+                  {results.length > 0
+                    ? "Those were your free previews. Choose a pack to see more styles on your own photo."
+                    : "You've already used your free previews. Choose a pack to see more styles on your own photo."}
+                </p>
+                <a href="#pricing" className="btn-primary">
+                  See packs
+                </a>
+              </div>
+            )}
             <button
               className="btn-secondary mt-6 w-full"
               onClick={() => {
@@ -427,6 +522,7 @@ export default function UploadFlow() {
                 setPhotos({ front: null, left: null, right: null });
                 blobs.current = { front: null, left: null, right: null };
                 setSamplePreviews(false);
+                setAllowanceSpent(false);
                 setConsent(false);
                 setResults([]);
                 setError(null);

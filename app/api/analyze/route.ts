@@ -38,6 +38,7 @@ import {
   type DetectFaceResult,
 } from "@/lib/integrations/rekognition";
 import { classifyFaceShape } from "@/lib/faceShape";
+import { FALAI_MOCK_MODE } from "@/lib/integrations/falai";
 import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
@@ -160,6 +161,9 @@ export async function POST(req: NextRequest) {
       classifier: classification.version,
       features: classification.features,
       imageSize,
+      // Read back by /api/generate so the image model is told, as a fact,
+      // whether to keep the customer clean-shaven or keep their beard.
+      facialHair: detection.facialHair,
     },
   };
 
@@ -173,37 +177,52 @@ export async function POST(req: NextRequest) {
       rekognitionRaw: analysisRecord,
       createdAt: new Date().toISOString(),
     });
+    const demoProfile = mockStore.getOrCreateProfile(userId);
     return NextResponse.json({
       mockMode: true,
       photoId: photo.id,
       faceShape: classification.faceShape,
       confidence: classification.confidence,
+      previewsLeft: Math.max(0, demoProfile.freePreviewsLimit - demoProfile.freePreviewsUsed),
     });
   }
 
   // One row per analysis, pointing at the FRONT photo (the one face
   // detection ran on). The left/right photos live beside it in the same
   // storage folder, so they can be found from this path when needed.
-  const { data: photo, error } = await admin
-    .from("photos")
-    .insert({
-      user_id: userId,
-      storage_path: storagePath,
-      face_shape: classification.faceShape,
-      face_shape_confidence: classification.confidence,
-      rekognition_raw: analysisRecord,
-    })
-    .select()
-    .single();
+  // Saved alongside a look at how many free previews are left, so the page
+  // can start exactly that many previews at once instead of asking for one
+  // it will only be refused. (Both run together — they don't depend on
+  // each other.)
+  const [{ data: photo, error }, { data: profile }] = await Promise.all([
+    admin
+      .from("photos")
+      .insert({
+        user_id: userId,
+        storage_path: storagePath,
+        face_shape: classification.faceShape,
+        face_shape_confidence: classification.confidence,
+        rekognition_raw: analysisRecord,
+      })
+      .select()
+      .single(),
+    admin.from("profiles").select("free_previews_used, free_previews_limit").eq("id", userId).maybeSingle(),
+  ]);
 
   if (error || !photo) {
     return NextResponse.json({ error: error?.message ?? "Failed to save photo analysis." }, { status: 500 });
   }
+
+  // null = "not being counted right now" (placeholder images while the image
+  // generator is in mock mode are free and unlimited).
+  const previewsLeft =
+    FALAI_MOCK_MODE || !profile ? null : Math.max(0, profile.free_previews_limit - profile.free_previews_used);
 
   return NextResponse.json({
     mockMode: false,
     photoId: photo.id,
     faceShape: classification.faceShape,
     confidence: classification.confidence,
+    previewsLeft,
   });
 }

@@ -16,6 +16,10 @@
 //     NOT requested — we have no use for them and shouldn't hold them.
 //   - What gets stored for audit/retraining (`raw`) is a trimmed copy of the
 //     main face only, not the whole provider response.
+//   - Beard / moustache are requested too (09.10.2026, later the same
+//     day): the first real preview came back with a beard the customer
+//     doesn't have. The image model is now TOLD whether the person is
+//     clean-shaven or bearded instead of being left to guess.
 //   - The landmark names are Rekognition's own (upperJawlineLeft,
 //     midJawlineLeft, chinBottom, leftEyeBrowUp, …). The mock face below uses
 //     the same names so lib/faceShape.ts has one code path for both modes.
@@ -37,6 +41,8 @@ export interface FaceLandmark {
   y: number; // 0..1, fraction of the image HEIGHT from the top edge
 }
 
+export type FacialHair = "beard" | "moustache" | "clean";
+
 export interface DetectFaceResult {
   faceDetected: boolean;
   /** How many faces of comparable size are in the photo (background faces much smaller than the main one are ignored). */
@@ -48,6 +54,8 @@ export interface DetectFaceResult {
   pose: { roll: number; yaw: number; pitch: number } | null;
   quality: { brightness: number; sharpness: number } | null;
   sunglasses: boolean;
+  /** What Rekognition is confident about: a beard, a moustache only, clean-shaven — or null when it isn't sure. */
+  facialHair: FacialHair | null;
   raw: Record<string, unknown>; // trimmed provider response for the main face, stored for audit/retraining
   mock: boolean;
 }
@@ -88,6 +96,7 @@ function mockResult(): DetectFaceResult {
     pose: { roll: 0, yaw: 0, pitch: 0 },
     quality: { brightness: 80, sharpness: 80 },
     sunglasses: false,
+    facialHair: null,
     raw: { mock: true, region: AWS_REGION, note: "REKOGNITION_AWS_ACCESS_KEY_ID not set — see .env.example" },
     mock: true,
   };
@@ -103,6 +112,7 @@ function emptyResult(mock: boolean, raw: Record<string, unknown>): DetectFaceRes
     pose: null,
     quality: null,
     sunglasses: false,
+    facialHair: null,
     raw,
     mock,
   };
@@ -161,7 +171,7 @@ export async function detectFace(image: Uint8Array | string): Promise<DetectFace
     response = await client.send(
       new DetectFacesCommand({
         Image: { Bytes: bytes },
-        Attributes: ["DEFAULT", "SUNGLASSES", "FACE_OCCLUDED"],
+        Attributes: ["DEFAULT", "SUNGLASSES", "FACE_OCCLUDED", "BEARD", "MUSTACHE"],
       })
     );
   } catch (err) {
@@ -192,6 +202,14 @@ export async function detectFace(image: Uint8Array | string): Promise<DetectFace
     : null;
   const sunglasses = Boolean(main.Sunglasses?.Value) && (main.Sunglasses?.Confidence ?? 0) >= 90;
 
+  // Only say something about facial hair when Rekognition is sure — a wrong
+  // "clean-shaven" would shave someone's beard off in their preview.
+  const sure = (a?: { Value?: boolean; Confidence?: number }) => (a?.Confidence ?? 0) >= 80;
+  let facialHair: FacialHair | null = null;
+  if (sure(main.Beard) && main.Beard?.Value) facialHair = "beard";
+  else if (sure(main.Mustache) && main.Mustache?.Value && sure(main.Beard)) facialHair = "moustache";
+  else if (sure(main.Beard) && sure(main.Mustache) && !main.Beard?.Value && !main.Mustache?.Value) facialHair = "clean";
+
   return {
     faceDetected: true,
     faceCount,
@@ -201,6 +219,7 @@ export async function detectFace(image: Uint8Array | string): Promise<DetectFace
     pose,
     quality,
     sunglasses,
+    facialHair,
     raw: {
       region: AWS_REGION,
       facesInPhoto: faces.length,
@@ -211,6 +230,8 @@ export async function detectFace(image: Uint8Array | string): Promise<DetectFace
       landmarks: main.Landmarks,
       sunglasses: main.Sunglasses,
       faceOccluded: main.FaceOccluded,
+      beard: main.Beard,
+      mustache: main.Mustache,
     },
     mock: false,
   };
