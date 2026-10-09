@@ -454,3 +454,40 @@ create policy "photos owner delete" on storage.objects for delete to authenticat
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "results owner read" on storage.objects for select to authenticated
   using (bucket_id = 'results' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- ============================================================================
+-- 09.10.2026 — free-preview reservation (real hairstyle previews). ALREADY in
+-- the live database. /api/generate takes a free preview BEFORE it pays for a
+-- generation and hands it back if the generation fails. Doing the "is one
+-- left? then count it" check as a single statement means two requests
+-- arriving together can't both pass the check and both cost money.
+-- ============================================================================
+create or replace function public.reserve_free_preview(profile_id uuid)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with taken as (
+    update public.profiles
+       set free_previews_used = free_previews_used + 1
+     where id = profile_id
+       and free_previews_used < free_previews_limit
+    returning 1
+  )
+  select exists (select 1 from taken);
+$$;
+
+create or replace function public.release_free_preview(profile_id uuid)
+returns void
+language sql
+set search_path = ''
+as $$
+  update public.profiles
+     set free_previews_used = greatest(free_previews_used - 1, 0)
+   where id = profile_id;
+$$;
+
+revoke execute on function public.reserve_free_preview(uuid) from public, anon, authenticated;
+revoke execute on function public.release_free_preview(uuid) from public, anon, authenticated;
+grant execute on function public.reserve_free_preview(uuid) to service_role;
+grant execute on function public.release_free_preview(uuid) to service_role;

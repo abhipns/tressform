@@ -117,6 +117,9 @@ export default function UploadFlow() {
   const [results, setResults] = useState<{ styleName: string; imageUrl: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [samplePreviews, setSamplePreviews] = useState(false);
+  // What the spinner screen says — real previews take 10–30 seconds each, so
+  // "Analyzing…" alone would sit there long enough to look stuck.
+  const [progress, setProgress] = useState("Analyzing your face shape…");
   // The shrunk JPEGs that actually get uploaded (photos{} above only holds
   // their data: URLs, for the on-screen previews).
   const blobs = useRef<Record<Slot, Blob | null>>({ front: null, left: null, right: null });
@@ -197,6 +200,7 @@ export default function UploadFlow() {
   async function handleSubmit() {
     setError(null);
     setSamplePreviews(false);
+    setProgress(SUPABASE_MOCK_MODE ? "Analyzing your face shape…" : "Uploading your photos…");
     setStep("analyzing");
     try {
       const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
@@ -210,6 +214,7 @@ export default function UploadFlow() {
           return;
         }
         const paths = await uploadToStorage(session.user.id);
+        setProgress("Analyzing your face shape…");
         analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [paths.left, paths.right] };
       }
 
@@ -223,7 +228,8 @@ export default function UploadFlow() {
       setFaceShape(analyzeData.faceShape);
 
       const generated: { styleName: string; imageUrl: string | null }[] = [];
-      for (const styleName of STYLE_NAMES) {
+      for (const [index, styleName] of STYLE_NAMES.entries()) {
+        setProgress(`Creating your preview ${index + 1} of ${STYLE_NAMES.length}…`);
         const res = await fetch("/api/generate", {
           method: "POST",
           headers,
@@ -382,8 +388,10 @@ export default function UploadFlow() {
         {step === "analyzing" && (
           <div className="py-[50px] text-center">
             <div className="mx-auto mb-[18px] h-11 w-11 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
-            <h3 className="mb-1.5 text-[17px]">Analyzing your face shape…</h3>
-            <p className="text-[13.5px] text-ink-muted">This takes just a few seconds.</p>
+            <h3 className="mb-1.5 text-[17px]">{progress}</h3>
+            <p className="text-[13.5px] text-ink-muted">
+              Each preview can take up to half a minute — please keep this page open.
+            </p>
           </div>
         )}
 

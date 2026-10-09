@@ -59,9 +59,17 @@ export interface ClassifyResult {
   version: string;
 }
 
-// --- thresholds (untuned — see header) -------------------------------------
-const LONG_MIN_LENGTH = 1.48; // face clearly longer than it is wide
-const ROUND_MAX_LENGTH = 1.25; // face about as wide as it is long
+// --- thresholds (barely tuned — see header) --------------------------------
+// 09.10.2026, first real photo: a face its owner describes as "oval to
+// round" measured lengthToWidth 1.49 (brow-to-chin almost exactly equal to
+// the upperJawline width), which the first-guess cut-offs of 1.25 / 1.48
+// called "Long". Rekognition's upperJawline points sit on the face outline
+// at eye level, which is narrower than the full cheekbone width those
+// guesses assumed, so every face reads longer on this scale. Both length
+// cut-offs moved up accordingly. One face is an anchor, not a calibration —
+// these still need checking against a labelled set.
+const LONG_MIN_LENGTH = 1.64; // face clearly longer than it is wide
+const ROUND_MAX_LENGTH = 1.44; // face about as wide as it is long
 const SQUARE_MIN_JAW = 0.92; // jaw nearly as wide as the cheekbones
 const NARROW_MAX_JAW = 0.78; // jaw clearly narrower than the cheekbones
 const HEART_MIN_BROW = 0.8; // wide forehead over a narrow jaw → Heart; narrow forehead → Diamond

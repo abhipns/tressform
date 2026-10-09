@@ -69,9 +69,9 @@ const MOCK_LANDMARKS: FaceLandmark[] = [
   { type: "rightEyeBrowUp", x: 0.6, y: 0.35 },
   { type: "rightEyeBrowRight", x: 0.668, y: 0.365 },
   { type: "upperJawlineLeft", x: 0.29, y: 0.42 },
-  { type: "midJawlineLeft", x: 0.3215, y: 0.55 },
-  { type: "chinBottom", x: 0.5, y: 0.6335 },
-  { type: "midJawlineRight", x: 0.6785, y: 0.55 },
+  { type: "midJawlineLeft", x: 0.3215, y: 0.56 },
+  { type: "chinBottom", x: 0.5, y: 0.674 },
+  { type: "midJawlineRight", x: 0.6785, y: 0.56 },
   { type: "upperJawlineRight", x: 0.71, y: 0.42 },
 ];
 
@@ -82,7 +82,7 @@ function mockResult(): DetectFaceResult {
   return {
     faceDetected: true,
     faceCount: 1,
-    boundingBox: { width: 0.44, height: 0.46, left: 0.28, top: 0.2 },
+    boundingBox: { width: 0.44, height: 0.5, left: 0.28, top: 0.2 },
     landmarks: MOCK_LANDMARKS,
     confidence: 98.7,
     pose: { roll: 0, yaw: 0, pitch: 0 },
