@@ -20,13 +20,28 @@ const VIDEOS = [
 
 const FADE_MS = 350;
 
-export default function HeroVideoShuffle() {
-  const [activeIndex, setActiveIndex] = useState(() => (Math.random() < 0.5 ? 0 : 1));
+// 10.10.2026:
+//  - `onActiveChange` tells the hero which clip is on screen (0 = woman,
+//    1 = man) so the barber card beside the video can show a matching cut.
+//  - Which clip goes first is now decided AFTER the page has loaded, not
+//    while it is being drawn. Deciding it during drawing meant the server
+//    and the browser could each pick a different clip, leaving the video
+//    showing one person while the code believed it was showing the other.
+export default function HeroVideoShuffle({ onActiveChange }: { onActiveChange?: (index: number) => void }) {
+  const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const pendingSwitchRef = useRef<number | null>(null);
 
   const current = VIDEOS[activeIndex];
+
+  useEffect(() => {
+    if (Math.random() < 0.5) setActiveIndex(1);
+  }, []);
+
+  useEffect(() => {
+    onActiveChange?.(activeIndex);
+  }, [activeIndex, onActiveChange]);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -72,7 +87,7 @@ export default function HeroVideoShuffle() {
       onEnded={handleEnded}
       onLoadedData={handleLoadedData}
     >
-      <source src={current.src} type="video/mp4" />
+      <source key={current.src} src={current.src} type="video/mp4" />
     </video>
   );
 }

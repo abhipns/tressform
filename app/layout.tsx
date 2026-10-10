@@ -1,3 +1,9 @@
+// 10.10.2026: the two typefaces are now served from the site itself (the
+// @fontsource packages) instead of being fetched from Google Fonts on every
+// visit — one less outside request, no flash of a substitute font, and the
+// site looks the same if Google's font server is slow or blocked.
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import "@fontsource-variable/figtree";
 import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
@@ -21,16 +27,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
         <Header />

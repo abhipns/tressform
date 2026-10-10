@@ -53,8 +53,11 @@ const config: Config = {
         sm2: "12px",
       },
       fontFamily: {
-        heading: ["Poppins", "Inter", "sans-serif"],
-        body: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        // 10.10.2026 design pass: Bricolage Grotesque for headings (a
+        // grotesque with some cut and character, tight at large sizes),
+        // Figtree for reading text. Was Poppins + Inter.
+        heading: ["Bricolage Grotesque Variable", "system-ui", "sans-serif"],
+        body: ["Figtree Variable", "system-ui", "-apple-system", "sans-serif"],
       },
       maxWidth: {
         wrap: "1180px",
