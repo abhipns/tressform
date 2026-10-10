@@ -1,10 +1,20 @@
 // `size="lg"` is the header's version (10.10.2026): a little larger so the
 // brand holds its own in the wider header. The footer keeps the default.
-export default function Logo({ variant = "light", size = "md" }: { variant?: "light" | "dark"; size?: "md" | "lg" }) {
-  const mark = size === "lg" ? "h-[34px] w-[34px] lg:h-[40px] lg:w-[40px]" : "h-[34px] w-[34px]";
-  const word = size === "lg" ? "text-[20px] lg:text-[23px]" : "text-[20px]";
+// `href` defaults to "#top" (scrolls up on the home page); the header passes
+// "/" because it also appears on pages where "#top" leads nowhere.
+export default function Logo({
+  variant = "light",
+  size = "md",
+  href = "#top",
+}: {
+  variant?: "light" | "dark";
+  size?: "md" | "lg";
+  href?: string;
+}) {
+  const mark = size === "lg" ? "h-[34px] w-[34px] lg:h-[42px] lg:w-[42px]" : "h-[34px] w-[34px]";
+  const word = size === "lg" ? "text-[20px] lg:text-[24px]" : "text-[20px]";
   return (
-    <a href="#top" aria-label="Tressform home" className="flex items-center gap-2.5">
+    <a href={href} aria-label="Tressform home" className="flex items-center gap-2.5">
       <svg viewBox="0 0 100 100" fill="none" className={`${mark} shrink-0`} xmlns="http://www.w3.org/2000/svg">
         <g transform="translate(50,50)">
           <ellipse cx="0" cy="-24" rx="11" ry="21" fill="#FFFFFF" />
