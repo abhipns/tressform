@@ -55,3 +55,21 @@ export async function requireUser(req: NextRequest, mockUserId?: string | null):
 
   return { ok: true, userId: data.user.id, email: data.user.email ?? null };
 }
+
+/**
+ * The same check, plus: the caller must be the site owner (profiles.role =
+ * 'ADMIN'). Added 10.10.2026 for the owner's Studio page. A customer can't
+ * give themselves this role — the database only lets the server change it.
+ * In mock mode (no database) everyone passes, as with every other check.
+ */
+export async function requireAdmin(req: NextRequest, mockUserId?: string | null): Promise<AuthResult> {
+  const auth = await requireUser(req, mockUserId);
+  if (!auth.ok || SUPABASE_MOCK_MODE) return auth;
+
+  const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
+  const { data, error } = await getSupabaseAdmin().from("profiles").select("role").eq("id", auth.userId).maybeSingle();
+  if (error || data?.role !== "ADMIN") {
+    return { ok: false, status: 403, error: "This page is for the site owner only." };
+  }
+  return auth;
+}

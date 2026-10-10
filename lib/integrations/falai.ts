@@ -32,6 +32,10 @@ export const FALAI_MOCK_MODE = !FAL_AI_API_KEY;
 
 export const FALAI_MODELS = {
   "fal-ai/nano-banana/edit": "edit-multi",
+  // 10.10.2026: the higher-quality sibling, $0.15 / image (about four times
+  // the default). Added so the owner can compare it in the Studio; takes
+  // the same input as the default.
+  "fal-ai/nano-banana-pro/edit": "edit-multi",
   "fal-ai/flux-pro/kontext": "edit-single",
   "fal-ai/flux-pulid": "identity",
 } as const;
@@ -49,6 +53,13 @@ function resolveModel(): FalaiModel {
 
 export const FALAI_MODEL: FalaiModel = resolveModel();
 export const FALAI_COST_PER_IMAGE_PAISE = 350; // ≈₹3.50/image, see Part H / Part I
+/** What one image costs on each model, in paise, at about ₹88 to the dollar (list prices checked 10.10.2026). */
+export const FALAI_COST_BY_MODEL_PAISE: Record<FalaiModel, number> = {
+  "fal-ai/nano-banana/edit": 350, // $0.039
+  "fal-ai/nano-banana-pro/edit": 1320, // $0.15
+  "fal-ai/flux-pro/kontext": 350, // $0.04
+  "fal-ai/flux-pulid": 350, // not checked — treated as the default
+};
 
 export interface GenerateHairstyleParams {
   sourceImageUrl: string; // a link FAL can open: a signed storage URL, or a data: URL
@@ -57,6 +68,13 @@ export interface GenerateHairstyleParams {
   /** From face analysis: tells the model what to do about facial hair instead of leaving it to guess. */
   facialHair?: "beard" | "moustache" | "clean" | null;
   addonKind?: "BACKGROUND" | "OUTFIT" | null;
+  /**
+   * The owner's Studio page only (10.10.2026): the hairstyle in the owner's
+   * own words, used instead of the built-in description for `styleName`.
+   */
+  styleDescription?: string | null;
+  /** Studio only: try a different one of the supported models for this one image. */
+  model?: FalaiModel | null;
 }
 
 export interface GenerateHairstyleResult {
@@ -113,7 +131,7 @@ function facialHairLine(facialHair: GenerateHairstyleParams["facialHair"]): stri
 export function buildEditPrompt(params: GenerateHairstyleParams): string {
   const shape = params.faceShape ? ` It should suit their ${params.faceShape.toLowerCase()} face shape.` : "";
   return (
-    `Change only this person's hairstyle to ${describeStyle(params.styleName)}.${shape} ` +
+    `Change only this person's hairstyle to ${params.styleDescription?.trim() || describeStyle(params.styleName)}.${shape} ` +
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
     "expression, head position, camera angle, clothing and background. Keep their natural hair colour. " +
@@ -126,7 +144,7 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
 /** The description for PuLID, which paints a new portrait from the reference face. */
 export function buildIdentityPrompt(params: GenerateHairstyleParams): string {
   return (
-    `Photorealistic head-and-shoulders portrait photograph of this person with ${describeStyle(params.styleName)}, ` +
+    `Photorealistic head-and-shoulders portrait photograph of this person with ${params.styleDescription?.trim() || describeStyle(params.styleName)}, ` +
     "facing the camera, natural expression, their natural hair colour, soft even daylight, plain neutral background, " +
     "sharp focus, realistic skin and hair texture, shot on a 50mm lens."
   );
@@ -196,7 +214,7 @@ export async function generateHairstyle(params: GenerateHairstyleParams): Promis
     };
   }
 
-  const model = FALAI_MODEL;
+  const model = params.model && params.model in FALAI_MODELS ? params.model : FALAI_MODEL;
   const { createFalClient } = await import("@fal-ai/client");
   const fal = createFalClient({ credentials: FAL_AI_API_KEY });
 
@@ -229,7 +247,7 @@ export async function generateHairstyle(params: GenerateHairstyleParams): Promis
     status: "SUCCEEDED",
     resultImageUrl: image.url,
     contentType: image.content_type ?? null,
-    costPaise: FALAI_COST_PER_IMAGE_PAISE,
+    costPaise: FALAI_COST_BY_MODEL_PAISE[model] ?? FALAI_COST_PER_IMAGE_PAISE,
     providerRequestId: response.requestId,
     model,
     mock: false,
