@@ -39,8 +39,10 @@ type Shot = {
 };
 
 const MODELS = [
-  { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "what customers get, about ₹3.50 an image", paise: 350 },
-  { id: "fal-ai/nano-banana-pro/edit", label: "Nano Banana Pro", note: "higher quality, about ₹13 an image", paise: 1320 },
+  { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "what customers get today, about ₹3.50 an image", paise: 350 },
+  { id: "fal-ai/nano-banana-2/edit", label: "Nano Banana 2", note: "newer, mid-priced, about ₹7 an image", paise: 704 },
+  { id: "fal-ai/nano-banana-pro/edit", label: "Nano Banana Pro", note: "most faithful so far, about ₹13 an image", paise: 1320 },
+  { id: "fal-ai/bytedance/seedream/v4/edit", label: "Seedream 4", note: "a different maker, about ₹2.60 an image", paise: 264 },
   { id: "fal-ai/flux-pro/kontext", label: "Flux Kontext Pro", note: "a different editor, about ₹3.50 an image", paise: 350 },
 ];
 

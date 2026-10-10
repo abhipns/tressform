@@ -110,7 +110,13 @@ export async function POST(req: NextRequest) {
   // or bearded) so it doesn't invent or remove a beard. For a woman that
   // sentence would only be noise, so it gets the neutral "leave facial hair
   // alone" line.
-  const analysed = (photo.rekognition_raw as { tressform?: { facialHair?: unknown } } | null)?.tressform;
+  const analysed = (
+    photo.rekognition_raw as { tressform?: { facialHair?: unknown; imageSize?: { width?: number; height?: number } | null } } | null
+  )?.tressform;
+  const imageSize =
+    typeof analysed?.imageSize?.width === "number" && typeof analysed?.imageSize?.height === "number"
+      ? { width: analysed.imageSize.width, height: analysed.imageSize.height }
+      : null;
   const facialHair =
     body.gender !== "women" &&
     (analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean")
@@ -132,6 +138,7 @@ export async function POST(req: NextRequest) {
     facialHair,
     model,
     polish: body.polish !== false,
+    imageSize,
   });
   if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
     return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });

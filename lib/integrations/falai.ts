@@ -36,6 +36,14 @@ export const FALAI_MODELS = {
   // the default). Added so the owner can compare it in the Studio; takes
   // the same input as the default.
   "fal-ai/nano-banana-pro/edit": "edit-multi",
+  // 10.10.2026 (later): two more candidates for the Studio. The owner's
+  // tests showed the default model redrawing the customer's face while Pro
+  // edits the photo in place — so these are tried in the hope of Pro's
+  // faithfulness for less. Nano Banana 2 is Google's newer mid-priced
+  // model ($0.08 at its default 1K size); Seedream 4 is ByteDance's editor
+  // ($0.03). Prices and inputs read from fal.ai on the day.
+  "fal-ai/nano-banana-2/edit": "edit-multi",
+  "fal-ai/bytedance/seedream/v4/edit": "edit-seedream",
   "fal-ai/flux-pro/kontext": "edit-single",
   "fal-ai/flux-pulid": "identity",
 } as const;
@@ -57,6 +65,8 @@ export const FALAI_COST_PER_IMAGE_PAISE = 350; // ≈₹3.50/image, see Part H /
 export const FALAI_COST_BY_MODEL_PAISE: Record<FalaiModel, number> = {
   "fal-ai/nano-banana/edit": 350, // $0.039
   "fal-ai/nano-banana-pro/edit": 1320, // $0.15
+  "fal-ai/nano-banana-2/edit": 704, // $0.08 at 1K
+  "fal-ai/bytedance/seedream/v4/edit": 264, // $0.03
   "fal-ai/flux-pro/kontext": 350, // $0.04
   "fal-ai/flux-pulid": 350, // not checked — treated as the default
 };
@@ -85,6 +95,12 @@ export interface GenerateHairstyleParams {
    * instruction, so the two can be compared in the Studio.
    */
   polish?: boolean;
+  /**
+   * The source photo's size in pixels, when known. Only Seedream uses it:
+   * that model makes a square picture unless told the size, so it is asked
+   * for the same shape as the photo it was given.
+   */
+  imageSize?: { width: number; height: number } | null;
 }
 
 export interface GenerateHairstyleResult {
@@ -175,6 +191,11 @@ function buildInput(model: FalaiModel, params: GenerateHairstyleParams): Record<
   switch (FALAI_MODELS[model]) {
     case "edit-multi":
       return { prompt: buildEditPrompt(params), image_urls: [params.sourceImageUrl], num_images: 1, output_format: "jpeg" };
+    case "edit-seedream": {
+      const size = params.imageSize;
+      const sized = size && size.width > 0 && size.height > 0 ? { image_size: { width: size.width, height: size.height } } : {};
+      return { prompt: buildEditPrompt(params), image_urls: [params.sourceImageUrl], num_images: 1, ...sized };
+    }
     case "edit-single":
       return { prompt: buildEditPrompt(params), image_url: params.sourceImageUrl, num_images: 1, output_format: "jpeg" };
     case "identity":
