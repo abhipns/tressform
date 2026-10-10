@@ -75,6 +75,16 @@ export interface GenerateHairstyleParams {
   styleDescription?: string | null;
   /** Studio only: try a different one of the supported models for this one image. */
   model?: FalaiModel | null;
+  /**
+   * Whether to ask for the "flattering photograph" finish. Defaults to true
+   * (what customers get today). 10.10.2026: the owner's first side-by-side
+   * test showed the default model using that request as licence to redraw
+   * the person — smoother, lighter skin, a fuller face, larger earrings, a
+   * tighter crop — while the photo was meant to stay untouched. `false`
+   * swaps the finish for a strict "change the hair and nothing else"
+   * instruction, so the two can be compared in the Studio.
+   */
+  polish?: boolean;
 }
 
 export interface GenerateHairstyleResult {
@@ -135,9 +145,14 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
     "expression, head position, camera angle, clothing and background. Keep their natural hair colour. " +
-    "Make it a flattering, high-quality photograph: soft, even, natural light on the face, crisp focus and clean detail, " +
-    "with hair that looks neatly styled and freshly finished by a professional barber, natural hair texture and a " +
-    "realistic hairline. Do not add text, logos, watermarks, borders or other people."
+    (params.polish === false
+      ? "Do not retouch, relight, smooth, slim, lighten or reframe anything: the face, skin texture, skin tone, " +
+        "jewellery, clothing, background, framing and image size must stay exactly as they are in the photo. " +
+        "The new hair should look freshly and neatly cut, with natural hair texture and a realistic hairline. "
+      : "Make it a flattering, high-quality photograph: soft, even, natural light on the face, crisp focus and clean detail, " +
+        "with hair that looks neatly styled and freshly finished by a professional barber, natural hair texture and a " +
+        "realistic hairline. ") +
+    "Do not add text, logos, watermarks, borders or other people."
   );
 }
 

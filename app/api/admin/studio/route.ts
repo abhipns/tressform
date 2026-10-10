@@ -36,6 +36,7 @@ interface StudioBody {
   styleText?: string;
   gender?: "men" | "women";
   model?: string;
+  polish?: boolean; // false = change the hair only, no "flattering photo" finish
 }
 
 function extensionFor(contentType: string | null): { ext: string; type: string } {
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       styleName: styleLabel,
       styleDescription: styleText,
       model,
+      polish: body.polish !== false,
     });
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
@@ -129,6 +131,7 @@ export async function POST(req: NextRequest) {
     faceShape: photo.face_shape ?? null,
     facialHair,
     model,
+    polish: body.polish !== false,
   });
   if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
     return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
@@ -163,7 +166,7 @@ export async function POST(req: NextRequest) {
   const { error: insertError } = await admin.from("style_results").insert({
     user_id: userId,
     photo_id: photo.id,
-    style_name: `Studio: ${styleLabel}`.slice(0, 120),
+    style_name: `Studio: ${styleLabel}${body.polish === false ? " (hair only)" : ""}`.slice(0, 120),
     status: "SUCCEEDED",
     result_storage_path: storedPath,
     provider: result.mock ? "mock" : result.model,

@@ -85,6 +85,8 @@ export default function StudioPage() {
   const [gender, setGender] = useState<Gender>("men");
   const [custom, setCustom] = useState("");
   const [modelId, setModelId] = useState(MODELS[0].id);
+  // On = what customers get today. Off = "change the hair, touch nothing else".
+  const [polish, setPolish] = useState(true);
   const [shots, setShots] = useState<Shot[]>([]);
 
   useEffect(() => {
@@ -151,7 +153,10 @@ export default function StudioPage() {
 
   async function makeOne(style: StudioStyle) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setShots((prev) => [{ id, label: style.label, modelLabel: model.label, state: "loading" }, ...prev]);
+    setShots((prev) => [
+      { id, label: style.label, modelLabel: `${model.label}${polish ? "" : ", hair only"}`, state: "loading" },
+      ...prev,
+    ]);
     const patch = (p: Partial<Shot>) => setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
     try {
       const res = await fetch("/api/admin/studio", {
@@ -163,6 +168,7 @@ export default function StudioPage() {
           styleText: style.prompt,
           gender,
           model: model.id,
+          polish,
         }),
       });
       const data = await res.json();
@@ -368,6 +374,20 @@ export default function StudioPage() {
               </label>
             ))}
           </div>
+
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[16px] bg-surface p-4">
+            <input
+              type="checkbox"
+              checked={polish}
+              onChange={(e) => setPolish(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-mint-deep"
+            />
+            <span className="text-[15px] leading-[1.5] text-ink-body">
+              <strong className="font-semibold text-ink-heading">Polish the picture</strong> (softer light, salon finish).
+              This is what customers get today. Untick it to change the hair only and leave the face, skin, jewellery
+              and framing exactly as they are in the photo.
+            </span>
+          </label>
         </div>
       </div>
 
@@ -407,7 +427,7 @@ export default function StudioPage() {
                 {shot.state === "done" && shot.url && (
                   <button
                     type="button"
-                    onClick={() => saveImage(shot.url!, `${photoName}-${slug(shot.label)}.jpg`)}
+                    onClick={() => saveImage(shot.url!, `${photoName}-${slug(shot.label)}-${slug(shot.modelLabel)}.jpg`)}
                     className="mt-2 text-[14.5px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4 hover:decoration-mint-deep"
                   >
                     Download
