@@ -145,6 +145,12 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
     "expression, head position, camera angle, clothing and background. Keep their natural hair colour. " +
+    // 10.10.2026: in the owner's test a curly-haired man came back with
+    // straight hair from two of the three models. A haircut changes length
+    // and shape, not texture, so a preview that straightens curls shows
+    // something a barber cannot deliver.
+    "Work with their natural hair texture: do not straighten curly or wavy hair and do not curl straight hair, " +
+    "unless the hairstyle itself is described as curly, wavy or straight. " +
     (params.polish === false
       ? "Do not retouch, relight, smooth, slim, lighten or reframe anything: the face, skin texture, skin tone, " +
         "jewellery, clothing, background, framing and image size must stay exactly as they are in the photo. " +
