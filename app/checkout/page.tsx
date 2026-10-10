@@ -24,7 +24,14 @@
 
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PACK_TIERS, calculatePackPnl, paiseToRupees, type PackTier, isEarlyBirdActive } from "@/lib/pricing";
+import {
+  GST_REGISTERED,
+  PACK_TIERS,
+  calculatePackPnl,
+  paiseToRupees,
+  type PackTier,
+  isEarlyBirdActive,
+} from "@/lib/pricing";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
@@ -185,13 +192,17 @@ function CheckoutContent() {
           )}
           <div className="flex flex-col gap-1.5 border-t border-line pt-4 text-[13px] text-ink-muted">
             <div className="flex justify-between">
-              <span>Price (GST-inclusive)</span>
+              <span>{GST_REGISTERED ? "Price (GST-inclusive)" : "Total to pay"}</span>
               <span>₹{paiseToRupees(pnl.pricePaise)}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Includes GST</span>
-              <span>₹{paiseToRupees(pnl.gstPaise)}</span>
-            </div>
+            {GST_REGISTERED ? (
+              <div className="flex justify-between">
+                <span>Includes GST</span>
+                <span>₹{paiseToRupees(pnl.gstPaise)}</span>
+              </div>
+            ) : (
+              <p className="text-[12px]">One-time payment. Nothing else is added.</p>
+            )}
           </div>
         </div>
 
@@ -210,9 +221,9 @@ function CheckoutContent() {
         )}
 
         <p className="mt-4 text-center text-[12px] text-ink-muted">
-          Payments are processed securely by Razorpay. See our{" "}
+          Payments are processed securely by our payment partner. See our{" "}
           <a href="/refund" className="font-semibold text-mint-deep">
-            Refund Policy
+            Refund and Cancellation Policy
           </a>{" "}
           for details.
         </p>

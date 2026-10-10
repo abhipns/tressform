@@ -23,7 +23,7 @@ export default function MoneyBackGuaranteePage() {
           </a>{" "}
           on the homepage. For the complete policy wording, see our{" "}
           <a href="/refund" className="font-semibold text-mint-deep">
-            Refund Policy
+            Refund and Cancellation Policy
           </a>
           .
         </p>

@@ -491,3 +491,145 @@ revoke execute on function public.reserve_free_preview(uuid) from public, anon, 
 revoke execute on function public.release_free_preview(uuid) from public, anon, authenticated;
 grant execute on function public.reserve_free_preview(uuid) to service_role;
 grant execute on function public.release_free_preview(uuid) to service_role;
+
+-- ============================================================================
+-- 10.10.2026 — 90-day automatic deletion (Privacy Policy, "How long we keep
+-- it"). The site's /api/cron/cleanup route runs once a day and calls the two
+-- functions below.
+--
+-- THE RULE. A customer's uploaded photos and free previews are deleted once
+-- BOTH of these are true:
+--   1. the file is more than 90 days old, and
+--   2. the account has not been used for 90 days — no login or returning
+--      visit, no upload, no new preview and no purchase in that time.
+-- An account that is still in use keeps its photos (that is the "unless your
+-- account is still active" part of the promise). Results a customer PAID for
+-- (style_results.order_id is set) are never touched here. Files in a folder
+-- that belongs to no account (a deleted account) only need to be 90 days old.
+--
+-- HOW. Files have to be removed through Supabase Storage itself, not by
+-- deleting rows from storage.objects, or the stored file is left behind. So:
+--   expired_storage_objects()      only LISTS the files that are due;
+--   (the route deletes those files through the Storage API)
+--   purge_expired_photo_records()  then deletes the database records — face
+--                                  measurements included — of photos and
+--                                  previews whose file is gone.
+--
+-- Both refuse to work with a period shorter than 30 days, whatever they are
+-- asked, so a mistake elsewhere cannot wipe recent photos. Both can be
+-- called only by the server (service_role).
+-- ============================================================================
+
+-- When each account was last used.
+create or replace function public.account_last_seen()
+returns table (user_id uuid, seen timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.id,
+         greatest(
+           u.created_at,
+           u.last_sign_in_at,
+           (select max(greatest(s.created_at, s.updated_at)) from auth.sessions s where s.user_id = u.id),
+           (select max(p.created_at) from public.photos p where p.user_id = u.id),
+           (select max(r.created_at) from public.style_results r where r.user_id = u.id),
+           (select max(o.created_at) from public.orders o where o.user_id = u.id)
+         )
+    from auth.users u;
+$$;
+
+create or replace function public.expired_storage_objects(max_age_days integer default 90, max_rows integer default 500)
+returns table (bucket_id text, name text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select o.bucket_id, o.name
+    from storage.objects o
+    left join public.account_last_seen() l on l.user_id::text = split_part(o.name, '/', 1)
+   where o.bucket_id in ('photos', 'results')
+     and o.created_at < now() - make_interval(days => greatest(max_age_days, 30))
+     and (l.user_id is null or l.seen < now() - make_interval(days => greatest(max_age_days, 30)))
+     and not exists (
+           select 1
+             from public.style_results r
+            where o.bucket_id = 'results'
+              and r.result_storage_path = o.name
+              and r.order_id is not null
+         )
+   order by o.created_at
+   limit greatest(max_rows, 0);
+$$;
+
+create or replace function public.purge_expired_photo_records(max_age_days integer default 90)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  cutoff timestamptz := now() - make_interval(days => greatest(max_age_days, 30));
+  previews integer := 0;
+  photos integer := 0;
+begin
+  -- Free previews of unused accounts whose image file no longer exists.
+  with gone as (
+    delete from public.style_results r
+     using public.account_last_seen() l
+     where l.user_id = r.user_id
+       and l.seen < cutoff
+       and r.created_at < cutoff
+       and r.order_id is null
+       and not exists (
+             select 1 from storage.objects o
+              where o.bucket_id = 'results' and o.name = r.result_storage_path
+           )
+    returning 1
+  )
+  select count(*) into previews from gone;
+
+  -- Photo records (with their face measurements) of unused accounts whose
+  -- photo file no longer exists. A photo that still has a result attached —
+  -- which by now can only be a paid one — is kept.
+  with gone as (
+    delete from public.photos p
+     using public.account_last_seen() l
+     where l.user_id = p.user_id
+       and l.seen < cutoff
+       and p.created_at < cutoff
+       and not exists (
+             select 1 from storage.objects o
+              where o.bucket_id = 'photos' and o.name = p.storage_path
+           )
+       and not exists (select 1 from public.style_results r where r.photo_id = p.id)
+    returning 1
+  )
+  select count(*) into photos from gone;
+
+  -- A photo record that had to stay (a paid result hangs off it) still
+  -- loses its face measurements once its file is gone.
+  update public.photos p
+     set rekognition_raw = null
+    from public.account_last_seen() l
+   where l.user_id = p.user_id
+     and l.seen < cutoff
+     and p.created_at < cutoff
+     and p.rekognition_raw is not null
+     and not exists (
+           select 1 from storage.objects o
+            where o.bucket_id = 'photos' and o.name = p.storage_path
+         );
+
+  return previews + photos;
+end;
+$$;
+
+revoke execute on function public.account_last_seen() from public, anon, authenticated;
+revoke execute on function public.expired_storage_objects(integer, integer) from public, anon, authenticated;
+revoke execute on function public.purge_expired_photo_records(integer) from public, anon, authenticated;
+grant execute on function public.account_last_seen() to service_role;
+grant execute on function public.expired_storage_objects(integer, integer) to service_role;
+grant execute on function public.purge_expired_photo_records(integer) to service_role;

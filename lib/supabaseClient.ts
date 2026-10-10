@@ -61,6 +61,13 @@ export const supabase: SupabaseClient<any> = createClient(
 export function getSupabaseAdmin(): SupabaseClient<any> {
   return createClient(supabaseUrl || PLACEHOLDER_URL, supabaseServiceRoleKey || PLACEHOLDER_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // 10.10.2026: every server-side database call must be a FRESH one.
+    // Next.js keeps a copy of the answers to requests made from GET routes
+    // and replays that copy next time instead of asking again — found while
+    // testing the daily clean-up, which was being handed yesterday's list of
+    // files (and would equally have replayed a stale order or carousel).
+    // `cache: "no-store"` switches that off for this client.
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
   });
 }
 

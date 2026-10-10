@@ -105,8 +105,8 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           </p>
           <div className="mx-auto mb-2 inline-flex gap-6 rounded-md2 border border-line bg-surface px-6 py-3 text-[13px] text-ink-muted">
             <span>
-              Paid <strong className="text-ink-heading">₹{paiseToRupees(order.pricePaise).split(".")[0]}</strong>{" "}
-              (GST incl.)
+              Paid <strong className="text-ink-heading">₹{paiseToRupees(order.pricePaise).split(".")[0]}</strong>
+              {order.gstPaise > 0 ? " (GST incl.)" : ""}
             </span>
             <span>
               Order <strong className="text-ink-heading">{order.id.slice(0, 8)}</strong>

@@ -8,6 +8,7 @@
 //
 // Methodology (Part I):
 //   1. Price is GST-inclusive. GST payable to govt = price × 18/118.
+//      (Only once the business is GST-registered — see GST_REGISTERED.)
 //   2. Generation cost = image count × ₹3.50 × 1.2 (20% buffer for retries)
 //      = image count × ₹4.20/image.
 //   3. Payment gateway fee ≈ 2.36% of price.
@@ -27,6 +28,13 @@
 export type PackTier = "STARTER" | "STYLE" | "FULL_EXPLORE";
 export type AddonKind = "BACKGROUND" | "OUTFIT";
 
+// 10.10.2026: Tressform is not GST-registered yet, so it must not charge
+// GST or say that a price "includes GST". While this is false, the GST
+// component of every order is 0 and the site shows plain prices. On
+// registration: set this to true and put the number in lib/business.ts —
+// the "(GST incl.)" wording and the GST line at checkout come back by
+// themselves.
+export const GST_REGISTERED: boolean = false;
 export const GST_RATE = 18 / 118; // extraction rate for GST-inclusive pricing
 export const GENERATION_COST_PER_IMAGE_PAISE = 350; // ₹3.50, see Part H
 export const GENERATION_BUFFER_MULTIPLIER = 1.2; // 20% buffer, see comment on Part H
@@ -130,7 +138,7 @@ export function getCurrentPackPricePaise(tier: PackTier, now: Date = new Date())
   return pack.regularPricePaise;
 }
 
-export const MY_ASSETS_ADDON_PRICE_PAISE = 2_500; // ₹25/photo, GST-inclusive (Part H)
+export const MY_ASSETS_ADDON_PRICE_PAISE = 2_500; // ₹25/photo (Part H)
 
 /** Round to the nearest paisa (integer), matching how the spec's rupee table rounds to 2 decimals. */
 function roundPaise(paise: number): number {
@@ -147,7 +155,7 @@ export interface OrderPnl {
 
 /** Core P&L calc shared by both pack purchases and My Assets add-on purchases. */
 export function calculateOrderPnl(pricePaise: number, imageCount: number): OrderPnl {
-  const gstPaise = roundPaise(pricePaise * GST_RATE);
+  const gstPaise = GST_REGISTERED ? roundPaise(pricePaise * GST_RATE) : 0;
   const generationCostPaise = roundPaise(imageCount * GENERATION_COST_PER_IMAGE_PAISE * GENERATION_BUFFER_MULTIPLIER);
   const gatewayFeePaise = roundPaise(pricePaise * GATEWAY_FEE_RATE);
   const profitBeforeReferralPaise = pricePaise - gstPaise - generationCostPaise - gatewayFeePaise;

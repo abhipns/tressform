@@ -8,6 +8,8 @@
 //     "Complete Pack" is discarded as its own tier.
 //   - Strikethrough regular price + Early Bird price on every card.
 //   - "(GST incl.)" on every card — a compliance requirement, not just copy.
+//     10.10.2026: shown only when GST_REGISTERED is true (lib/pricing.ts).
+//     An unregistered business must not say its prices include GST.
 //   - Early Bird cutoff stated plainly per card: "Early Bird price — ends
 //     31 Oct 2026."
 //   - Free tier: previews convert to full resolution once any pack is
@@ -24,7 +26,13 @@
 // Explore stays "🔒 Not yet available" and unlinked — checkout itself
 // rejects that tier too (see api/payment/create-order/route.ts).
 
-import { PACK_TIERS, MY_ASSETS_ADDON_PRICE_PAISE, EARLY_BIRD_CUTOFF_ISO, paiseToRupees } from "@/lib/pricing";
+import {
+  PACK_TIERS,
+  MY_ASSETS_ADDON_PRICE_PAISE,
+  EARLY_BIRD_CUTOFF_ISO,
+  GST_REGISTERED,
+  paiseToRupees,
+} from "@/lib/pricing";
 
 const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: boolean; features: string[] }> = {
   STARTER: {
@@ -57,8 +65,8 @@ export default function Pricing() {
         <p className="eyebrow">Pricing</p>
         <h2>Pay only for the styles you love</h2>
         <p>
-          All prices are GST-inclusive. Start free, then unlock full-resolution results and barber-ready
-          instructions as you go.
+          {GST_REGISTERED ? "All prices are GST-inclusive. " : "The price you see is the price you pay. "}
+          Start free, then unlock full-resolution results and barber-ready instructions as you go.
         </p>
       </div>
 
@@ -67,7 +75,7 @@ export default function Pricing() {
           <h4 className="text-[16px]">Free</h4>
           <p className="min-h-8 text-[12.5px] text-ink-muted">Try it out, no commitment</p>
           <div className="font-heading text-[28px] font-bold text-ink-heading">
-            ₹0<small className="text-[12px] font-medium text-ink-muted"> (GST incl.)</small>
+            ₹0
           </div>
           <ul className="flex flex-1 flex-col gap-2.5 text-[12.5px] text-ink-body">
             <li>✓ Full face-shape analysis</li>
@@ -112,7 +120,7 @@ export default function Pricing() {
                 <span className="font-heading text-[28px] font-bold text-ink-heading">
                   ₹{paiseToRupees(tier.earlyBirdPricePaise).split(".")[0]}
                 </span>
-                <small className="text-[12px] font-medium text-ink-muted">(GST incl.)</small>
+                {GST_REGISTERED && <small className="text-[12px] font-medium text-ink-muted">(GST incl.)</small>}
               </div>
               <p className="text-[11.5px] font-semibold text-mint-deep">Early Bird price — ends {EARLY_BIRD_CUTOFF_LABEL}</p>
 
@@ -137,8 +145,8 @@ export default function Pricing() {
       </div>
 
       <p className="mt-8 text-center text-[13px] text-ink-muted">
-        My Assets add-on (Background or Outfit swap): ₹{paiseToRupees(MY_ASSETS_ADDON_PRICE_PAISE).split(".")[0]}/photo,
-        GST-inclusive.
+        My Assets add-on (Background or Outfit swap): ₹{paiseToRupees(MY_ASSETS_ADDON_PRICE_PAISE).split(".")[0]}/photo
+        {GST_REGISTERED ? ", GST-inclusive." : "."}
       </p>
       <p className="mx-auto mt-2 max-w-[560px] text-center text-[11.5px] text-ink-muted">
         Early Bird prices end {EARLY_BIRD_CUTOFF_LABEL} ({EARLY_BIRD_CUTOFF_ISO}); already-purchased packs keep their

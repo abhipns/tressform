@@ -8,7 +8,12 @@
 // (per platform, even "coming soon" ones) whenever they're ready; no other
 // change needed.
 
+// 10.10.2026: the bottom of the footer now says who runs Tressform and how
+// to reach them (from lib/business.ts) — expected by customers and required
+// by payment gateway reviews. The address line appears once one is set.
+
 import Logo from "./Logo";
+import { BUSINESS, OPERATOR_LINE, addressLines } from "@/lib/business";
 
 const SOCIALS = [
   {
@@ -132,7 +137,7 @@ export default function Footer() {
               Terms of Service
             </a>
             <a href="/refund" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
-              Refund Policy
+              Refund &amp; Cancellation
             </a>
             <a href="/money-back-guarantee" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Money-Back Guarantee
@@ -145,8 +150,19 @@ export default function Footer() {
             <strong className="text-white/65">Disclaimer:</strong> AI-generated hairstyle previews are guidance to help
             you and your barber, not a guarantee of the final result — see Honest Expectations above.{" "}
             <strong className="text-white/65">Money-Back Guarantee:</strong> you get a 100% refund if a technical
-            glitch prevents image generation entirely, even after multiple attempts — see our Refund Policy for full
+            glitch prevents image generation entirely, even after multiple attempts — see our Refund and Cancellation Policy for full
             terms.
+          </p>
+          <p className="mb-3 max-w-[820px] text-[12.5px] text-white/60">
+            {OPERATOR_LINE}{" "}
+            <a href={`mailto:${BUSINESS.supportEmail}`} className="text-white/75 underline-offset-2 hover:text-white hover:underline">
+              {BUSINESS.supportEmail}
+            </a>
+            {" · "}
+            <a href={`tel:${BUSINESS.phoneHref}`} className="text-white/75 underline-offset-2 hover:text-white hover:underline">
+              {BUSINESS.phoneDisplay}
+            </a>
+            {addressLines().length > 0 && <> · {addressLines().join(", ")}</>}
           </p>
           <div className="flex flex-wrap items-center justify-between gap-2.5 text-[12.5px]">
             <span>Tressform. All rights reserved. © 2026</span>

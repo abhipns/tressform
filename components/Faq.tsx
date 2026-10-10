@@ -34,8 +34,11 @@ const FAQS = [
     a: "Your 2 free previews are a one-time, lifetime allowance per account — they don't refresh, even once you buy a paid pack. Both stay visible at low resolution in your history until then. The moment you buy any pack, those same 2 free previews become available in full, high-resolution quality — along with full barber-ready instructions.",
   },
   {
-    q: "Are the prices GST-inclusive?",
-    a: "Yes — every price shown (Starter Pack, Style Pack, Full Explore, and the My Assets add-on) already includes 18% GST. There's nothing added at checkout.",
+    // 10.10.2026: was "Are the prices GST-inclusive?". Tressform isn't
+    // GST-registered yet, so it can't say prices include GST. Restore the
+    // GST wording here when GST_REGISTERED (lib/pricing.ts) becomes true.
+    q: "Is anything added to the price at checkout?",
+    a: "No — the price shown for each plan (Starter Pack, Style Pack, Full Explore, and the My Assets add-on) is the full amount you pay. It's a one-time payment, not a subscription, and nothing is added at checkout.",
   },
   {
     q: "What is Early Bird pricing?",

@@ -1,33 +1,32 @@
-// /contact — built per the "Build all of them" decision on the placeholder
-// nav-link pages (Footer's "Contact" link, currently href="#").
+// /contact — who runs Tressform, how to reach them, and a message form.
 //
-// Honesty boundary: there's no real support email/address established
-// anywhere in this codebase, and no email-sending integration wired up yet
-// (lib/integrations/msg91.ts is SMS, not email; everything is mock mode).
-// Rather than invent a fake "support@tressform.com" or a street address,
-// this is a working client-side form UI that's explicit in its own copy
-// about not being wired to a live inbox yet — matching the same
-// disclose-the-gap pattern used for the carousel/referral/beta-review items
-// elsewhere. Swap in a real endpoint (e.g. a Resend/SMTP call from an
-// app/api/contact route) plus a real support address once one exists.
+// 10.10.2026: real contact details added (lib/business.ts), and the form
+// now actually goes somewhere. It used to show "Thanks — got it" without
+// sending anything. There is still no email-sending service on the server,
+// so the form opens the visitor's own email app with their message already
+// written and addressed to the support inbox; they press Send there. The
+// confirmation says exactly that, and gives the address in case no email
+// app opens. When a sending service is added (e.g. Resend from an
+// app/api/contact route), swap the mailto step for a real submit.
 
 "use client";
 
 import { useState } from "react";
+import BusinessContact from "@/components/BusinessContact";
+import { BUSINESS } from "@/lib/business";
 
 export default function ContactPage() {
-  const [submitted, setSubmitted] = useState(false);
+  const [opened, setOpened] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // NOTE: no backend wired yet — see header comment. This intentionally
-    // does not silently pretend to send anywhere; it just confirms receipt
-    // in the UI so the form isn't a dead end while a real endpoint doesn't
-    // exist.
-    setSubmitted(true);
+    const subject = `Tressform enquiry from ${name.trim()}`;
+    const body = `${message.trim()}\n\n${name.trim()}\n${email.trim()}`;
+    window.location.href = `mailto:${BUSINESS.supportEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setOpened(true);
   }
 
   return (
@@ -36,13 +35,26 @@ export default function ContactPage() {
         <p className="eyebrow">Contact</p>
         <h1 className="mb-4 text-[clamp(26px,4vw,36px)]">Get in touch</h1>
         <p className="mb-8 text-[15px] leading-[1.6] text-ink-body">
-          Questions, feedback, or something not working? Send us a note below.
+          Questions, feedback, or something not working? Email or call us, or write your message below.
         </p>
 
-        {submitted ? (
+        <div className="mb-8">
+          <BusinessContact heading="Reach us directly" />
+        </div>
+
+        {opened ? (
           <div className="rounded-lg2 border border-line bg-surface p-6 text-center">
-            <p className="mb-1 text-[16px] font-semibold text-ink-heading">Thanks — got it.</p>
-            <p className="text-[14px] text-ink-muted">We'll get back to you as soon as we can.</p>
+            <p className="mb-1 text-[16px] font-semibold text-ink-heading">Almost done — press Send in your email app.</p>
+            <p className="text-[14px] leading-[1.6] text-ink-muted">
+              Your message is ready there, addressed to us. If no email app opened, write to{" "}
+              <a href={`mailto:${BUSINESS.supportEmail}`} className="font-semibold text-mint-deep">
+                {BUSINESS.supportEmail}
+              </a>{" "}
+              directly.
+            </p>
+            <button type="button" onClick={() => setOpened(false)} className="mt-4 text-[13px] font-semibold text-mint-deep">
+              Back to the form
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -86,15 +98,18 @@ export default function ContactPage() {
               />
             </div>
             <button type="submit" className="btn-primary rounded-full !py-3">
-              Send message
+              Write this as an email
             </button>
+            <p className="text-center text-[12.5px] text-ink-muted">
+              This opens your email app with the message ready to send to {BUSINESS.supportEmail}.
+            </p>
           </form>
         )}
 
         <p className="mt-8 text-[13px] text-ink-muted">
           Refund or Money-Back Guarantee question? Check our{" "}
           <a href="/refund" className="font-semibold text-mint-deep">
-            Refund Policy
+            Refund and Cancellation Policy
           </a>{" "}
           first — most answers are there.
         </p>
