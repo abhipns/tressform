@@ -26,10 +26,19 @@
 // Explore stays "🔒 Not yet available" and unlinked — checkout itself
 // rejects that tier too (see api/payment/create-order/route.ts).
 
+//
+// 10.10.2026 design pass: the four floating boxes became one rate card —
+// the plans are columns of a single panel, the way a salon lists its
+// prices, so they read as one comparison. The most-picked plan is the dark
+// column. Nothing about the plans, prices or links changed, except:
+//   - the Free plan's "Browse purpose & style options" line is gone (those
+//     option buttons were removed from the upload step);
+//   - its button says "Try it free", the one name used for that action
+//     everywhere on the site now.
+
 import {
   PACK_TIERS,
   MY_ASSETS_ADDON_PRICE_PAISE,
-  EARLY_BIRD_CUTOFF_ISO,
   GST_REGISTERED,
   paiseToRupees,
 } from "@/lib/pricing";
@@ -54,104 +63,120 @@ const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: bo
   },
 };
 
+const FREE_FEATURES = [
+  "Full face-shape analysis",
+  "2 low-res watermarked previews (lifetime, per account)",
+  "Unlocked in full resolution when you buy any pack",
+];
+
 const EARLY_BIRD_CUTOFF_LABEL = "31 Oct 2026";
+
+function Features({ items, dark = false }: { items: string[]; dark?: boolean }) {
+  return (
+    <ul className={`flex flex-1 flex-col gap-3 text-[15px] leading-[1.45] ${dark ? "text-white/85" : "text-ink-body"}`}>
+      {items.map((f) => (
+        <li key={f} className="flex gap-2.5">
+          <span className={`mt-[1px] font-semibold ${dark ? "text-lilac" : "text-mint"}`} aria-hidden="true">
+            ✓
+          </span>
+          <span>{f}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function Pricing() {
   const tiers = Object.values(PACK_TIERS);
 
   return (
-    <section id="pricing" className="wrap py-[70px]">
-      <div className="section-head">
-        <p className="eyebrow">Pricing</p>
-        <h2>Pay only for the styles you love</h2>
-        <p>
-          {GST_REGISTERED ? "All prices are GST-inclusive. " : "The price you see is the price you pay. "}
-          Start free, then unlock full-resolution results and barber-ready instructions as you go.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
-        <div className="relative flex min-w-0 flex-col gap-3.5 rounded-md2 border-[1.5px] border-line bg-surface p-5">
-          <h4 className="text-[16px]">Free</h4>
-          <p className="min-h-8 text-[12.5px] text-ink-muted">Try it out, no commitment</p>
-          <div className="font-heading text-[28px] font-bold text-ink-heading">
-            ₹0
-          </div>
-          <ul className="flex flex-1 flex-col gap-2.5 text-[12.5px] text-ink-body">
-            <li>✓ Full face-shape analysis</li>
-            <li>✓ Browse purpose &amp; style options</li>
-            <li>✓ 2 low-res watermarked previews (lifetime, per account)</li>
-            <li>✓ Converted to full resolution the moment you buy any pack — marked &ldquo;Availed&rdquo; here once that happens</li>
-          </ul>
-          <a href="#upload" className="btn-secondary w-full">
-            Start Free
-          </a>
+    <section id="pricing" className="bg-bg text-ink-body">
+      <div className="frame py-16 sm:py-20 lg:py-28">
+        <div className="grid items-end gap-x-16 gap-y-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
+          <h2 className="h-display">Pay only for the styles you love.</h2>
+          <p className="lead max-w-[52ch]">
+            {GST_REGISTERED ? "All prices are GST-inclusive. " : "The price you see is the price you pay. "}
+            Start free, then unlock full-resolution results and barber-ready instructions as you go.
+          </p>
         </div>
 
-        {tiers.map((tier) => {
-          const copy = TIER_COPY[tier.tier];
-          const isLocked = tier.tier === "FULL_EXPLORE";
-          return (
-            <div
-              key={tier.tier}
-              className={`relative flex min-w-0 flex-col gap-3.5 rounded-md2 border-[1.5px] bg-surface p-5 transition hover:-translate-y-1.5 hover:shadow-card ${
-                copy.popular ? "border-mint" : "border-line"
-              } ${isLocked ? "opacity-90 hover:translate-y-0 hover:shadow-none" : ""}`}
-            >
-              {copy.popular && (
-                <span className="absolute -top-3 left-[18px] rounded-full bg-ink-heading px-3 py-1 text-[11px] font-bold tracking-[.03em] text-white">
-                  Most Popular
-                </span>
-              )}
-              {isLocked && (
-                <span className="absolute -top-3 left-[18px] rounded-full bg-ink-muted px-3 py-1 text-[11px] font-bold tracking-[.03em] text-white">
-                  Coming Soon
-                </span>
-              )}
-              <h4 className="text-[16px]">{tier.label}</h4>
-              <p className="min-h-8 text-[12.5px] text-ink-muted">{copy.tagline}</p>
-
-              <div className="flex items-baseline gap-2">
-                {tier.regularPricePaise !== null && (
-                  <span className="text-[16px] font-medium text-ink-muted line-through">
-                    ₹{paiseToRupees(tier.regularPricePaise).split(".")[0]}
-                  </span>
-                )}
-                <span className="font-heading text-[28px] font-bold text-ink-heading">
-                  ₹{paiseToRupees(tier.earlyBirdPricePaise).split(".")[0]}
-                </span>
-                {GST_REGISTERED && <small className="text-[12px] font-medium text-ink-muted">(GST incl.)</small>}
-              </div>
-              <p className="text-[11.5px] font-semibold text-mint-deep">Early Bird price — ends {EARLY_BIRD_CUTOFF_LABEL}</p>
-
-              <ul className="flex flex-1 flex-col gap-2.5 text-[12.5px] text-ink-body">
-                {copy.features.map((f) => (
-                  <li key={f}>✓ {f}</li>
-                ))}
-              </ul>
-              {isLocked ? (
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-ink-muted">🔒 Not yet available</div>
-              ) : (
-                <a
-                  href={`/checkout?tier=${tier.tier}`}
-                  className={copy.popular ? "btn-primary w-full" : "btn-secondary w-full"}
-                >
-                  Choose {tier.label}
-                </a>
-              )}
+        {/* One panel; the 1px gaps between cells show the panel's line colour
+            through, which draws the dividers at any number of columns. */}
+        <div className="mt-10 grid gap-px overflow-hidden rounded-[28px] bg-line ring-1 ring-line sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
+          <div className="flex flex-col gap-5 bg-surface p-6 lg:p-8">
+            <div>
+              <h3 className="text-[22px] font-semibold">Free</h3>
+              <p className="mt-1 text-[15px] text-ink-muted">Try it out, no commitment</p>
             </div>
-          );
-        })}
-      </div>
+            <p className="font-heading text-[44px] font-semibold leading-none text-ink-heading">₹0</p>
+            <Features items={FREE_FEATURES} />
+            <a href="#upload" className="btn-secondary w-full">
+              Try it free
+            </a>
+          </div>
 
-      <p className="mt-8 text-center text-[13px] text-ink-muted">
-        My Assets add-on (Background or Outfit swap): ₹{paiseToRupees(MY_ASSETS_ADDON_PRICE_PAISE).split(".")[0]}/photo
-        {GST_REGISTERED ? ", GST-inclusive." : "."}
-      </p>
-      <p className="mx-auto mt-2 max-w-[560px] text-center text-[11.5px] text-ink-muted">
-        Early Bird prices end {EARLY_BIRD_CUTOFF_LABEL} ({EARLY_BIRD_CUTOFF_ISO}); already-purchased packs keep their
-        original entitlement even after the price changes.
-      </p>
+          {tiers.map((tier) => {
+            const copy = TIER_COPY[tier.tier];
+            const isLocked = tier.tier === "FULL_EXPLORE";
+            const dark = Boolean(copy.popular);
+            return (
+              <div
+                key={tier.tier}
+                className={`flex flex-col gap-5 p-6 lg:p-8 ${dark ? "bg-[#16261C] text-white" : "bg-surface"}`}
+              >
+                <div>
+                  <h3 className={`text-[22px] font-semibold ${dark ? "text-white" : ""}`}>{tier.label}</h3>
+                  <p className={`mt-1 text-[15px] ${dark ? "text-lilac" : "text-ink-muted"}`}>
+                    {isLocked ? "Coming soon" : copy.tagline}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="flex items-baseline gap-3">
+                    <span className={`font-heading text-[44px] font-semibold leading-none ${dark ? "text-white" : "text-ink-heading"}`}>
+                      ₹{paiseToRupees(tier.earlyBirdPricePaise).split(".")[0]}
+                    </span>
+                    {tier.regularPricePaise !== null && (
+                      <span className={`text-[18px] line-through ${dark ? "text-white/50" : "text-ink-muted"}`}>
+                        ₹{paiseToRupees(tier.regularPricePaise).split(".")[0]}
+                      </span>
+                    )}
+                    {GST_REGISTERED && <span className="text-[13.5px] opacity-70">GST incl.</span>}
+                  </p>
+                  <p className={`mt-2 text-[14px] ${dark ? "text-white/70" : "text-ink-muted"}`}>
+                    Early Bird price, ends {EARLY_BIRD_CUTOFF_LABEL}
+                  </p>
+                </div>
+
+                <Features items={copy.features} dark={dark} />
+
+                {isLocked ? (
+                  <p className="py-3.5 text-center text-[15px] font-medium text-ink-muted">Not available yet</p>
+                ) : dark ? (
+                  <a href={`/checkout?tier=${tier.tier}`} className="btn-amber w-full !px-6 !py-3.5 !text-[16px]">
+                    Choose {tier.label}
+                  </a>
+                ) : (
+                  <a href={`/checkout?tier=${tier.tier}`} className="btn-secondary w-full">
+                    Choose {tier.label}
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 max-w-[80ch] text-[14.5px] leading-[1.6] text-ink-muted">
+          <p>
+            My Assets add-on (background or outfit swap): ₹{paiseToRupees(MY_ASSETS_ADDON_PRICE_PAISE).split(".")[0]} per
+            photo{GST_REGISTERED ? ", GST-inclusive." : "."}
+          </p>
+          <p className="mt-1">
+            Early Bird prices end {EARLY_BIRD_CUTOFF_LABEL}. Packs bought before then keep what they came with after
+            the price changes.
+          </p>
+        </div>
+      </div>
     </section>
   );
 }

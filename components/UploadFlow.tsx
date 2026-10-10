@@ -53,6 +53,21 @@
 //   - a returning customer with no free previews left is told before they
 //     upload anything.
 
+//
+// 10.10.2026 (design pass):
+//   - the eight option pills (Everyday, Professional, Wedding…) are gone.
+//     They never changed which styles were shown, and the owner's view is
+//     that fewer choices is better: photos, consent, go.
+//   - the section is now a mint band with the heading and photo tips on the
+//     left and the tool on the right. The tips are practical ones (face a
+//     window, phone at eye level) because the quality of the selfie decides
+//     the quality of the preview.
+//   - the three photo frames sit side by side on phones too, instead of
+//     three tall frames stacked one under another.
+//   - the button says what it does ("See my preview") and, while it is
+//     greyed out, a line underneath says what is still missing.
+// None of the upload / analysis / preview logic changed.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
@@ -61,15 +76,10 @@ type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
 type PreviewCard = { styleName: string; imageUrl: string | null; state: "loading" | "done" | "failed" };
 
-const OPTIONS = [
-  "Everyday",
-  "Professional",
-  "Look Younger",
-  "Wedding",
-  "Trendy",
-  "Low Maintenance",
-  "Bold",
-  "Classic",
+const TIPS = [
+  "Face a window or a light, so your face is evenly lit.",
+  "Hold the phone at eye level, not from below.",
+  "No glasses, cap or hat, and keep your hair off your face.",
 ];
 
 const STYLE_NAMES = ["Textured Quiff — Low Taper", "Classic Crop — Mid Fade", "Curl Definition Crop"];
@@ -124,7 +134,6 @@ export default function UploadFlow() {
   const [photos, setPhotos] = useState<Record<Slot, string | null>>({ front: null, left: null, right: null });
   const [consent, setConsent] = useState(false);
   const [step, setStep] = useState<Step>("capture");
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [faceShape, setFaceShape] = useState<string | null>(null);
   const [results, setResults] = useState<PreviewCard[]>([]);
   // True when the customer got fewer previews than there are styles because
@@ -170,39 +179,6 @@ export default function UploadFlow() {
   const noPreviewsLeft = previewsLeft === 0;
   const allUploaded = photos.front && photos.left && photos.right;
   const canSubmit = allUploaded && consent && !noPreviewsLeft;
-
-  function toggleOption(opt: string) {
-    setSelectedOptions((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
-  }
-
-  function PillRow({
-    options,
-    selected,
-    onToggle,
-  }: {
-    options: string[];
-    selected: string[];
-    onToggle: (v: string) => void;
-  }) {
-    return (
-      <div className="flex flex-wrap justify-center gap-2.5">
-        {options.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => onToggle(opt)}
-            className={`rounded-full border-[1.5px] px-[18px] py-2.5 text-[13.5px] font-semibold ${
-              selected.includes(opt)
-                ? "border-ink-heading bg-ink-heading text-white"
-                : "border-line bg-white text-ink-heading"
-            }`}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
-    );
-  }
 
   async function handleFile(slot: Slot, file: File) {
     setError(null);
@@ -326,213 +302,226 @@ export default function UploadFlow() {
     }
   }
 
+  const missing = !allUploaded
+    ? "Add all three photos to continue."
+    : !consent
+      ? "Tick the box above to continue."
+      : "";
+
   return (
-    <section id="upload" className="wrap py-8 pb-[70px]">
-      <div className="rounded-lg2 bg-surface p-6 shadow-card md:p-11">
-        {error && (
-          <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
-        )}
-
-        {step === "capture" && sessionLoading && (
-          // Real mode only (mock mode never "loads"): hold the space for a
-          // moment while we check whether the visitor is already logged in,
-          // rather than flashing the upload frames and then swapping them out.
-          <div className="flex min-h-[220px] items-center justify-center">
-            <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
-          </div>
-        )}
-
-        {step === "capture" && needsLogin && (
-          <div className="mx-auto max-w-[460px] py-6 text-center">
-            <h3 className="mb-2 text-[22px]">Log in to get your free previews</h3>
-            <p className="mb-6 text-[14px] leading-[1.6] text-ink-muted">
-              It takes a few seconds. Your 2 free previews and your photos are kept safely in your own account.
+    <section id="upload" className="bg-mint-pale text-ink-body">
+      <div className="frame py-16 sm:py-20 lg:py-28">
+        <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <h2 className="h-display">Try it on your own face.</h2>
+            <p className="lead mt-5 max-w-[44ch]">
+              Three photos: front, left and right. Your first preview is free.
             </p>
-            <a href={loginUrl("/#upload")} className="btn-primary w-full">
-              Log in or create an account
-            </a>
-          </div>
-        )}
-
-        {step === "capture" && !sessionLoading && !needsLogin && (
-          <div>
-            <div className="mx-auto mb-2 max-w-[560px] text-center">
-              <h3 className="mb-2 text-[22px]">Take 3 Selfies or Upload Your Photos</h3>
-              <p className="text-[13px] font-semibold text-ink-muted">
-                Good lighting &bull; No glasses/sunglasses &bull; No cap or hat &bull; Face clearly visible
-              </p>
-            </div>
-
-            {/* 24.09.2026: per feedback, these buttons were greyed out / not
-                clickable — the "Upload / Click Selfie" pill sat OUTSIDE the
-                <label> that wraps the file input, so it was purely
-                decorative text, not an actual control. The whole column
-                (frame + pill) is now one <label>, so clicking either part
-                opens the file picker. */}
-            <div className="mx-auto mb-[10px] mt-[26px] grid max-w-[720px] gap-5 sm:grid-cols-3">
-              {(["front", "left", "right"] as Slot[]).map((slot) => (
-                <label key={slot} className="flex cursor-pointer flex-col items-center gap-2.5">
-                  <div
-                    className={`relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2.5 overflow-hidden rounded-md2 border-[1.5px] bg-bg-soft p-4 text-center transition ${
-                      photos[slot] ? "border-mint" : "border-dashed border-line"
-                    }`}
-                  >
-                    {photos[slot] && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={photos[slot]!}
-                        alt={`${SLOT_LABEL[slot]} preview`}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    )}
-                    <div
-                      className={`relative z-[2] flex flex-col items-center gap-2 ${
-                        photos[slot] ? "h-full w-full justify-center rounded-[16px] bg-black/40" : ""
-                      }`}
-                    >
-                      <span
-                        className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                          photos[slot] ? "bg-mint text-[#12281f]" : "bg-white text-ink-muted"
-                        }`}
-                      >
-                        {photos[slot] ? <span className="text-[14px] font-extrabold">✓</span> : <CameraIcon />}
-                      </span>
-                      <span className={`text-[14px] font-semibold ${photos[slot] ? "text-white" : "text-ink-heading"}`}>
-                        {SLOT_LABEL[slot]}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="rounded-full border-[1.5px] border-line bg-white px-4 py-2 text-[13px] font-semibold text-ink-heading">
-                    {photos[slot] ? "Replace photo" : "Upload / Click Selfie"}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="user"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFile(slot, file);
-                    }}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <p className="mt-3 text-center text-[12.5px] text-ink-muted">
-              We&apos;ll analyse all three views together for a more accurate hairstyle match.
-            </p>
-
-            <div className="mx-auto mt-7 max-w-[640px]">
-              <PillRow options={OPTIONS} selected={selectedOptions} onToggle={toggleOption} />
-            </div>
-
-            <div className="mx-auto mb-[22px] mt-6 flex max-w-[640px] items-start gap-3 rounded-sm2 bg-bg-soft p-4">
-              <input
-                type="checkbox"
-                id="consentBox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-mint-deep"
-              />
-              <label htmlFor="consentBox" className="text-[13.5px] font-semibold leading-[1.5] text-ink-body">
-                I agree to Tressform analysing my photos to recommend hairstyles suited to me.
-              </label>
-            </div>
-
-            <div className="mx-auto max-w-[420px]">
-              {noPreviewsLeft ? (
-                <div className="rounded-md2 bg-bg-soft px-5 py-4 text-center">
-                  <p className="mb-3 text-[13.5px] font-medium text-ink-body">
-                    You&apos;ve used your free previews. Choose a pack to see more styles on your own photo.
-                  </p>
-                  <a href="#pricing" className="btn-primary w-full">
-                    See packs
-                  </a>
-                </div>
-              ) : (
-                <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
-                  Upload
-                </button>
-              )}
+            <div className="mt-8 max-w-[44ch]">
+              <h3 className="text-[17px] font-semibold">For a good result</h3>
+              <ul className="mt-3 flex flex-col gap-2.5 text-[15.5px] leading-[1.55]">
+                {TIPS.map((tip) => (
+                  <li key={tip} className="flex gap-3">
+                    <span className="mt-[9px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-        )}
 
-        {step === "analyzing" && (
-          <div className="py-[50px] text-center">
-            <div className="mx-auto mb-[18px] h-11 w-11 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
-            <h3 className="mb-1.5 text-[17px]">{progress}</h3>
-            <p className="text-[13.5px] text-ink-muted">This takes just a few seconds.</p>
-          </div>
-        )}
+          <div className="min-w-0 rounded-[28px] bg-surface p-5 shadow-card sm:p-8 lg:p-10">
+            {error && (
+              <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[14.5px] font-medium text-danger">{error}</div>
+            )}
 
-        {step === "results" && (
-          <div>
-            <div className="mx-auto mb-[26px] max-w-[560px] text-center">
-              <h3 className="mb-2 text-[22px]">Your matched styles</h3>
-              <p className="text-[14.5px] text-ink-muted">
-                Based on your {faceShape ? faceShape.toLowerCase() : ""} face shape and preferences.
-              </p>
-              {samplePreviews && !SUPABASE_MOCK_MODE && (
-                <p className="mt-3 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[12.5px] font-medium text-ink-muted">
-                  These are placeholder images while we finish switching on live previews — they don&apos;t use up
-                  your free previews.
+            {step === "capture" && sessionLoading && (
+              // Real mode only (mock mode never "loads"): hold the space for a
+              // moment while we check whether the visitor is already logged in,
+              // rather than flashing the upload frames and then swapping them out.
+              <div className="flex min-h-[260px] items-center justify-center">
+                <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
+              </div>
+            )}
+
+            {step === "capture" && needsLogin && (
+              <div className="mx-auto max-w-[460px] py-8 text-center">
+                <h3 className="mb-2 text-[24px] font-semibold">Log in to get your free previews</h3>
+                <p className="mb-7 text-[15.5px] leading-[1.6] text-ink-muted">
+                  It takes a few seconds. Your free previews and your photos are kept safely in your own account.
                 </p>
-              )}
-            </div>
-            <div className="grid gap-5 sm:grid-cols-3">
-              {results.map((r) => (
-                <div key={r.styleName} className="card">
-                  {r.state === "done" && r.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.imageUrl} alt={r.styleName} className="mb-3 w-full rounded-sm2" />
-                  ) : (
-                    <div className="mb-3 flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-sm2 bg-bg-soft px-4 text-center">
-                      {r.state === "loading" ? (
-                        <>
-                          <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
-                          <p className="text-[12.5px] font-medium text-ink-muted">Creating your preview…</p>
-                        </>
-                      ) : (
-                        <p className="text-[12.5px] font-medium text-ink-muted">This preview couldn&apos;t be created.</p>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-[13.5px] font-semibold text-ink-heading">{r.styleName}</p>
-                </div>
-              ))}
-            </div>
-            {allowanceSpent && !results.some((r) => r.state === "loading") && (
-              <div className="mt-6 rounded-md2 bg-bg-soft px-5 py-4 text-center">
-                <p className="mb-3 text-[13.5px] font-medium text-ink-body">
-                  {results.length > 0
-                    ? "Those were your free previews. Choose a pack to see more styles on your own photo."
-                    : "You've already used your free previews. Choose a pack to see more styles on your own photo."}
-                </p>
-                <a href="#pricing" className="btn-primary">
-                  See packs
+                <a href={loginUrl("/#upload")} className="btn-primary w-full">
+                  Log in or create an account
                 </a>
               </div>
             )}
-            <button
-              className="btn-secondary mt-6 w-full"
-              onClick={() => {
-                setStep("capture");
-                setPhotos({ front: null, left: null, right: null });
-                blobs.current = { front: null, left: null, right: null };
-                setSamplePreviews(false);
-                setAllowanceSpent(false);
-                setConsent(false);
-                setResults([]);
-                setError(null);
-                setSelectedOptions([]);
-              }}
-            >
-              Start over
-            </button>
+
+            {step === "capture" && !sessionLoading && !needsLogin && (
+              <div>
+                {/* The whole column (frame + caption) is one <label>, so a tap
+                    anywhere on it opens the camera / file picker. */}
+                <div className="grid grid-cols-3 gap-3 sm:gap-5">
+                  {(["front", "left", "right"] as Slot[]).map((slot) => (
+                    <label key={slot} className="group flex cursor-pointer flex-col gap-2.5 text-center">
+                      <div
+                        className={`relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border-[1.5px] bg-bg-soft transition group-hover:border-mint group-focus-within:border-mint ${
+                          photos[slot] ? "border-mint" : "border-dashed border-ink-muted/50"
+                        }`}
+                      >
+                        {photos[slot] ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={photos[slot]!}
+                              alt={`${SLOT_LABEL[slot]} photo`}
+                              className="absolute inset-0 h-full w-full object-cover"
+                            />
+                            <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-mint text-[13px] font-extrabold text-white shadow-card">
+                              ✓
+                            </span>
+                          </>
+                        ) : (
+                          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink-muted shadow-card">
+                            <CameraIcon />
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[15px] font-semibold leading-tight text-ink-heading">{SLOT_LABEL[slot]}</span>
+                      <span className="-mt-1.5 text-[13.5px] font-medium text-mint-deep underline decoration-mint/40 underline-offset-4">
+                        {photos[slot] ? "Change photo" : "Add photo"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="user"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFile(slot, file);
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <div className="mt-7 flex items-start gap-3 rounded-[16px] bg-bg-soft p-4">
+                  <input
+                    type="checkbox"
+                    id="consentBox"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-mint-deep"
+                  />
+                  <label htmlFor="consentBox" className="text-[15px] leading-[1.5] text-ink-body">
+                    I agree to Tressform analysing my photos to recommend hairstyles suited to me.
+                  </label>
+                </div>
+
+                <div className="mt-6">
+                  {noPreviewsLeft ? (
+                    <div className="rounded-[16px] bg-bg-soft px-5 py-5 text-center">
+                      <p className="mb-4 text-[15px] font-medium text-ink-body">
+                        You&apos;ve used your free previews. Choose a pack to see more styles on your own photo.
+                      </p>
+                      <a href="#pricing" className="btn-primary w-full sm:w-auto">
+                        See packs
+                      </a>
+                    </div>
+                  ) : (
+                    <>
+                      <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
+                        See my preview
+                      </button>
+                      <p className="mt-3 min-h-[20px] text-center text-[13.5px] text-ink-muted" aria-live="polite">
+                        {missing}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {step === "analyzing" && (
+              <div className="py-16 text-center">
+                <div className="mx-auto mb-5 h-11 w-11 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
+                <h3 className="mb-1.5 text-[19px] font-semibold">{progress}</h3>
+                <p className="text-[14.5px] text-ink-muted">This takes just a few seconds.</p>
+              </div>
+            )}
+
+            {step === "results" && (
+              <div>
+                <div className="mb-6">
+                  <h3 className="text-[26px] font-semibold leading-tight">
+                    {results.length === 1 ? "Your preview" : "Your previews"}
+                  </h3>
+                  {faceShape && (
+                    <p className="mt-1.5 text-[15.5px] text-ink-muted">
+                      Chosen for your {faceShape.toLowerCase()} face shape.
+                    </p>
+                  )}
+                  {samplePreviews && !SUPABASE_MOCK_MODE && (
+                    <p className="mt-3 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
+                      These are placeholder images while we finish switching on live previews. They don&apos;t use
+                      up your free previews.
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {results.map((r) => (
+                    <figure key={r.styleName}>
+                      {r.state === "done" && r.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.imageUrl} alt={r.styleName} className="w-full rounded-[18px]" />
+                      ) : (
+                        <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-[18px] bg-bg-soft px-4 text-center">
+                          {r.state === "loading" ? (
+                            <>
+                              <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
+                              <p className="text-[14px] font-medium text-ink-muted">Creating your preview…</p>
+                            </>
+                          ) : (
+                            <p className="text-[14px] font-medium text-ink-muted">
+                              This preview couldn&apos;t be created. Start over to try again.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      <figcaption className="mt-3 text-[15px] font-semibold text-ink-heading">{r.styleName}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+                {allowanceSpent && !results.some((r) => r.state === "loading") && (
+                  <div className="mt-7 rounded-[16px] bg-bg-soft px-5 py-5 text-center">
+                    <p className="mb-4 text-[15px] font-medium text-ink-body">
+                      {results.length > 0
+                        ? "Those were your free previews. Choose a pack to see more styles on your own photo."
+                        : "You've already used your free previews. Choose a pack to see more styles on your own photo."}
+                    </p>
+                    <a href="#pricing" className="btn-primary">
+                      See packs
+                    </a>
+                  </div>
+                )}
+                <button
+                  className="btn-secondary mt-6 w-full"
+                  onClick={() => {
+                    setStep("capture");
+                    setPhotos({ front: null, left: null, right: null });
+                    blobs.current = { front: null, left: null, right: null };
+                    setSamplePreviews(false);
+                    setAllowanceSpent(false);
+                    setConsent(false);
+                    setResults([]);
+                    setError(null);
+                  }}
+                >
+                  Start over
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </section>
   );

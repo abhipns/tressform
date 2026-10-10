@@ -1,72 +1,78 @@
-// Part B (revised sequence) — section 6, "How Tressform Works": the 4-step
-// explainer (Analyse / Discover / Visualise / Guide) referenced by the
-// header's "How It Works" nav link. No CTA on this section itself — it's
-// explanatory, same as the old 3-step version it replaces.
+// How it works — the second thing on the home page.
 //
-// 24.09.2026: per user feedback, each card's copy is now 3 bullet points
-// instead of one paragraph — easier to scan, and matches the level of
-// detail the user wants per step.
+// 10.10.2026 design pass: this ONE section replaces five that all explained
+// the same thing in different words — "Our approach", "Analyse. Discover.
+// Visualise. Guide.", the four-box "How Tressform delivers your ideal cut",
+// "Your 3-Step Confidence Journey" and "More than a preview". (Their files
+// are still in components/ but no longer on the page.)
+//
+// It is three steps because the customer does three things. The photos are
+// the three that were already on the site. The steps are numbered and drop
+// down the page like a staircase because this really is a sequence.
+//
+// The wording only promises what the product does today: the analysis reads
+// face shape (not hair texture or hairline yet), so that is all step 1 says.
+
+import Image from "next/image";
+import { Band, Rail } from "./Section";
 
 const STEPS = [
   {
-    title: "Analyse",
-    points: [
-      "Take three quick selfies — front, left, and right.",
-      "Tressform analyses your face shape and key facial features.",
-      "No special lighting or equipment is required.",
-    ],
+    title: "Take three selfies",
+    body: "Front, left and right, on any phone. Tressform reads your face shape from them.",
+    image: "/images/step-analyse-selfie.jpg",
+    alt: "A man taking a selfie on his phone by a window.",
   },
   {
-    title: "Discover",
-    points: [
-      "Explore a curated library of hairstyles matched to your profile.",
-      "Discover styles that complement your face shape and features.",
-      "Get personalised recommendations, not generic haircut suggestions.",
-    ],
+    title: "See the styles on your own face",
+    body: "You get hairstyles matched to your face shape, shown on your own photo and not on a model.",
+    image: "/images/step-choose-hairstyles.jpg",
+    alt: "Hands holding a phone that shows a grid of hairstyle previews.",
   },
   {
-    title: "Visualise",
-    points: [
-      "See yourself in each matched hairstyle.",
-      "Preview the look from multiple angles.",
-      "Know how the style looks on you before you pick up the scissors.",
-    ],
-  },
-  {
-    title: "Guide",
-    points: [
-      "Get barber-ready instructions for your chosen hairstyle.",
-      "See exact lengths, cutting techniques, and styling details.",
-      "Save or share the instructions with your barber or salon.",
-    ],
+    title: "Take the instructions to your barber",
+    body: "Each style comes with the lengths, clipper guards and technique written out, so your barber knows exactly what to do.",
+    image: "/images/step-show-barber.jpg",
+    alt: "A customer showing a hairstyle on his phone to a barber.",
   },
 ];
 
+const STAIR = ["", "lg:mt-14", "lg:mt-28"];
+
 export default function HowItWorks() {
   return (
-    <section id="how" className="wrap py-7 pb-2">
-      <div className="mx-auto mb-[26px] max-w-[560px] text-center">
-        <p className="eyebrow mb-2">How It Works</p>
-        <h3 className="text-[22px]">How Tressform Delivers Your Ideal Cut</h3>
-      </div>
-      <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-4">
-        {STEPS.map((step, i) => (
-          <div key={step.title} className="card">
-            <div className="mb-3.5 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-mint-pale text-[14px] font-bold text-mint-deep">
-              {i + 1}
-            </div>
-            <h4 className="mb-2 text-[16px]">{step.title}</h4>
-            <ul className="flex flex-col gap-1.5 text-[14px] leading-[1.5] text-ink-body">
-              {step.points.map((point) => (
-                <li key={point} className="flex gap-2">
-                  <span className="mt-[7px] h-[4px] w-[4px] shrink-0 rounded-full bg-mint-deep" aria-hidden="true" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </section>
+    <Band id="how" tone="cream">
+      <Rail
+        heading="From three selfies to a haircut your barber can follow."
+        lead="No appointment, no app to install. It takes about a minute."
+        aside={
+          <a href="#upload" className="btn-primary mt-8 hidden lg:inline-flex">
+            Try it free
+          </a>
+        }
+      >
+        {/* Phones: a small photo beside each step, so three steps fit in
+            about one screen. From tablets up: three columns, each a little
+            lower than the last. */}
+        <ol className="grid gap-x-6 gap-y-8 sm:grid-cols-3 sm:gap-y-12">
+          {STEPS.map((step, i) => (
+            <li key={step.title} className={`grid grid-cols-[104px_1fr] items-start gap-x-4 sm:block ${STAIR[i]}`}>
+              <div className="aspect-square overflow-hidden rounded-[16px] bg-mint-pale sm:aspect-[4/3] sm:rounded-[20px]">
+                <Image src={step.image} alt={step.alt} width={640} height={480} className="h-full w-full object-cover" />
+              </div>
+              <div className="flex items-start gap-3 sm:mt-5 sm:gap-4">
+                <span className="font-heading text-[34px] font-semibold leading-[0.9] text-mint sm:text-[46px]" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <div>
+                  <h3 className="text-[18.5px] font-semibold leading-snug sm:text-[20px]">{step.title}</h3>
+                  <p className="mt-1.5 text-[15.5px] leading-[1.55] sm:mt-2 sm:leading-[1.6]">{step.body}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Rail>
+    </Band>
   );
 }

@@ -1,60 +1,39 @@
-// Master Section Plan doc, row 17 "Get Your Tressform Look at a Matching
-// Salon" — reworked per that row's core content to introduce "Style Match":
-// hairstyle → required technique → matching salon, rather than a generic
-// "find a salon nearby" tease. Still front-end only: the actual matching
-// depends on Part M's salon onboarding backend (hair specialities collected
-// as structured tags — see db/schema.sql's salons/stylists tables and the
-// doc's "Salon Onboarding Module" section), which is scaffolded but not
-// live yet, and the Style Match algorithm itself is explicitly flagged in
-// the doc as "still open / not built." This section renders now so the
-// homepage order and nav ("Salons") are correct end-to-end.
+// Salons — a short notice that matching salons are on the way.
 //
-// Image: doc asks for a real/realistic photo of a partner salon interior or
-// barber at work — no fabricated photography inserted, same honesty rule as
-// the Hero video and the GetStarted step cards.
-//
-// 24.09.2026: filled with an AI-generated illustrative salon interior
-// (public/images/salon-interior.jpg) — a generic staged scene, not a real
-// partner location, so it doesn't misrepresent an actual salon as a real
-// Tressform partner.
+// 10.10.2026 design pass: this was a full-height section with a large
+// picture, three chips and a disabled button, for something a visitor can't
+// use yet. It is now one compact strip: the salon photo, what is coming, and
+// the plain words "Coming soon". It keeps its place in the header menu
+// (id="salons") because salon bookings are the second half of the business.
 
 import Image from "next/image";
 
-const STYLE_MATCH_STEPS = ["Your hairstyle", "→", "Required technique", "→", "Matching salon"];
-
 export default function TressformSalons() {
   return (
-    <section id="salons" className="wrap py-16 text-center">
-      <div className="section-head">
-        <p className="eyebrow">Tressform + Salons</p>
-        <h2>Get Your Tressform Look at a Matching Salon</h2>
-        <p>
-          Style Match reads the technique your chosen haircut actually needs — not just its name — and points you to
-          a partner salon whose stylists can execute it. Coming soon.
-        </p>
+    <section id="salons" className="bg-bg text-ink-body">
+      <div className="frame pb-16 sm:pb-20 lg:pb-28">
+        <div className="grid items-center gap-x-16 gap-y-8 overflow-hidden rounded-[28px] bg-mint-pale lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
+          <div className="p-7 sm:p-10 lg:py-14 lg:pl-14 lg:pr-0">
+            <p className="text-[15px] font-semibold text-mint-deep">Coming soon</p>
+            <h2 className="mt-2 font-heading text-[clamp(26px,2.6vw,40px)] font-semibold leading-[1.08]">
+              Get your Tressform look at a matching salon.
+            </h2>
+            <p className="mt-4 max-w-[46ch] text-[16.5px] leading-[1.6]">
+              Style Match reads the technique your chosen haircut actually needs, not just its name, and points you to
+              a partner salon whose stylists can do it.
+            </p>
+          </div>
+          <div className="aspect-[16/9] h-full w-full lg:aspect-auto lg:min-h-[340px]">
+            <Image
+              src="/images/salon-interior.jpg"
+              alt="A calm salon interior with a barber chair in front of an arched mirror."
+              width={1200}
+              height={675}
+              className="h-full w-full object-cover"
+            />
+          </div>
+        </div>
       </div>
-
-      <div className="mx-auto mb-6 aspect-[16/7] max-w-[720px] overflow-hidden rounded-lg2 bg-gradient-to-br from-mint-pale to-white">
-        <Image
-          src="/images/salon-interior.jpg"
-          alt=""
-          width={1200}
-          height={525}
-          className="h-full w-full object-cover"
-        />
-      </div>
-
-      <div className="mb-7 flex flex-wrap items-center justify-center gap-2 text-[13px] font-semibold text-ink-heading">
-        {STYLE_MATCH_STEPS.map((s, i) => (
-          <span key={i} className={s === "→" ? "text-ink-muted" : "rounded-full border border-line bg-surface px-3.5 py-1.5"}>
-            {s}
-          </span>
-        ))}
-      </div>
-
-      <span className="btn-secondary pointer-events-none opacity-70" aria-disabled="true">
-        Find a Salon — Coming Soon
-      </span>
     </section>
   );
 }

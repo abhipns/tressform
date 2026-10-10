@@ -18,13 +18,27 @@ export default function StickyCta() {
       setDismissed(true);
     }
 
-    const hero = document.getElementById("hero");
-    if (!hero) return;
+    // 10.10.2026: the pill also steps aside while the upload section is on
+    // screen. It used to float over that section's own button — on a phone
+    // it sat right on top of "See my preview" — and there is no point
+    // inviting someone to "try it" while they are in the middle of trying it.
+    const targets = ["hero", "upload"]
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (targets.length === 0) return;
 
-    const observer = new IntersectionObserver(([entry]) => setHeroVisible(entry.isIntersecting), {
-      threshold: 0,
-    });
-    observer.observe(hero);
+    const onScreen = new Set<Element>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) onScreen.add(entry.target);
+          else onScreen.delete(entry.target);
+        }
+        setHeroVisible(onScreen.size > 0);
+      },
+      { threshold: 0 }
+    );
+    targets.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 
@@ -34,7 +48,7 @@ export default function StickyCta() {
     <div className="fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4">
       <div className="flex items-center gap-3 rounded-full border border-line bg-surface py-2 pl-5 pr-2.5 shadow-card">
         <a href="#upload" className="btn-primary rounded-full !py-2 !px-4 text-[14px]">
-          Try It Free
+          Try it free
         </a>
         <button
           type="button"

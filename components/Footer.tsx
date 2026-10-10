@@ -63,20 +63,29 @@ const SOCIALS = [
   },
 ];
 
+// 10.10.2026 (design pass): an icon whose address is still "#" is not shown.
+// Five round buttons that go nowhere look unfinished; each one appears by
+// itself as soon as its real profile address is filled in above. The
+// product links also became "/#…" so they work from every page, and the two
+// that pointed at sections no longer on the home page (Hairstyles, Hair
+// Care) were replaced.
+const LIVE_SOCIALS = SOCIALS.filter((s) => s.href !== "#");
+
 export default function Footer() {
   return (
     <footer className="bg-gradient-to-b from-header-dark-2 to-header-dark py-[54px] pb-[26px] text-white/75">
-      <div className="wrap">
+      <div className="frame">
         <div className="grid gap-8 border-b border-white/10 pb-9 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <Logo variant="light" />
+            <Logo variant="light" href="/" />
             <p className="mt-3 max-w-[280px] text-[13.5px] leading-[1.6] text-white/60">
               See your next haircut before you commit — powered by AI face analysis built for real hair, real faces.
             </p>
+            {LIVE_SOCIALS.length > 0 && (
             <div className="mt-5">
-              <h5 className="mb-2.5 text-[13px] font-semibold uppercase tracking-[.04em] text-white">Catch Us On</h5>
+              <h5 className="mb-2.5 font-heading text-[15.5px] font-semibold text-white">Follow us</h5>
               <div className="flex flex-wrap gap-2.5">
-                {SOCIALS.map((s) => (
+                {LIVE_SOCIALS.map((s) => (
                   <a
                     key={s.name}
                     href={s.href}
@@ -91,24 +100,25 @@ export default function Footer() {
                 ))}
               </div>
             </div>
+            )}
           </div>
 
           <div>
-            <h5 className="mb-3.5 text-[13px] font-semibold uppercase tracking-[.04em] text-white">Product</h5>
-            <a href="#browse" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
-              Hairstyles
+            <h5 className="mb-3.5 font-heading text-[15.5px] font-semibold text-white">Product</h5>
+            <a href="/#how" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+              How it works
             </a>
-            <a href="#how" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
-              How It Works
+            <a href="/#what" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+              What you get
             </a>
-            <a href="#pricing" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+            <a href="/#pricing" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Pricing
             </a>
-            <a href="#salons" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
-              For Salons (soon)
+            <a href="/#salons" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+              For salons (soon)
             </a>
-            <a href="#haircare" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
-              Hair Care
+            <a href="/#faq" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+              Questions
             </a>
             <a href="/blog" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Blog
@@ -116,7 +126,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h5 className="mb-3.5 text-[13px] font-semibold uppercase tracking-[.04em] text-white">Company</h5>
+            <h5 className="mb-3.5 font-heading text-[15.5px] font-semibold text-white">Company</h5>
             <a href="/about" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               About
             </a>
@@ -129,7 +139,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h5 className="mb-3.5 text-[13px] font-semibold uppercase tracking-[.04em] text-white">Legal</h5>
+            <h5 className="mb-3.5 font-heading text-[15.5px] font-semibold text-white">Legal</h5>
             <a href="/privacy" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Privacy Policy
             </a>

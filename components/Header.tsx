@@ -3,10 +3,11 @@
 // Header — the bar at the top of every page.
 //
 // WHAT'S IN IT (decisions carried over from earlier passes):
-//  - four direct links: How It Works, Hairstyles, Salons, Pricing
+//  - four direct links (How it works, What you get, Pricing, Salons — see
+//    the note above DIRECT_LINKS for how these changed)
 //    (Master Section Plan row 1, trimmed 23.09.2026 — few competing choices);
 //  - Refer & Earn, Blog and Hair Care are secondary, under "More";
-//  - one primary button, "Get Started" (Quick Checkout is gone everywhere);
+//  - one primary button, "Try it free" (Quick Checkout is gone everywhere);
 //  - the Android app link sits beside the account link (24.09.2026);
 //    Apple stays a "Coming soon" line in the menu;
 //  - the account link reflects the real session (09.10.2026).
@@ -39,17 +40,22 @@ import Logo from "./Logo";
 import { supabase } from "@/lib/supabaseClient";
 import { useSession } from "@/lib/authClient";
 
+// 10.10.2026 (design pass, later the same day): the home page was cut to ten
+// sections. "Hairstyles" pointed at the cartoon-head carousel and "Hair
+// Care" at a "coming soon" notice — both are off the page until there is
+// real content — so "Hairstyles" became "What you get" and "Hair Care" left
+// the More menu. The button is "Try it free", the one name this action has
+// everywhere on the site now (it was "Get Started" here only).
 const DIRECT_LINKS = [
-  { href: "/#how", label: "How It Works" },
-  { href: "/#browse", label: "Hairstyles" },
-  { href: "/#salons", label: "Salons" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#what", label: "What you get" },
   { href: "/#pricing", label: "Pricing" },
+  { href: "/#salons", label: "Salons" },
 ];
 
 const MENU_LINKS = [
   { href: "/refer", label: "Refer & Earn", note: "Credits for every friend who buys" },
   { href: "/blog", label: "Blog", note: "Hair advice, plainly written" },
-  { href: "/#haircare", label: "Hair Care", note: "Looking after the cut you chose" },
 ];
 
 type OpenMenu = null | "more" | "account" | "mobile";
@@ -220,7 +226,7 @@ export default function Header() {
             href="/#upload"
             className="btn-primary group rounded-full !px-5 !py-2.5 text-[14.5px] lg:!px-6 lg:!py-3 lg:text-[15.5px]"
           >
-            Get Started
+            Try it free
             <svg
               viewBox="0 0 14 14"
               className="ml-2 hidden h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 sm:block"

@@ -56,11 +56,33 @@
   .eyebrow {
     @apply text-[12.5px] font-bold uppercase tracking-[.14em] text-mint-deep;
   }
+  /* 10.10.2026 design pass: buttons are pills everywhere (the header and
+     hero already were), and get a visible outline when reached by keyboard. */
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md2 bg-mint px-6 py-3 font-heading font-semibold text-white shadow-card transition hover:bg-mint-deep disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-muted disabled:shadow-none disabled:hover:bg-line;
+    @apply inline-flex items-center justify-center rounded-full bg-mint px-7 py-3.5 font-heading text-[16px] font-semibold text-white shadow-card transition hover:bg-mint-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-mint-deep disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-muted disabled:shadow-none disabled:hover:bg-line;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md2 border border-line bg-surface px-6 py-3 font-heading font-semibold text-ink-heading transition hover:border-ink-heading;
+    @apply inline-flex items-center justify-center rounded-full border border-line bg-surface px-7 py-3.5 font-heading text-[16px] font-semibold text-ink-heading transition hover:border-ink-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-mint-deep;
+  }
+  /* The amber button — the one action colour on the dark green bands, where
+     a green button would sink into the background. */
+  .btn-amber {
+    @apply inline-flex items-center justify-center rounded-full bg-lilac px-8 py-4 font-heading text-[17px] font-semibold text-header-dark transition hover:bg-[#D6AB52] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white;
+    box-shadow: 0 14px 30px -12px rgba(199, 154, 61, 0.7);
+  }
+  /* The page's column: same edges as the header and the hero. */
+  .frame {
+    @apply mx-auto w-full max-w-[1760px] px-5 sm:px-8 xl:px-14;
+  }
+  /* Section headings and the paragraph under them (home page). */
+  .h-display {
+    @apply font-heading font-semibold;
+    font-size: clamp(30px, 3.5vw, 54px);
+    line-height: 1.04;
+    letter-spacing: -0.012em;
+  }
+  .lead {
+    @apply text-[17px] leading-[1.6] lg:text-[18.5px];
   }
   .card {
     @apply rounded-lg2 bg-surface p-6 shadow-card;

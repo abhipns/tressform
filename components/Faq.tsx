@@ -1,3 +1,5 @@
+import { Band, Rail } from "./Section";
+
 // The three questions below (Master Section Plan doc, row 22) were added to
 // close out that row — the doc names these by wording, so they're added
 // verbatim as questions with answers consistent with the rest of the FAQ
@@ -15,7 +17,9 @@ const FAQS = [
   },
   {
     q: "What if I don't like any of the styles?",
-    a: "You keep your 2 free previews either way — they're yours to keep exploring with. If none of your matches feel right, you can try different questions in the assessment step (occasion, maintenance preference, desired look) to get a different set of matches before deciding on a paid pack.",
+    // 10.10.2026: no longer mentions "different questions in the assessment
+    // step" — those option buttons were removed from the upload step.
+    a: "Your free previews cost nothing, so you've lost nothing. A paid pack shows you more styles on your own photo, and there's no obligation to buy one.",
   },
   {
     q: "How accurate is the face-shape detection?",
@@ -66,26 +70,42 @@ const FAQS = [
   },
 ];
 
+// 10.10.2026 design pass: questions are a plain list divided by hairlines
+// (was 14 separate white boxes), with larger text, and the heading sits on
+// the left with a way to ask something that isn't listed.
 export default function Faq() {
   return (
-    <section id="faq" className="wrap py-[70px]">
-      <div className="section-head">
-        <p className="eyebrow">FAQ</p>
-        <h2>Questions, Answered</h2>
-      </div>
-      <div className="mx-auto flex max-w-[760px] flex-col gap-2.5">
-        {FAQS.map((item) => (
-          <details key={item.q} className="rounded-sm2 border border-line bg-surface p-4 px-5 [&_summary::-webkit-details-marker]:hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3.5 text-[15px] font-semibold text-ink-heading">
-              {item.q}
-              <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-mint-pale text-[14px] font-bold text-mint-deep">
-                +
-              </span>
-            </summary>
-            <p className="mt-3 text-[13.5px] leading-[1.6] text-ink-body">{item.a}</p>
-          </details>
-        ))}
-      </div>
-    </section>
+    <Band id="faq" tone="cream">
+      <Rail
+        heading="Questions, answered."
+        aside={
+          <p className="mt-5 max-w-[40ch] text-[16.5px] leading-[1.6]">
+            Something else on your mind?{" "}
+            <a
+              href="/contact"
+              className="font-semibold text-mint-deep underline decoration-mint/40 underline-offset-[6px] hover:decoration-mint-deep"
+            >
+              Ask us
+            </a>
+            .
+          </p>
+        }
+      >
+        <div className="border-t border-line">
+          {FAQS.map((item) => (
+            <details key={item.q} className="group border-b border-line [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-5 py-5 font-heading text-[18.5px] font-semibold leading-snug text-ink-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint-deep">
+                {item.q}
+                <span
+                  className="relative mt-1 h-[18px] w-[18px] shrink-0 text-mint-deep before:absolute before:left-0 before:top-1/2 before:h-[2px] before:w-full before:-translate-y-1/2 before:rounded-full before:bg-current after:absolute after:left-1/2 after:top-0 after:h-full after:w-[2px] after:-translate-x-1/2 after:rounded-full after:bg-current after:transition-transform group-open:after:scale-y-0"
+                  aria-hidden="true"
+                />
+              </summary>
+              <p className="max-w-[68ch] pb-6 text-[16px] leading-[1.65]">{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </Rail>
+    </Band>
   );
 }
