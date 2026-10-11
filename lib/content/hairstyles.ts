@@ -21,7 +21,11 @@
 //   family   styles that look alike; the picker limits how many of one
 //            family reach the top 5 so the five look different.
 //   line     one plain sentence for the customer.
-//   prompt   what the image model is told, in stylist's terms. The first 12
+//   front    (added 11.10.2026, see FRONT_VIEW below) the same cut described
+//            only by what can be seen from the front. This is what the
+//            image model is told for the front picture.
+//   prompt   the whole cut in stylist's terms, back of the head included:
+//            for the barber card and the side and back pictures. The first 12
 //            of each list were tested in the Studio on 10.10.2026. Some
 //            women's descriptions were then tightened where the picture
 //            missed the cut: curtain bangs came out as a full fringe, the
@@ -79,6 +83,8 @@ export interface Hairstyle {
   upkeep: Upkeep;
   line: string;
   prompt: string;
+  /** The cut as seen from the front, where `prompt` talks about the back of the head. */
+  front?: string;
 }
 
 type Row = Omit<Hairstyle, "gender">;
@@ -867,10 +873,73 @@ const WOMEN: Row[] = [
   },
 ];
 
+// THE FRONT VIEW. 11.10.2026: once the image model was told firmly to cut
+// the hair "so the new haircut is plain to see", it began turning a
+// front-facing man's head to the side, in two of three pictures. The
+// descriptions were asking it to show things no front photo can show — the
+// back of the head, the nape, the neckline — and turning the head was the
+// only way to obey. With those words taken out, the owner made the same
+// style three times and the man faced the camera in all three.
+//
+// So every style whose description mentions the back gets a second one
+// here that stops at what the front shows. tests/hairstyles.test.ts fails
+// if a front description ever mentions the back, nape or neckline again.
+const FRONT_VIEW: Record<string, string> = {
+  "m-textured-quiff":
+    "a short textured quiff: hair on top about 5–7 cm, lifted up and slightly back at the front with visible, piecey texture, and a low taper fade on the sides",
+  "m-side-part":
+    "a classic side part: hair on top about 5–6 cm, combed neatly to one side from a clear parting, with the sides tapered short",
+  "m-textured-crop":
+    "a short textured crop: choppy, textured hair on top about 3–4 cm pushed slightly forward with a short uneven fringe, and a clean mid skin fade on the sides",
+  "m-crew-cut": "a crew cut: short hair on top about 2–3 cm, slightly longer at the front hairline, with short tapered sides",
+  "m-slick-back-undercut":
+    "a slicked-back undercut: hair on top about 8–10 cm combed straight back off the forehead with a slight shine, and short clipped sides disconnected from the top",
+  "m-curly-top": "a curly top with a taper fade: defined natural curls on top about 5–7 cm, with the sides tapered short",
+  "m-short-spiky": "short spiky hair: hair on top about 3–5 cm styled upward into soft textured spikes, with tapered sides",
+  "m-buzz-fade":
+    "a buzz cut with a skin fade: the hair on top clipped to about 6–9 mm, fading smoothly down to bare skin on the lower sides, with a sharp, clean hairline",
+  "m-comb-over":
+    "a comb over with a mid fade: hair on top about 6–8 cm combed over to one side with a little volume and a clearly defined parting, and a clean mid fade on the sides",
+  "m-burst-fade":
+    "a burst fade with a textured top: messy textured hair on top about 5–7 cm, and a fade that curves in a semicircle around each ear down to skin",
+  "m-faux-hawk":
+    "a faux hawk: hair on top about 5–7 cm pushed up and toward the centre line of the head into a soft ridge, with a mid fade on the sides",
+  "m-brush-up":
+    "a brush up: hair on top about 6–8 cm blow-dried straight up and slightly back with a full, airy, matte finish, and a low taper on the sides",
+  "m-side-swept-fringe":
+    "a side-swept fringe: hair on top about 7–9 cm, the front swept diagonally across the forehead to one side, with softly tapered sides",
+  "m-two-block":
+    "a two-block cut: the sides clipped short up to the temples, with longer straight hair on top about 8–10 cm falling down over them and a soft fringe resting on the forehead with a slight centre parting",
+  "m-slick-back-taper":
+    "a slick back with tapered sides: hair on top about 7–9 cm combed straight back off the forehead with a light shine, blended smoothly into tapered sides with no hard line",
+  "m-short-back-sides":
+    "a classic short cut: the sides cut short and neat with scissors, and about 4 cm of natural, lightly combed hair on top",
+  "m-high-and-tight":
+    "a high and tight: the sides clipped down to skin high up the head, with a short strip of hair about 1–2 cm left on top",
+  "m-curly-fringe":
+    "a curly fringe with a low fade: defined natural curls on top about 6–8 cm falling forward over the forehead, with a low fade on the sides",
+  "m-short-curls": "short natural curls: tight, defined curls on top about 3–4 cm cut to an even rounded shape, with neatly tapered sides",
+  "m-modern-mullet":
+    "a modern mullet: textured hair on top about 6–8 cm, the sides tapered short, and longer hair below the ears that shows on both sides of the neck",
+  "m-top-knot": "a top knot with an undercut: long hair on top gathered up and tied in a small knot at the crown, with the sides clipped short",
+  "w-u-cut": "long straight hair kept at one length through the front, falling in front of the shoulders, with smooth ends that curve gently inward",
+  "w-pixie": "a pixie cut: short hair, about 4–6 cm on top with soft texture and a side-swept fringe, cut close around the ears",
+  "w-v-cut":
+    "long hair with the side lengths cut shorter so they fall in front of the shoulders, growing longer toward the middle, with smooth ends and no fringe",
+  "w-textured-pixie":
+    "a textured pixie cut: very short hair, about 3–5 cm on top with choppy, lifted, piecey texture and a short textured fringe, clipped close at the sides so the hair sits above the ears",
+  "w-a-line-bob": "an A-line bob: sleek hair angled longer toward the front, the front pieces ending just below the chin, with no fringe",
+};
+
 export const HAIRSTYLES: Hairstyle[] = [
   ...MEN.map((row) => ({ ...row, gender: "men" as const })),
   ...WOMEN.map((row) => ({ ...row, gender: "women" as const })),
-];
+].map((style) => (FRONT_VIEW[style.id] ? { ...style, front: FRONT_VIEW[style.id] } : style));
+
+/** What the image model is told for the front picture of a style. */
+export function frontDescription(style: Hairstyle): string {
+  return style.front ?? style.prompt;
+}
 
 export function hairstylesFor(gender: HairGender): Hairstyle[] {
   return HAIRSTYLES.filter((style) => style.gender === gender);

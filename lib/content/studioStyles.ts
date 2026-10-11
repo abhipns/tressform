@@ -7,7 +7,7 @@
 // much hair the cut needs, which is also how to choose a model photo: a
 // short cut can be made from any photo, a long style needs long hair.
 
-import { hairstylesFor, type HairGender, type Hairstyle, type StyleNeeds } from "./hairstyles";
+import { frontDescription, hairstylesFor, type HairGender, type Hairstyle, type StyleNeeds } from "./hairstyles";
 
 export interface StudioStyle {
   /** What the owner sees and what the image is filed under. */
@@ -38,7 +38,8 @@ const GROUPS: Record<HairGender, { title: string; hint: string; needs: StyleNeed
 };
 
 function toStudioStyle(style: Hairstyle): StudioStyle {
-  return { label: style.name, prompt: style.prompt, curlyOnly: style.texture[0] === 0 };
+  // The Studio makes front pictures, so it uses the front-view description.
+  return { label: style.name, prompt: frontDescription(style), curlyOnly: style.texture[0] === 0 };
 }
 
 function groupsFor(gender: HairGender): StudioGroup[] {

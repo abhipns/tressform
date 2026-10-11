@@ -155,13 +155,16 @@ export interface GenerateHairstyleResult {
 // What each catalogue style actually looks like, in barber's terms — the
 // name alone ("Classic Crop — Mid Fade") is too terse for an image model.
 // A style that isn't listed here falls back to its name.
+// 11.10.2026: these describe the FRONT view only — no back, nape or
+// neckline — because asking for those turned the customer's head to the
+// side (see FRONT_VIEW in lib/content/hairstyles.ts).
 const STYLE_DESCRIPTIONS: Record<string, string> = {
   "Textured Quiff — Low Taper":
-    "a short textured quiff: hair on top about 5–7 cm, lifted up and slightly back at the front with visible, piecey texture, and a low taper fade on the sides and at the nape",
+    "a short textured quiff: hair on top about 5–7 cm, lifted up and slightly back at the front with visible, piecey texture, and a low taper fade on the sides",
   "Classic Crop — Mid Fade":
-    "a short classic crop: neat, even hair on top about 3–4 cm with a short straight fringe sitting high on the forehead, and a clean mid fade on the sides and back",
+    "a short classic crop: neat, even hair on top about 3–4 cm with a short straight fringe sitting high on the forehead, and a clean mid fade on the sides",
   "Curl Definition Crop":
-    "a short cropped cut that shows off defined natural curls on top, about 4–6 cm, with tidy tapered sides and a clean neckline",
+    "a short cropped cut that shows off defined natural curls on top, about 4–6 cm, with tidy tapered sides",
 };
 
 export function describeStyle(styleName: string): string {
@@ -202,8 +205,11 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     // real side part on the same man. The first attempt at that wording
     // also asked for "both ears fully visible", and the model turned his
     // head to show one; so the cut is asked for by length only, and the
-    // pose is pinned in the same breath. Both lines were checked by the
-    // owner in the Studio on that photo before going in here.
+    // pose is pinned in the same breath. The owner's Studio test of that
+    // second wording (typed into the description box for one style) gave
+    // the same man, facing the camera, with a real side part. The two
+    // lines below say the same thing for every style; they still need one
+    // check with the ordinary style buttons.
     "Cut the hair to the lengths described, clearly shorter than in the photo wherever the style is shorter than " +
     "their hair is now, so the new haircut is plain to see. " +
     "They keep facing the camera exactly as in the photo: do not turn or tilt their head. " +
