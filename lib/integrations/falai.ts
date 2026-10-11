@@ -235,6 +235,13 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     // named outright, for every model.
     "Keep them the same age, with the same lines and skin texture: do not make them look younger. " +
     "Keep their natural hair colour, including any grey or white hair. " +
+    // 11.10.2026: a man whose hairline has receded at the temples came
+    // back with a full, dark hairline in a side part and a textured crop.
+    // No haircut does that, so a preview that shows it promises something
+    // the barber cannot deliver. Not yet checked against the model when
+    // written: the owner's next Studio pictures of that man are the test.
+    "Keep their hairline where it is, and their hair as thick or as thin as it is in the photo: " +
+    "do not fill in a receding hairline or thinning areas. " +
     // 10.10.2026: in the owner's test a curly-haired man came back with
     // straight hair from two of the three models. A haircut changes length
     // and shape, not texture, so a preview that straightens curls shows

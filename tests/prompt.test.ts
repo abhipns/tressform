@@ -36,4 +36,8 @@ describe("the facial hair instruction", () => {
   it("asks for a neat finish on the hair of the head only", () => {
     expect(buildEditPrompt({ ...base, facialHair: "beard" })).toMatch(/the hair on their head looking neatly styled/);
   });
+
+  it("does not let a haircut fill in a receding hairline", () => {
+    expect(buildEditPrompt({ ...base, facialHair: "beard" })).toMatch(/do not fill in a receding hairline or thinning areas/);
+  });
 });

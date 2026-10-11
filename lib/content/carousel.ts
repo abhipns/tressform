@@ -8,9 +8,16 @@
 // owner's model comparison of 10.10.2026. Both are shown in their Nano
 // Banana pictures, the model customers get. (The man's row first used his
 // Flux pictures; they were swapped the same day, when Flux was dropped for
-// changing people's faces.) The owner is adding more
-// people; this section matters more once the free preview is switched off,
-// because it becomes the visitor's only look at what they are buying.
+// changing people's faces.) This section matters more once the free
+// preview is switched off, because it becomes the visitor's only look at
+// what they are buying.
+//
+// 11.10.2026 (later): two more people from the owner's Studio, a woman with
+// long curly hair and a man in his forties with greying hair and a goatee.
+// His five pictures are the second batch: the first gave him a full beard
+// in three of five, which is what the facial-hair wording in
+// lib/integrations/falai.ts was changed to stop. With four people the
+// section is now the moving strip.
 //
 // TO ADD A PERSON: put six pictures in public/carousel/ (4:5 portrait, the
 // face in the middle; 560×700 is plenty) and add an entry below. With four
@@ -58,6 +65,30 @@ export const CAROUSEL_PEOPLE: CarouselPerson[] = [
       { src: "/carousel/woman-1-layered-shag.jpg", style: "Layered shag" },
       { src: "/carousel/woman-1-side-swept-bangs.jpg", style: "Side-swept bangs, medium" },
       { src: "/carousel/woman-1-pixie.jpg", style: "Pixie cut" },
+    ],
+  },
+  {
+    id: "woman-2",
+    who: "a woman with long curly hair",
+    original: "/carousel/woman-2-original.jpg",
+    previews: [
+      { src: "/carousel/woman-2-curly-bob.jpg", style: "Curly bob" },
+      { src: "/carousel/woman-2-bixie.jpg", style: "Long pixie (bixie)" },
+      { src: "/carousel/woman-2-french-bob.jpg", style: "French bob with fringe" },
+      { src: "/carousel/woman-2-pixie.jpg", style: "Pixie cut" },
+      { src: "/carousel/woman-2-textured-pixie.jpg", style: "Textured pixie" },
+    ],
+  },
+  {
+    id: "man-2",
+    who: "a man with greying hair and a goatee",
+    original: "/carousel/man-2-original.jpg",
+    previews: [
+      { src: "/carousel/man-2-side-part.jpg", style: "Classic side part, taper" },
+      { src: "/carousel/man-2-textured-crop.jpg", style: "Textured crop, mid fade" },
+      { src: "/carousel/man-2-crew-cut.jpg", style: "Crew cut" },
+      { src: "/carousel/man-2-short-back-sides.jpg", style: "Short back and sides" },
+      { src: "/carousel/man-2-buzz-fade.jpg", style: "Buzz cut, skin fade" },
     ],
   },
 ];
