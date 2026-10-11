@@ -52,7 +52,7 @@ const SECTIONS = [
   },
   {
     heading: "How long we keep it",
-    body: "Uploaded photos and low-resolution previews are automatically deleted 90 days after upload, unless your account is still active and using them. You can ask us to delete your photos, your previews or your whole account at any time, and we will do so without waiting for the 90-day period.",
+    body: "Uploaded photos and free previews are automatically deleted 90 days after upload, unless your account is still active and using them. You can ask us to delete your photos, your previews or your whole account at any time, and we will do so without waiting for the 90-day period.",
   },
   {
     heading: "Security",

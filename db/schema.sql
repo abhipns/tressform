@@ -657,3 +657,58 @@ create table if not exists job_runs (
 );
 alter table job_runs enable row level security;
 create index if not exists idx_job_runs_job_time on job_runs (job, ran_at desc);
+
+-- ============================================================================
+-- 11.10.2026 — paid previews. A pack is a number of hairstyle previews
+-- (lib/pricing.ts PACK_TIERS: Starter 4, Style 10). Each PAID order carries
+-- how many it came with and how many have been used; a preview made from a
+-- pack is recorded against that order (style_results.order_id), which is
+-- also what keeps a paid picture out of the 90-day clean-up.
+--
+-- /api/generate takes a preview from the customer's oldest pack that still
+-- has one, BEFORE it pays for the picture, and hands it back if the picture
+-- fails. As with free previews, taking it is one statement, so two requests
+-- arriving together cannot both take the last one.
+-- ============================================================================
+alter table orders add column if not exists preview_count integer not null default 0;
+alter table orders add column if not exists previews_used integer not null default 0;
+
+create or replace function public.reserve_paid_preview(p_user uuid)
+returns uuid
+language sql
+set search_path = ''
+as $$
+  with pick as (
+    select o.id
+      from public.orders o
+     where o.user_id = p_user
+       and o.status = 'PAID'
+       and o.previews_used < o.preview_count
+     order by o.paid_at nulls last, o.created_at
+     limit 1
+       for update
+  ), taken as (
+    update public.orders o
+       set previews_used = o.previews_used + 1
+      from pick
+     where o.id = pick.id
+       and o.previews_used < o.preview_count
+    returning o.id
+  )
+  select id from taken;
+$$;
+
+create or replace function public.release_paid_preview(p_order uuid)
+returns void
+language sql
+set search_path = ''
+as $$
+  update public.orders
+     set previews_used = greatest(previews_used - 1, 0)
+   where id = p_order;
+$$;
+
+revoke execute on function public.reserve_paid_preview(uuid) from public, anon, authenticated;
+revoke execute on function public.release_paid_preview(uuid) from public, anon, authenticated;
+grant execute on function public.reserve_paid_preview(uuid) to service_role;
+grant execute on function public.release_paid_preview(uuid) to service_role;

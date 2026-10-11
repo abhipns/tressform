@@ -58,6 +58,7 @@ import { readPhotoTwice, type CheckedReading } from "@/lib/integrations/vision";
 import { FALAI_MOCK_MODE } from "@/lib/integrations/falai";
 import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
+import { mockPreviewsLeft, previewsLeft as countPreviewsLeft } from "@/lib/allowance";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 const NOT_FOUND_MESSAGE = "We couldn't find your uploaded photos — please upload them again.";
@@ -269,23 +270,21 @@ export async function POST(req: NextRequest) {
       rekognitionRaw: analysisRecord,
       createdAt: new Date().toISOString(),
     });
-    const demoProfile = mockStore.getOrCreateProfile(userId);
     return NextResponse.json({
       mockMode: true,
       photoId: photo.id,
       ...forPage,
-      previewsLeft: Math.max(0, demoProfile.freePreviewsLimit - demoProfile.freePreviewsUsed),
+      previewsLeft: mockPreviewsLeft(userId).total,
     });
   }
 
   // One row per analysis, pointing at the FRONT photo (the one face
   // detection ran on). The left/right photos live beside it in the same
   // storage folder, so they can be found from this path when needed.
-  // Saved alongside a look at how many free previews are left, so the page
-  // can start exactly that many previews at once instead of asking for one
-  // it will only be refused. (Both run together — they don't depend on
-  // each other.)
-  const [{ data: photo, error }, { data: profile }] = await Promise.all([
+  // Saved alongside a count of the previews the customer has left (free
+  // ones plus any from a pack), which the result screen shows. (Both run
+  // together — they don't depend on each other.)
+  const [{ data: photo, error }, left] = await Promise.all([
     admin
       .from("photos")
       .insert({
@@ -297,7 +296,7 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single(),
-    admin.from("profiles").select("free_previews_used, free_previews_limit").eq("id", userId).maybeSingle(),
+    countPreviewsLeft(admin, userId),
   ]);
 
   if (error || !photo) {
@@ -306,8 +305,7 @@ export async function POST(req: NextRequest) {
 
   // null = "not being counted right now" (placeholder images while the image
   // generator is in mock mode are free and unlimited).
-  const previewsLeft =
-    FALAI_MOCK_MODE || !profile ? null : Math.max(0, profile.free_previews_limit - profile.free_previews_used);
+  const previewsLeft = FALAI_MOCK_MODE ? null : left.total;
 
   return NextResponse.json({
     mockMode: false,

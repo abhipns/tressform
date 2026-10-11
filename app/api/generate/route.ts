@@ -33,6 +33,12 @@
 // type), which is saved with the photo so the reading can be compared with
 // what customers correct it to. And asking twice for the same style on the
 // same photo gives back the picture already made, without counting again.
+//
+// 11.10.2026 (paid previews): a preview now comes from the customer's free
+// allowance first and then from a pack they bought (lib/allowance.ts). A
+// preview made from a pack is recorded against that order, which is also
+// what keeps a paid picture out of the 90-day clean-up. The reply says how
+// many previews are left in all (`previewsLeft`).
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -40,6 +46,15 @@ import { generateHairstyle, FALAI_MOCK_MODE, type GenerateHairstyleResult } from
 import { checkPreview, describeVerdict, poseFromAnalysis, type PreviewVerdict } from "@/lib/previewCheck";
 import { frontDescription, hairstyleById, MEN_LENGTHS, WOMEN_LENGTHS } from "@/lib/content/hairstyles";
 import { mockStore } from "@/lib/mockStore";
+import {
+  mockPreviewsLeft,
+  mockReleasePreview,
+  mockReservePreview,
+  previewsLeft as countPreviewsLeft,
+  releasePreview,
+  reservePreview,
+  type Reservation,
+} from "@/lib/allowance";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 // A real generation takes roughly 10–30 seconds; give the function room.
@@ -124,10 +139,12 @@ export async function POST(req: NextRequest) {
   // ---------------------------------------------------------------- mock DB
   if (SUPABASE_MOCK_MODE) {
     const profile = mockStore.getOrCreateProfile(userId);
-    if (profile.freePreviewsUsed >= profile.freePreviewsLimit) {
+    const taken = mockReservePreview(userId);
+    if (!taken) {
       return NextResponse.json(
         {
-          error: `You've used your ${profile.freePreviewsLimit} free previews — purchase a pack to keep generating.`,
+          error: "You have no previews left. Choose a pack to see more styles on your own photo.",
+          previewsLeft: 0,
           freePreviewsUsed: profile.freePreviewsUsed,
           freePreviewsLimit: profile.freePreviewsLimit,
         },
@@ -138,11 +155,10 @@ export async function POST(req: NextRequest) {
     const result = await generateHairstyle({ sourceImageUrl: sourceImageUrl!, styleName, styleDescription, faceShape, gender });
 
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
+      // Only a finished picture uses up a preview.
+      mockReleasePreview(userId, taken);
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
     }
-
-    // Only spend the allowance on a successful generation.
-    profile.freePreviewsUsed += 1;
 
     mockStore.addStyleResult({
       id: randomUUID(),
@@ -159,6 +175,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       mockMode: true,
       resultImageUrl: result.resultImageUrl,
+      paid: taken.kind === "paid",
+      previewsLeft: mockPreviewsLeft(userId).total,
       freePreviewsUsed: profile.freePreviewsUsed,
       freePreviewsLimit: profile.freePreviewsLimit,
     });
@@ -217,6 +235,7 @@ export async function POST(req: NextRequest) {
         samplePreview: false,
         alreadyMade: true,
         resultImageUrl: again.signedUrl,
+        previewsLeft: (await countPreviewsLeft(admin, userId)).total,
         freePreviewsUsed: profile?.free_previews_used ?? 0,
         freePreviewsLimit: profile?.free_previews_limit ?? 0,
       });
@@ -246,35 +265,39 @@ export async function POST(req: NextRequest) {
   const limitReached = () =>
     NextResponse.json(
       {
-        error: `You've used your ${profile.free_previews_limit} free previews — purchase a pack to keep generating.`,
+        error: "You have no previews left. Choose a pack to see more styles on your own photo.",
+        previewsLeft: 0,
         freePreviewsUsed: profile.free_previews_limit,
         freePreviewsLimit: profile.free_previews_limit,
       },
       { status: 402 }
     );
 
-  // Real generations cost money, so the allowance is taken up front in one
-  // atomic step and handed back if anything below fails. Placeholder
-  // generations (FAL still in mock mode) are free and never counted.
-  let reserved = false;
+  // Real generations cost money, so a preview is taken up front in one
+  // atomic step (a free one first, then one from a pack) and handed back if
+  // anything below fails. Placeholder generations (FAL still in mock mode)
+  // are free and never counted.
+  let reservation: Reservation | null = null;
   if (FALAI_MOCK_MODE) {
-    if (profile.free_previews_used >= profile.free_previews_limit) return limitReached();
+    if ((await countPreviewsLeft(admin, userId)).total <= 0) return limitReached();
   } else {
-    const { data: ok, error: reserveError } = await admin.rpc("reserve_free_preview", { profile_id: userId });
-    if (reserveError) {
-      console.error("[Tressform] reserve_free_preview failed:", reserveError.message);
+    try {
+      reservation = await reservePreview(admin, userId);
+    } catch (err) {
+      console.error("[Tressform] Could not take a preview:", (err as Error).message);
       return NextResponse.json({ error: "We couldn't start your preview — please try again." }, { status: 500 });
     }
-    if (!ok) return limitReached();
-    reserved = true;
+    if (!reservation) return limitReached();
   }
 
   async function giveBack() {
-    if (!reserved) return;
-    reserved = false;
-    const { error } = await admin.rpc("release_free_preview", { profile_id: userId });
-    if (error) console.error("[Tressform] release_free_preview failed for", userId, error.message);
+    if (!reservation) return;
+    const held = reservation;
+    reservation = null;
+    await releasePreview(admin, userId, held);
   }
+  // Read now: giveBack() clears the reservation, and the records below need it.
+  const paidOrderId = reservation?.kind === "paid" ? reservation.orderId : null;
 
   // The customer's own photo, to compare each preview against. If it can't
   // be read back the preview is still made; it just goes out unchecked.
@@ -400,6 +423,8 @@ export async function POST(req: NextRequest) {
     photo_id: photo.id,
     style_name: styleName,
     status: "SUCCEEDED",
+    // Set when this preview came from a pack: it marks the picture as paid for.
+    order_id: paidOrderId,
     result_storage_path: storedPath,
     provider: result.mock ? "mock" : result.model,
     // What every attempt cost, not just the one that was kept.
@@ -413,12 +438,15 @@ export async function POST(req: NextRequest) {
     console.error("[Tressform] style_results insert failed:", insertError.message);
   }
 
-  const used = result.mock ? profile.free_previews_used : Math.min(profile.free_previews_used + 1, profile.free_previews_limit);
+  const left = await countPreviewsLeft(admin, userId);
+  const used = Math.max(0, profile.free_previews_limit - left.free);
 
   return NextResponse.json({
     mockMode: false,
     samplePreview: result.mock,
     resultImageUrl: linkForCustomer,
+    paid: Boolean(paidOrderId),
+    previewsLeft: left.total,
     freePreviewsUsed: used,
     freePreviewsLimit: profile.free_previews_limit,
   });

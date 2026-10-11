@@ -946,7 +946,15 @@ const FRONT_VIEW: Record<string, string> = {
     "long hair with the side lengths cut shorter so they fall in front of the shoulders, growing longer toward the middle, with smooth ends and no fringe",
   "w-textured-pixie":
     "a textured pixie cut: very short hair, about 3–5 cm on top with choppy, lifted, piecey texture and a short textured fringe, clipped close at the sides so the hair sits above the ears",
-  "w-a-line-bob": "an A-line bob: sleek hair angled longer toward the front, the front pieces ending just below the chin, with no fringe",
+  // 11.10.2026: on a woman with very long hair both of the next two came
+  // out at chest length: clearly shorter than her hair, but not the cut
+  // that was named. As with the blunt bob above, the description now says
+  // where the hair stops and what is left bare, a little shorter than is
+  // wanted. Not yet checked against the model when written.
+  "w-a-line-bob":
+    "a short A-line bob: sleek hair that ends at the jaw at the sides, with the front pieces a little longer, ending about 2 cm below the chin and well above the shoulders, with no fringe; the neck is bare from the jaw down to the shoulders",
+  "w-wavy-lob":
+    "a wavy long bob: the hair is cut to end at the base of the neck, just above the shoulders and not touching them, styled in loose, soft waves with a relaxed texture, and no fringe; no hair falls onto the chest",
 };
 
 // WHAT EACH CUT DOES TO A FACE. 11.10.2026, for the customer's result

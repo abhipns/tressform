@@ -19,6 +19,15 @@
 // lib/integrations/falai.ts was changed to stop. With four people the
 // section is now the moving strip.
 //
+// 11.10.2026 (night): four more, eight in all, which is where the owner
+// stops: an older man with long grey hair, a young man with straight hair,
+// a woman in her forties and a woman with very long straight hair. The
+// order below alternates men and women and puts the four newest first.
+// Two of the last woman's pictures (A-line bob, wavy lob) came out longer
+// than those cuts really are; the wording for both was tightened in
+// lib/content/hairstyles.ts the same night, and the two pictures can be
+// remade and swapped.
+//
 // TO ADD A PERSON: put six pictures in public/carousel/ (4:5 portrait, the
 // face in the middle; 560×700 is plenty) and add an entry below. With four
 // or more people the section turns into a moving strip by itself.
@@ -44,6 +53,66 @@ export interface CarouselPerson {
 
 export const CAROUSEL_PEOPLE: CarouselPerson[] = [
   {
+    id: "woman-4",
+    who: "a woman with very long straight black hair",
+    original: "/carousel/woman-4-original.jpg",
+    previews: [
+      { src: "/carousel/woman-4-textured-pixie.jpg", style: "Textured pixie" },
+      { src: "/carousel/woman-4-bixie.jpg", style: "Long pixie (bixie)" },
+      { src: "/carousel/woman-4-side-swept-bangs.jpg", style: "Side-swept bangs, medium" },
+      { src: "/carousel/woman-4-a-line-bob.jpg", style: "A-line bob" },
+      { src: "/carousel/woman-4-wavy-lob.jpg", style: "Wavy lob" },
+    ],
+  },
+  {
+    id: "man-4",
+    who: "a young man with straight black hair",
+    original: "/carousel/man-4-original.jpg",
+    previews: [
+      { src: "/carousel/man-4-pompadour.jpg", style: "Pompadour, low fade" },
+      { src: "/carousel/man-4-high-and-tight.jpg", style: "High and tight" },
+      { src: "/carousel/man-4-messy-fringe.jpg", style: "Messy fringe, taper" },
+      { src: "/carousel/man-4-comb-over.jpg", style: "Comb over, mid fade" },
+      { src: "/carousel/man-4-short-back-sides.jpg", style: "Short back and sides" },
+    ],
+  },
+  {
+    id: "woman-2",
+    who: "a woman with long curly hair",
+    original: "/carousel/woman-2-original.jpg",
+    previews: [
+      { src: "/carousel/woman-2-curly-bob.jpg", style: "Curly bob" },
+      { src: "/carousel/woman-2-bixie.jpg", style: "Long pixie (bixie)" },
+      { src: "/carousel/woman-2-french-bob.jpg", style: "French bob with fringe" },
+      { src: "/carousel/woman-2-pixie.jpg", style: "Pixie cut" },
+      { src: "/carousel/woman-2-textured-pixie.jpg", style: "Textured pixie" },
+    ],
+  },
+  {
+    id: "man-3",
+    who: "an older man with long grey hair",
+    original: "/carousel/man-3-original.jpg",
+    previews: [
+      { src: "/carousel/man-3-side-part.jpg", style: "Classic side part, taper" },
+      { src: "/carousel/man-3-top-knot.jpg", style: "Top knot, undercut" },
+      { src: "/carousel/man-3-side-swept-fringe.jpg", style: "Side-swept fringe, taper" },
+      { src: "/carousel/man-3-middle-part.jpg", style: "Middle part curtains" },
+      { src: "/carousel/man-3-wavy-side-sweep.jpg", style: "Wavy side sweep, taper" },
+    ],
+  },
+  {
+    id: "woman-3",
+    who: "a woman in her forties with wavy brown hair",
+    original: "/carousel/woman-3-original.jpg",
+    previews: [
+      { src: "/carousel/woman-3-pixie.jpg", style: "Pixie cut" },
+      { src: "/carousel/woman-3-french-bob.jpg", style: "French bob with fringe" },
+      { src: "/carousel/woman-3-layered-shag.jpg", style: "Layered shag" },
+      { src: "/carousel/woman-3-curtain-bangs.jpg", style: "Long layers, curtain bangs" },
+      { src: "/carousel/woman-3-butterfly-cut.jpg", style: "Butterfly cut" },
+    ],
+  },
+  {
     id: "man-1",
     who: "a man with curly hair",
     original: "/carousel/man-1-original.jpg",
@@ -65,18 +134,6 @@ export const CAROUSEL_PEOPLE: CarouselPerson[] = [
       { src: "/carousel/woman-1-layered-shag.jpg", style: "Layered shag" },
       { src: "/carousel/woman-1-side-swept-bangs.jpg", style: "Side-swept bangs, medium" },
       { src: "/carousel/woman-1-pixie.jpg", style: "Pixie cut" },
-    ],
-  },
-  {
-    id: "woman-2",
-    who: "a woman with long curly hair",
-    original: "/carousel/woman-2-original.jpg",
-    previews: [
-      { src: "/carousel/woman-2-curly-bob.jpg", style: "Curly bob" },
-      { src: "/carousel/woman-2-bixie.jpg", style: "Long pixie (bixie)" },
-      { src: "/carousel/woman-2-french-bob.jpg", style: "French bob with fringe" },
-      { src: "/carousel/woman-2-pixie.jpg", style: "Pixie cut" },
-      { src: "/carousel/woman-2-textured-pixie.jpg", style: "Textured pixie" },
     ],
   },
   {

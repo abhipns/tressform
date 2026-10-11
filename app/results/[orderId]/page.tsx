@@ -101,8 +101,13 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           </span>
           <h1 className="mb-2 text-[clamp(24px,4vw,30px)]">Payment confirmed</h1>
           <p className="mb-6 text-[14.5px] text-ink-muted">
-            {order.tierLabel} — {order.imageCount} hairstyle results unlocked at full resolution.
+            {order.tierLabel}: {order.imageCount} hairstyle previews have been added to your account. Use them on any
+            style from your list.
           </p>
+          <a href="/#upload" className="btn-primary mb-7">
+            Continue to my hairstyles
+          </a>
+          <br />
           <div className="mx-auto mb-2 inline-flex gap-6 rounded-md2 border border-line bg-surface px-6 py-3 text-[13px] text-ink-muted">
             <span>
               Paid <strong className="text-ink-heading">₹{paiseToRupees(order.pricePaise).split(".")[0]}</strong>

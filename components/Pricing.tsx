@@ -46,12 +46,12 @@ import {
 const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: boolean; features: string[] }> = {
   STARTER: {
     tagline: "Try your first matches",
-    features: ["Unlock 4 hairstyle results", "Full resolution images", "Full barber instructions"],
+    features: ["4 hairstyle previews on your own photo", "You choose which styles to see", "Barber instructions with every preview"],
   },
   STYLE: {
     tagline: "Our most-picked plan",
     popular: true,
-    features: ["Unlock 10 hairstyle results", "Full resolution images", "Full barber instructions"],
+    features: ["10 hairstyle previews on your own photo", "You choose which styles to see", "Barber instructions with every preview"],
   },
   FULL_EXPLORE: {
     tagline: "The complete look, styled",
@@ -63,10 +63,14 @@ const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: bo
   },
 };
 
+// 11.10.2026: these say what a free account really gets. The earlier lines
+// promised low-resolution, watermarked previews that turn into
+// full-resolution ones after a purchase; free previews have never been
+// either, and nothing converts.
 const FREE_FEATURES = [
-  "Full face-shape analysis",
-  "2 low-res watermarked previews (lifetime, per account)",
-  "Unlocked in full resolution when you buy any pack",
+  "Your face shape and hair read from your photo",
+  "Your own list of matched hairstyles",
+  "2 free previews, once per account",
 ];
 
 const EARLY_BIRD_CUTOFF_LABEL = "31 Oct 2026";
@@ -96,7 +100,7 @@ export default function Pricing() {
           <h2 className="h-display">Pay only for the styles you love.</h2>
           <p className="lead max-w-[52ch]">
             {GST_REGISTERED ? "All prices are GST-inclusive. " : "The price you see is the price you pay. "}
-            Start free, then unlock full-resolution results and barber-ready instructions as you go.
+            Start free, then see more styles on your own photo as you go.
           </p>
         </div>
 

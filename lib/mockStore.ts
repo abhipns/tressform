@@ -32,6 +32,9 @@ export interface MockOrder {
   razorpayPaymentId: string | null;
   createdAt: string;
   paidAt: string | null;
+  /** How many previews the order came with, and how many have been made from it. */
+  previewCount?: number;
+  previewsUsed?: number;
 }
 
 export interface MockReferral {
@@ -182,6 +185,28 @@ export const mockStore = {
     order.razorpayPaymentId = razorpayPaymentId;
     order.paidAt = new Date().toISOString();
     return order;
+  },
+
+  /** Previews left across this customer's paid packs. */
+  paidPreviewsLeft(userId: string): number {
+    return [...orders.values()]
+      .filter((o) => o.userId === userId && o.status === "PAID")
+      .reduce((sum, o) => sum + Math.max(0, (o.previewCount ?? 0) - (o.previewsUsed ?? 0)), 0);
+  },
+
+  /** Take one preview from the oldest pack that has one; the order's id, or null. */
+  reservePaidPreview(userId: string): string | null {
+    const order = [...orders.values()]
+      .filter((o) => o.userId === userId && o.status === "PAID" && (o.previewsUsed ?? 0) < (o.previewCount ?? 0))
+      .sort((a, b) => (a.paidAt ?? a.createdAt).localeCompare(b.paidAt ?? b.createdAt))[0];
+    if (!order) return null;
+    order.previewsUsed = (order.previewsUsed ?? 0) + 1;
+    return order.id;
+  },
+
+  releasePaidPreview(orderId: string) {
+    const order = orders.get(orderId);
+    if (order) order.previewsUsed = Math.max(0, (order.previewsUsed ?? 0) - 1);
   },
 
   recordReferral(referral: MockReferral) {

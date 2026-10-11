@@ -93,6 +93,17 @@
 //     picks from the 60 styles with reasons, and a "See it on me" button on
 //     each. A preview is only made when the customer asks for it.
 // The button is now "See my hairstyles", since that is what comes next.
+//
+// 11.10.2026 (paid previews):
+//   - a customer with no previews left is no longer stopped before
+//     uploading. Reading a photo and showing the list costs a few paise; the
+//     list is what makes a pack worth buying, so everyone gets to see theirs
+//     and is asked for a pack only at "See it on me";
+//   - the result screen is remembered for this browser tab (which photo, the
+//     customer's own corrections, a small copy of the front photo). Leaving
+//     to buy a pack and coming back, or reloading, brings the same screen
+//     back, with the previews already made and the new balance, which the
+//     server supplies (/api/previews). "Start over" forgets it.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -106,6 +117,59 @@ type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
 /** What the analysis sent back, kept for the result screen. */
 type Analysis = { photoId: string; previewsLeft: number | null; details: PhotoDetails };
+
+// What is remembered for this tab so the result screen can come back.
+const RESULT_KEY = "tressform_result";
+type Remembered = {
+  owner: string; // whose result this is: never shown to a different login
+  photoId: string;
+  gender: HairGender;
+  details: PhotoDetails;
+  confirmed: ConfirmedDetails | null;
+  thumb: string | null;
+};
+
+function remember(value: Remembered | null) {
+  try {
+    if (value) window.sessionStorage.setItem(RESULT_KEY, JSON.stringify(value));
+    else window.sessionStorage.removeItem(RESULT_KEY);
+  } catch {
+    // Storage blocked or full: the screen simply is not remembered.
+  }
+}
+
+function recall(): Remembered | null {
+  try {
+    const raw = window.sessionStorage.getItem(RESULT_KEY);
+    const value = raw ? (JSON.parse(raw) as Remembered) : null;
+    return value && value.photoId && value.details && (value.gender === "men" || value.gender === "women") ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A small copy of the front photo: enough for the result screen, light enough to remember. */
+async function makeThumb(dataUrl: string | null): Promise<string | null> {
+  if (!dataUrl) return null;
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("unreadable"));
+      el.src = dataUrl;
+    });
+    const width = 300;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = Math.max(1, Math.round((width * img.naturalHeight) / img.naturalWidth));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.8);
+  } catch {
+    return null;
+  }
+}
 
 const TIPS = [
   "Face a window or a light, so your face is evenly lit.",
@@ -200,9 +264,10 @@ export default function UploadFlow() {
   // Whose hairstyles the customer wants. Remembered on this device for next time.
   const [gender, setGender] = useState<HairGender | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  // Real mode: how many free previews this account has left, looked up when
-  // the page loads. null = not known (logged out, mock mode, or still loading).
-  const [previewsLeft, setPreviewsLeft] = useState<number | null>(null);
+  // Previews made earlier from the photo on screen, when the screen was brought back.
+  const [earlier, setEarlier] = useState<{ styleName: string; url: string }[]>([]);
+  // True while a remembered result screen is being filled in again.
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Which of STAGES the waiting screen is on.
   const [stage, setStage] = useState(0);
@@ -239,26 +304,62 @@ export default function UploadFlow() {
   const mockUserId = useMemo(() => getMockUserId(), []);
 
   const userId = session?.user.id ?? null;
+  // Whose result screen this browser would be remembering.
+  const owner = SUPABASE_MOCK_MODE ? mockUserId : userId;
+
+  // Bring back the result screen this tab was showing (see the note at the
+  // top of the file). The server says what previews exist and how many are
+  // left; if it no longer knows the photo, the memory is dropped.
+  const restored = useRef(false);
   useEffect(() => {
-    if (SUPABASE_MOCK_MODE || !userId) return;
+    if (restored.current || !owner) return;
+    restored.current = true;
+    const saved = recall();
+    if (!saved) return;
+    if (saved.owner !== owner) {
+      remember(null);
+      return;
+    }
     let cancelled = false;
-    supabase
-      .from("profiles")
-      .select("free_previews_used, free_previews_limit")
-      .eq("id", userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        setPreviewsLeft(Math.max(0, data.free_previews_limit - data.free_previews_used));
-      });
+    setRestoring(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/previews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: JSON.stringify(SUPABASE_MOCK_MODE ? { userId: owner, photoId: saved.photoId } : { photoId: saved.photoId }),
+        });
+        if (!res.ok) throw new Error("gone");
+        const data = await res.json();
+        if (cancelled) return;
+        const details: PhotoDetails = saved.confirmed
+          ? {
+              // The customer already confirmed these: no need to ask again.
+              faceShape: saved.confirmed.faceShape,
+              secondFaceShape: null,
+              sure: "high",
+              readBy: "reading",
+              hair: { length: saved.confirmed.length, texture: saved.confirmed.texture },
+            }
+          : saved.details;
+        setGender(saved.gender);
+        setPhotos({ front: saved.thumb, left: null, right: null });
+        setEarlier(Array.isArray(data.previews) ? data.previews : []);
+        setAnalysis({ photoId: saved.photoId, previewsLeft: typeof data.previewsLeft === "number" ? data.previewsLeft : null, details });
+        setStep("results");
+      } catch {
+        remember(null);
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [owner]);
 
-  const noPreviewsLeft = previewsLeft === 0;
   const allUploaded = photos.front && photos.left && photos.right;
-  const canSubmit = allUploaded && consent && gender && !noPreviewsLeft;
+  const canSubmit = allUploaded && consent && gender;
 
   async function handleFile(slot: Slot, file: Blob) {
     setError(null);
@@ -341,18 +442,22 @@ export default function UploadFlow() {
       await nextStage(2);
       await pause(STAGE_MIN_MS);
 
+      const details: PhotoDetails = {
+        faceShape: analyzeData.faceShape,
+        secondFaceShape: analyzeData.secondFaceShape ?? null,
+        sure: analyzeData.sure ?? "low",
+        readBy: analyzeData.readBy ?? "measurement",
+        hair: { length: analyzeData.hair?.length ?? null, texture: analyzeData.hair?.texture ?? null },
+      };
+      setEarlier([]);
       setAnalysis({
         photoId: analyzeData.photoId,
         previewsLeft: typeof analyzeData.previewsLeft === "number" ? analyzeData.previewsLeft : null,
-        details: {
-          faceShape: analyzeData.faceShape,
-          secondFaceShape: analyzeData.secondFaceShape ?? null,
-          sure: analyzeData.sure ?? "low",
-          readBy: analyzeData.readBy ?? "measurement",
-          hair: { length: analyzeData.hair?.length ?? null, texture: analyzeData.hair?.texture ?? null },
-        },
+        details,
       });
-      if (typeof analyzeData.previewsLeft === "number") setPreviewsLeft(analyzeData.previewsLeft);
+      if (owner) {
+        remember({ owner, photoId: analyzeData.photoId, gender, details, confirmed: null, thumb: await makeThumb(photos.front) });
+      }
       setStep("results");
       // The list is long; bring its top into view rather than leaving the
       // customer where the button was.
@@ -372,7 +477,7 @@ export default function UploadFlow() {
       headers,
       body: JSON.stringify(
         SUPABASE_MOCK_MODE
-          ? { userId: mockUserId, photoId: "demo-photo", sourceImageUrl: photos.front, styleId, details }
+          ? { userId: mockUserId, photoId: analysis.photoId, sourceImageUrl: photos.front, styleId, details }
           : { photoId: analysis.photoId, styleId, details }
       ),
     });
@@ -394,9 +499,7 @@ export default function UploadFlow() {
           : data.error || "This preview couldn't be created. Please try again.",
       };
     }
-    const counted = typeof data.freePreviewsUsed === "number" && typeof data.freePreviewsLimit === "number" && !data.samplePreview;
-    const left = counted ? Math.max(0, data.freePreviewsLimit - data.freePreviewsUsed) : null;
-    if (left !== null) setPreviewsLeft(left);
+    const left = typeof data.previewsLeft === "number" && !data.samplePreview ? data.previewsLeft : null;
     return { ok: true, imageUrl: data.resultImageUrl, sample: Boolean(data.samplePreview), previewsLeft: left };
   }
 
@@ -405,6 +508,8 @@ export default function UploadFlow() {
     setPhotos({ front: null, left: null, right: null });
     blobs.current = { front: null, left: null, right: null };
     setAnalysis(null);
+    setEarlier([]);
+    remember(null);
     setConsent(false);
     setError(null);
     window.setTimeout(() => card.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -446,7 +551,7 @@ export default function UploadFlow() {
               <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[14.5px] font-medium text-danger">{error}</div>
             )}
 
-            {step === "capture" && sessionLoading && (
+            {step === "capture" && (sessionLoading || restoring) && (
               // Real mode only (mock mode never "loads"): hold the space for a
               // moment while we check whether the visitor is already logged in,
               // rather than flashing the upload frames and then swapping them out.
@@ -455,7 +560,7 @@ export default function UploadFlow() {
               </div>
             )}
 
-            {step === "capture" && needsLogin && (
+            {step === "capture" && needsLogin && !restoring && (
               <div className="mx-auto max-w-[460px] py-8 text-center">
                 <h3 className="mb-2 text-[24px] font-semibold">Log in to get your free previews</h3>
                 <p className="mb-7 text-[15.5px] leading-[1.6] text-ink-muted">
@@ -467,7 +572,7 @@ export default function UploadFlow() {
               </div>
             )}
 
-            {step === "capture" && !sessionLoading && !needsLogin && (
+            {step === "capture" && !sessionLoading && !needsLogin && !restoring && (
               <div>
                 <fieldset className="mb-6 sm:mb-7">
                   <legend className="text-[17px] font-semibold text-ink-heading">Which hairstyles do you want to see?</legend>
@@ -563,25 +668,12 @@ export default function UploadFlow() {
                 </div>
 
                 <div className="mt-6">
-                  {noPreviewsLeft ? (
-                    <div className="rounded-[16px] bg-bg-soft px-5 py-5 text-center">
-                      <p className="mb-4 text-[15px] font-medium text-ink-body">
-                        You&apos;ve used your free previews. Choose a pack to see more styles on your own photo.
-                      </p>
-                      <a href="#pricing" className="btn-primary w-full sm:w-auto">
-                        See packs
-                      </a>
-                    </div>
-                  ) : (
-                    <>
-                      <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
-                        See my hairstyles
-                      </button>
-                      <p className="mt-3 min-h-[20px] text-center text-[13.5px] text-ink-muted" aria-live="polite">
-                        {missing}
-                      </p>
-                    </>
-                  )}
+                  <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
+                    See my hairstyles
+                  </button>
+                  <p className="mt-3 min-h-[20px] text-center text-[13.5px] text-ink-muted" aria-live="polite">
+                    {missing}
+                  </p>
                 </div>
               </div>
             )}
@@ -644,6 +736,11 @@ export default function UploadFlow() {
                 previewsLeft={analysis.previewsLeft}
                 makePreview={makePreview}
                 onStartOver={startOver}
+                earlier={earlier}
+                onDetails={(confirmed) => {
+                  const saved = recall();
+                  if (saved && saved.photoId === analysis.photoId) remember({ ...saved, confirmed });
+                }}
               />
             )}
           </div>

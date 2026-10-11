@@ -93,6 +93,9 @@ export interface OrderRow {
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   razorpay_signature: string | null;
+  /** How many hairstyle previews this order came with, and how many have been made from it. */
+  preview_count: number;
+  previews_used: number;
   created_at: string;
   paid_at: string | null;
 }

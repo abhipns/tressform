@@ -12,19 +12,28 @@
 //      something could not be read, the customer is asked for it before any
 //      list is shown, because a list built on a guess would be wrong.
 //   2. The top picks: cuts they can get today, best match first, each with
-//      a match score, why it suits them (lib/pickReasons.ts) and what to
-//      ask the barber for.
+//      a match score and why it suits them (lib/pickReasons.ts). What to
+//      ask the barber for appears with a style once its preview is made.
 //   3. "See it on me" on each style. The customer chooses which styles to
 //      see on their own photo; no picture is made that was not asked for.
 //   4. Up to five more styles that suit them, some of which need growing.
+//
+// 11.10.2026 (paid previews): the count shown is every preview the customer
+// has left, free or from a pack. With none left, each style's button
+// becomes a link to the packs. The screen can also be given previews that
+// were made earlier (`earlier`), so a customer who went away to buy a pack,
+// or reloaded the page, finds their pictures where they left them; and it
+// reports every correction the customer makes (`onDetails`) so the page can
+// remember those too.
 //
 // This component only shows things and asks for previews. Which styles are
 // picked is decided in lib/recommend.ts; making a preview is done by the
 // function the upload flow passes in.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FaceShape } from "@/lib/faceShape";
 import {
+  HAIRSTYLES,
   MEN_LENGTHS,
   WOMEN_LENGTHS,
   barberLine,
@@ -147,6 +156,8 @@ export default function StylePicks({
   previewsLeft: previewsLeftAtStart,
   makePreview,
   onStartOver,
+  earlier,
+  onDetails,
 }: {
   gender: HairGender;
   frontPhoto: string | null;
@@ -155,6 +166,10 @@ export default function StylePicks({
   previewsLeft: number | null;
   makePreview: (styleId: string, details: ConfirmedDetails) => Promise<PreviewOutcome>;
   onStartOver: () => void;
+  /** Previews already made from this photo, by style name. */
+  earlier?: { styleName: string; url: string }[];
+  /** Told each time the customer's details are complete or change. */
+  onDetails?: (details: ConfirmedDetails) => void;
 }) {
   const lengths: readonly string[] = gender === "men" ? MEN_LENGTHS : WOMEN_LENGTHS;
   const [faceShape, setFaceShape] = useState<FaceShape>(initial.faceShape);
@@ -170,8 +185,17 @@ export default function StylePicks({
   const hairMissing = initial.hair.length === null || initial.hair.texture === null;
   const [editing, setEditing] = useState(faceUnsure || hairMissing);
 
-  const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
+  const [previews, setPreviews] = useState<Record<string, PreviewState>>(() => {
+    const made: Record<string, PreviewState> = {};
+    for (const item of earlier ?? []) {
+      const style = HAIRSTYLES.find((h) => h.gender === gender && h.name === item.styleName);
+      if (style) made[style.id] = { state: "done", imageUrl: item.url, style };
+    }
+    return made;
+  });
   const [left, setLeft] = useState<number | null>(previewsLeftAtStart);
+  // The page learns a new balance (after a purchase, say) and passes it down.
+  useEffect(() => setLeft(previewsLeftAtStart), [previewsLeftAtStart]);
   const [samples, setSamples] = useState(false);
   const [showMore, setShowMore] = useState(false);
 
@@ -190,6 +214,12 @@ export default function StylePicks({
     [gender, faceShape, faceChanged, initial.sure, initial.secondFaceShape, length, texture]
   );
   const picks = useMemo(() => (customer ? pickStyles(customer) : null), [customer]);
+
+  useEffect(() => {
+    if (length && texture) onDetails?.({ faceShape, length, texture });
+    // onDetails is the page's own function; only a change in the details matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faceShape, length, texture]);
 
   const loadingCount = Object.values(previews).filter((p) => p.state === "loading").length;
   const canStart = left === null || left - loadingCount > 0;
@@ -241,8 +271,8 @@ export default function StylePicks({
   const offList = Object.values(previews).filter((p) => !listed.has(p.style.id) && p.state !== "failed");
 
   // Plain functions, not components: a component declared in here would be
-  // a new one on every render, which would close an open "What to tell your
-  // barber" and reload every picture each time anything changed.
+  // a new one on every render, which would reload every picture each time
+  // anything changed.
   function renderPick(pick: StylePick, rank: number | null) {
     const preview = previews[pick.style.id];
     const reasons = customer ? reasonsFor(pick, customer) : [];
@@ -303,13 +333,20 @@ export default function StylePicks({
                 {preview.message}
               </p>
             )}
-            <details className="group mt-4 border-t border-line pt-3">
-              <summary className="cursor-pointer list-none text-[14.5px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4 [&::-webkit-details-marker]:hidden">
-                What to tell your barber
-              </summary>
-              <p className="mt-2 text-[14.5px] leading-[1.55]">{barberLine(pick.style)}</p>
-              <p className="mt-1.5 text-[13.5px] text-ink-muted">Showing them the picture as well works best.</p>
-            </details>
+            {/* The barber wording comes with the preview (free or paid): the
+                packs are sold as "barber instructions with every preview",
+                and the two belong together at the barber's anyway. */}
+            {preview?.state === "done" ? (
+              <div className="mt-4 border-t border-line pt-3">
+                <p className="text-[14.5px] font-semibold text-ink-heading">What to tell your barber</p>
+                <p className="mt-1.5 text-[14.5px] leading-[1.55]">{barberLine(pick.style)}</p>
+                <p className="mt-1.5 text-[13.5px] text-ink-muted">Showing them the picture as well works best.</p>
+              </div>
+            ) : (
+              <p className="mt-4 border-t border-line pt-3 text-[13.5px] text-ink-muted">
+                What to tell your barber comes with the preview.
+              </p>
+            )}
           </div>
         </div>
       </li>
@@ -499,7 +536,7 @@ export default function StylePicks({
             </div>
             {left !== null && left > 0 && (
               <p className="rounded-full bg-mint-pale px-4 py-1.5 text-[14px] font-semibold text-ink-heading" role="status">
-                {left} free {left === 1 ? "preview" : "previews"} left
+                {left} {left === 1 ? "preview" : "previews"} left
               </p>
             )}
           </div>
@@ -530,7 +567,7 @@ export default function StylePicks({
           {allowanceSpent && (
             <div className="mt-6 rounded-[16px] bg-mint-pale px-5 py-5 text-center">
               <p className="mb-4 text-[15px] font-medium text-ink-heading">
-                You&apos;ve used your free previews. Choose a pack to see more of these styles on your own photo.
+                You have no previews left. Choose a pack to see more of these styles on your own photo.
               </p>
               <a href="#pricing" className="btn-primary">
                 See packs

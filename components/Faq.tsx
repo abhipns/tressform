@@ -35,7 +35,7 @@ const FAQS = [
   },
   {
     q: "What happens after I use my 2 free previews?",
-    a: "Your 2 free previews are a one-time, lifetime allowance per account — they don't refresh, even once you buy a paid pack. Both stay visible at low resolution in your history until then. The moment you buy any pack, those same 2 free previews become available in full, high-resolution quality — along with full barber-ready instructions.",
+    a: "Your 2 free previews are a one-time allowance per account and don't refresh, even after you buy a pack. Your list of matched hairstyles stays free to see. To see more of those styles on your own photo you choose a pack: 4 previews with the Starter Pack or 10 with the Style Pack, and you pick which styles to use them on.",
   },
   {
     // 10.10.2026: was "Are the prices GST-inclusive?". Tressform isn't

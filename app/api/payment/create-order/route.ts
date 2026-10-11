@@ -113,6 +113,8 @@ export async function POST(req: NextRequest) {
       razorpayPaymentId: null,
       createdAt: new Date().toISOString(),
       paidAt: null,
+      previewCount: imageCount,
+      previewsUsed: 0,
     });
 
     return NextResponse.json({
@@ -156,6 +158,9 @@ export async function POST(req: NextRequest) {
       referral_credits_paise: 0,
       status: "CREATED",
       razorpay_order_id: razorpayOrder.id,
+      // What the customer is buying: this many hairstyle previews (see the
+      // "paid previews" section at the end of db/schema.sql).
+      preview_count: imageCount,
     })
     .select()
     .single();

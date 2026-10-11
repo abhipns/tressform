@@ -29,7 +29,7 @@ const SECTIONS = [
   },
   {
     heading: "Free previews",
-    body: "Every account gets 2 free previews, a lifetime allowance that doesn't refresh — including after you buy a paid pack. Full-resolution results and barber instructions require a paid plan.",
+    body: "Every account gets 2 free previews, a lifetime allowance that doesn't refresh — including after you buy a paid pack. Further previews require a paid pack.",
   },
   {
     heading: "Paid plans and pricing",
