@@ -24,11 +24,21 @@
 //     page is sent a short-lived private link to that copy;
 //   - while FAL is still in mock mode, real accounts get placeholder images
 //     that do NOT use up a free preview (samplePreview: true).
+//
+// 11.10.2026 (the customer's own picks): the page now names a style from
+// the list of 60 by its id (`styleId`), and the description the image model
+// is given is looked up HERE from lib/content/hairstyles.ts. A browser can
+// name a style; it can never supply the wording. The page also sends what
+// the customer confirmed about themselves (face shape, hair length, hair
+// type), which is saved with the photo so the reading can be compared with
+// what customers correct it to. And asking twice for the same style on the
+// same photo gives back the picture already made, without counting again.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { generateHairstyle, FALAI_MOCK_MODE, type GenerateHairstyleResult } from "@/lib/integrations/falai";
 import { checkPreview, describeVerdict, poseFromAnalysis, type PreviewVerdict } from "@/lib/previewCheck";
+import { frontDescription, hairstyleById, MEN_LENGTHS, WOMEN_LENGTHS } from "@/lib/content/hairstyles";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
@@ -47,8 +57,13 @@ interface GenerateBody {
   userId?: string; // mock mode only — ignored when a real project is connected
   photoId?: string;
   sourceImageUrl?: string; // mock mode only — real mode reads it from the photos row
+  /** A style from the list of 60 (lib/content/hairstyles.ts). */
+  styleId?: string;
+  /** Older pages only: one of the three original styles, by name. */
   styleName?: string;
   faceShape?: string | null;
+  /** What the customer confirmed on the result screen. */
+  details?: { faceShape?: unknown; length?: unknown; texture?: unknown } | null;
   /** Whose hairstyle it is: decides which image model makes the preview. */
   gender?: string | null;
 }
@@ -67,8 +82,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { photoId, sourceImageUrl, styleName, faceShape } = body;
-  const gender = body.gender === "men" || body.gender === "women" ? body.gender : null;
+  const { photoId, sourceImageUrl } = body;
+  const style = hairstyleById(body.styleId);
+  if (body.styleId && !style) {
+    return NextResponse.json({ error: "That hairstyle isn't on our list. Please refresh the page and try again." }, { status: 400 });
+  }
+  const styleName = style?.name ?? body.styleName;
+  const styleDescription = style ? frontDescription(style) : null;
+  const gender = style?.gender ?? (body.gender === "men" || body.gender === "women" ? body.gender : null);
+
+  // The customer's own corrections: only values from the fixed lists get through.
+  const SHAPES = ["Oval", "Round", "Square", "Heart", "Diamond", "Long"];
+  const saidShape = body.details?.faceShape;
+  const customerShape = typeof saidShape === "string" && SHAPES.includes(saidShape) ? saidShape : null;
+  const faceShape = customerShape ?? body.faceShape;
+  const lengths: readonly string[] = [...MEN_LENGTHS, ...WOMEN_LENGTHS];
+  const details = body.details
+    ? {
+        gender,
+        faceShape: customerShape,
+        length: typeof body.details.length === "string" && lengths.includes(body.details.length) ? body.details.length : null,
+        texture:
+          typeof body.details.texture === "string" && ["straight", "wavy", "curly"].includes(body.details.texture)
+            ? body.details.texture
+            : null,
+      }
+    : null;
 
   const auth = await requireUser(req, body.userId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -96,7 +135,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await generateHairstyle({ sourceImageUrl: sourceImageUrl!, styleName, faceShape, gender });
+    const result = await generateHairstyle({ sourceImageUrl: sourceImageUrl!, styleName, styleDescription, faceShape, gender });
 
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
@@ -152,7 +191,42 @@ export async function POST(req: NextRequest) {
     analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean"
       ? analysed.facialHair
       : null;
-  const analysedFaceShape: string | null = photo.face_shape ?? faceShape ?? null;
+  // The customer's own correction comes first: it is their face.
+  const analysedFaceShape: string | null = customerShape ?? photo.face_shape ?? faceShape ?? null;
+
+  // Asked for again (a second tap, or the page reloaded): hand back the
+  // picture already made for this photo and style. Nothing new is made or
+  // counted.
+  const { data: earlier } = await admin
+    .from("style_results")
+    .select("result_storage_path")
+    .eq("user_id", userId)
+    .eq("photo_id", photo.id)
+    .eq("style_name", styleName)
+    .eq("status", "SUCCEEDED")
+    .not("result_storage_path", "is", null)
+    .not("result_storage_path", "like", "http%")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (earlier?.result_storage_path) {
+    const { data: again } = await admin.storage.from("results").createSignedUrl(earlier.result_storage_path, RESULT_LINK_SECONDS);
+    if (again?.signedUrl) {
+      return NextResponse.json({
+        mockMode: false,
+        samplePreview: false,
+        alreadyMade: true,
+        resultImageUrl: again.signedUrl,
+        freePreviewsUsed: profile?.free_previews_used ?? 0,
+        freePreviewsLimit: profile?.free_previews_limit ?? 0,
+      });
+    }
+  }
+
+  if (details) {
+    const { error: detailsError } = await admin.from("photos").update({ customer_details: details }).eq("id", photo.id);
+    if (detailsError) console.error("[Tressform] Could not save the customer's details:", detailsError.message);
+  }
 
   const { data: signed, error: signError } = await admin.storage
     .from("photos")
@@ -228,6 +302,7 @@ export async function POST(req: NextRequest) {
       result = await generateHairstyle({
         sourceImageUrl: signed.signedUrl,
         styleName,
+        styleDescription,
         faceShape: analysedFaceShape,
         facialHair,
         gender,

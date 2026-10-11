@@ -8,8 +8,9 @@
 //    (Master Section Plan row 1, trimmed 23.09.2026 — few competing choices);
 //  - Refer & Earn, Blog and Hair Care are secondary, under "More";
 //  - one primary button, "Try it free" (Quick Checkout is gone everywhere);
-//  - the Android app link sits beside the account link (24.09.2026);
-//    Apple stays a "Coming soon" line in the menu;
+//  - the Android app link sat beside the account link (24.09.2026). It
+//    went nowhere (there is no app yet), so on 11.10.2026 it was taken out;
+//    the menu says both apps are coming soon instead;
 //  - the account link reflects the real session (09.10.2026).
 //
 // 10.10.2026 — REDESIGN. The first layout pass the same day only widened the
@@ -59,14 +60,6 @@ const MENU_LINKS = [
 ];
 
 type OpenMenu = null | "more" | "account" | "mobile";
-
-function PlayIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 12 12" className={className} fill="currentColor" aria-hidden="true">
-      <path d="M2 1.1v9.8c0 .5.5.8.9.5l7.7-4.9a.6.6 0 0 0 0-1L2.9.6C2.5.3 2 .6 2 1.1Z" />
-    </svg>
-  );
-}
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -172,26 +165,13 @@ export default function Header() {
                   </a>
                 ))}
                 <div className="mx-2 my-1.5 h-px bg-white/10" />
-                <a href="#" onClick={close} className={`${PANEL_ITEM} flex items-center gap-2 2xl:hidden`} aria-label="Get it on Google Play">
-                  <PlayIcon className="h-[11px] w-[11px]" />
-                  Android app
-                </a>
-                <span className="block px-3.5 py-2 text-[13.5px] text-white/40">Apple app · Coming soon</span>
+                <span className="block px-3.5 py-2 text-[13.5px] text-white/40">Android and Apple apps · Coming soon</span>
               </div>
             )}
           </div>
         </nav>
 
         <div className="flex items-center gap-2.5 sm:gap-3 xl:gap-4">
-          <a
-            href="#"
-            aria-label="Get it on Google Play"
-            className="hidden items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-[14.5px] font-medium text-white/85 transition-colors hover:border-white/35 hover:text-white 2xl:inline-flex"
-          >
-            <PlayIcon className="h-[11px] w-[11px]" />
-            Android app
-          </a>
-
           {session ? (
             <div className="relative hidden sm:block">
               <button
@@ -268,11 +248,7 @@ export default function Header() {
                   </a>
                 ))}
                 <div className="mx-2 my-1.5 h-px bg-white/10" />
-                <a href="#" onClick={close} className={`${PANEL_ITEM} flex items-center gap-2`} aria-label="Get it on Google Play">
-                  <PlayIcon className="h-[11px] w-[11px]" />
-                  Android app
-                </a>
-                <span className="block px-3.5 py-2 text-[13.5px] text-white/40">Apple app · Coming soon</span>
+                <span className="block px-3.5 py-2 text-[13.5px] text-white/40">Android and Apple apps · Coming soon</span>
                 <div className="mx-2 my-1.5 h-px bg-white/10 sm:hidden" />
                 {session ? (
                   <div className="sm:hidden">

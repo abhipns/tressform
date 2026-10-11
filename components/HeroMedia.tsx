@@ -6,8 +6,12 @@
 // example cut on the card changes with it (a quiff written under a woman's
 // face would look careless).
 //
-// The card's contents are examples and are labelled so. The real card is
-// written per customer from their own analysis.
+// The card's contents are examples and are labelled so.
+//
+// 11.10.2026: the examples now say only what a customer really receives
+// with a style ("What to tell your barber" on the result screen): lengths
+// and how the sides and back are cut, in words. They used to show clipper
+// guard numbers, which the site does not give.
 
 import { useCallback, useState } from "react";
 import HeroVideoShuffle from "./HeroVideoShuffle";
@@ -17,19 +21,19 @@ type Line = { label: string; parts: (string | { n: string })[] };
 // Index matches HeroVideoShuffle's clip order: 0 = woman, 1 = man.
 const CARDS: { style: string; lines: Line[] }[] = [
   {
-    style: "Long layers, face-framing",
+    style: "Face-framing layers, long",
     lines: [
-      { label: "Length", parts: ["Trim ", { n: "5" }, " cm, to the collarbone"] },
-      { label: "Layers", parts: ["Long, starting at the chin"] },
-      { label: "Front", parts: ["Face-framing from the cheekbone"] },
+      { label: "Length", parts: ["Kept, ends trimmed"] },
+      { label: "Front", parts: ["Shorter pieces from the chin"] },
+      { label: "Fringe", parts: ["None"] },
     ],
   },
   {
     style: "Textured quiff, low taper",
     lines: [
-      { label: "Top", parts: [{ n: "5–7" }, " cm, scissor cut"] },
-      { label: "Sides", parts: ["Guard ", { n: "2" }, " fading to ", { n: "0.5" }] },
-      { label: "Back", parts: ["Tapered neckline"] },
+      { label: "Top", parts: [{ n: "5–7" }, " cm, lifted at the front"] },
+      { label: "Sides", parts: ["Low taper fade"] },
+      { label: "Back", parts: ["Tapered at the nape"] },
     ],
   },
 ];
@@ -39,7 +43,7 @@ function BarberCard({ index }: { index: number }) {
   return (
     <div className="w-[min(300px,80vw)] rounded-[14px] bg-bg-soft px-5 pb-4 pt-4 text-ink-heading shadow-[0_24px_50px_-18px_rgba(0,0,0,0.65)] ring-1 ring-black/5">
       <div className="flex items-baseline justify-between gap-3 border-b border-dashed border-line pb-2.5">
-        <span className="font-heading text-[17px] font-semibold leading-none">Barber card</span>
+        <span className="font-heading text-[17px] font-semibold leading-none">For your barber</span>
         <span className="text-[11.5px] text-ink-muted">Example</span>
       </div>
       <p className="mt-2.5 text-[13px] leading-snug text-ink-body">{card.style}</p>

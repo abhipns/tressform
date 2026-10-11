@@ -82,22 +82,30 @@
 // uploading, reading the face shape, choosing hairstyles. The steps follow
 // the real work, with one small exception: each stays on screen for at
 // least a moment so a fast step does not flash past unread.
+//
+// 11.10.2026 (the customer's own list): until now everyone was shown the
+// same three men's cuts, made automatically. Now:
+//   - one question before the photos: men's or women's hairstyles. It
+//     decides which of the two lists of 30 is used and how hair length is
+//     described, so it cannot be skipped;
+//   - after the photos are read, the result screen (components/
+//     StylePicks.tsx) shows what was read about the customer, their top
+//     picks from the 60 styles with reasons, and a "See it on me" button on
+//     each. A preview is only made when the customer asks for it.
+// The button is now "See my hairstyles", since that is what comes next.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import SelfieCamera from "./SelfieCamera";
 import { readLight } from "@/lib/photoLight";
+import StylePicks, { type ConfirmedDetails, type PhotoDetails, type PreviewOutcome } from "./StylePicks";
+import type { HairGender } from "@/lib/content/hairstyles";
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
-type PreviewCard = {
-  styleName: string;
-  imageUrl: string | null;
-  state: "loading" | "done" | "failed";
-  /** Made, but it did not look enough like the customer to show; not counted. */
-  rejected?: boolean;
-};
+/** What the analysis sent back, kept for the result screen. */
+type Analysis = { photoId: string; previewsLeft: number | null; details: PhotoDetails };
 
 const TIPS = [
   "Face a window or a light, so your face is evenly lit.",
@@ -105,7 +113,11 @@ const TIPS = [
   "No glasses, cap or hat, and keep your hair off your face.",
 ];
 
-const STYLE_NAMES = ["Textured Quiff — Low Taper", "Classic Crop — Mid Fade", "Curl Definition Crop"];
+const GENDER_KEY = "tressform_hairstyles_for";
+const GENDER_OPTIONS: { value: HairGender; label: string }[] = [
+  { value: "men", label: "Men's hairstyles" },
+  { value: "women", label: "Women's hairstyles" },
+];
 
 const SLOT_LABEL: Record<Slot, string> = { front: "Front", left: "Left", right: "Right" };
 const SLOTS: Slot[] = ["front", "left", "right"];
@@ -185,18 +197,13 @@ export default function UploadFlow() {
   const [photos, setPhotos] = useState<Record<Slot, string | null>>({ front: null, left: null, right: null });
   const [consent, setConsent] = useState(false);
   const [step, setStep] = useState<Step>("capture");
-  const [faceShape, setFaceShape] = useState<string | null>(null);
-  const [results, setResults] = useState<PreviewCard[]>([]);
-  // True when the customer got fewer previews than there are styles because
-  // their free allowance ran out — shown as a friendly note, not an error.
-  const [allowanceSpent, setAllowanceSpent] = useState(false);
+  // Whose hairstyles the customer wants. Remembered on this device for next time.
+  const [gender, setGender] = useState<HairGender | null>(null);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   // Real mode: how many free previews this account has left, looked up when
   // the page loads. null = not known (logged out, mock mode, or still loading).
   const [previewsLeft, setPreviewsLeft] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [samplePreviews, setSamplePreviews] = useState(false);
-  // What the spinner screen says — real previews take 10–30 seconds each, so
-  // "Analyzing…" alone would sit there long enough to look stuck.
   // Which of STAGES the waiting screen is on.
   const [stage, setStage] = useState(0);
   // The photos the on-page camera is about to take; null while it is closed.
@@ -204,6 +211,25 @@ export default function UploadFlow() {
   // The shrunk JPEGs that actually get uploaded (photos{} above only holds
   // their data: URLs, for the on-screen previews).
   const blobs = useRef<Record<Slot, Blob | null>>({ front: null, left: null, right: null });
+  const card = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(GENDER_KEY);
+      if (saved === "men" || saved === "women") setGender(saved);
+    } catch {
+      // Storage blocked (private browsing): the customer just chooses again.
+    }
+  }, []);
+
+  function chooseGender(value: HairGender) {
+    setGender(value);
+    try {
+      window.localStorage.setItem(GENDER_KEY, value);
+    } catch {
+      // Not remembered; nothing else changes.
+    }
+  }
 
   const { session, loading: sessionLoading } = useSession();
   const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
@@ -232,7 +258,7 @@ export default function UploadFlow() {
 
   const noPreviewsLeft = previewsLeft === 0;
   const allUploaded = photos.front && photos.left && photos.right;
-  const canSubmit = allUploaded && consent && !noPreviewsLeft;
+  const canSubmit = allUploaded && consent && gender && !noPreviewsLeft;
 
   async function handleFile(slot: Slot, file: Blob) {
     setError(null);
@@ -278,8 +304,8 @@ export default function UploadFlow() {
   }
 
   async function handleSubmit() {
+    if (!gender) return;
     setError(null);
-    setSamplePreviews(false);
     setStage(0);
     setStep("analyzing");
     let stageStarted = Date.now();
@@ -294,14 +320,14 @@ export default function UploadFlow() {
 
       let analyzeBody: Record<string, unknown>;
       if (SUPABASE_MOCK_MODE) {
-        analyzeBody = { userId: mockUserId, consentGiven: consent, photoUrl: photos.front };
+        analyzeBody = { userId: mockUserId, consentGiven: consent, photoUrl: photos.front, gender };
       } else {
         if (!session) {
           window.location.assign(loginUrl("/#upload"));
           return;
         }
         const paths = await uploadToStorage(session.user.id);
-        analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [paths.left, paths.right] };
+        analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [paths.left, paths.right], gender };
       }
 
       await nextStage(1);
@@ -312,77 +338,85 @@ export default function UploadFlow() {
         return;
       }
       if (!analyzeRes.ok) throw new Error(analyzeData.error || "Analysis failed.");
-      setFaceShape(analyzeData.faceShape);
       await nextStage(2);
       await pause(STAGE_MIN_MS);
 
-      // How many previews to start: all of them, unless the analysis says
-      // the customer has fewer free ones left than there are styles.
-      const left: number | null = typeof analyzeData.previewsLeft === "number" ? analyzeData.previewsLeft : null;
-      const styles = left === null ? STYLE_NAMES : STYLE_NAMES.slice(0, left);
-      setAllowanceSpent(styles.length < STYLE_NAMES.length);
-      setResults(styles.map((styleName) => ({ styleName, imageUrl: null, state: "loading" })));
+      setAnalysis({
+        photoId: analyzeData.photoId,
+        previewsLeft: typeof analyzeData.previewsLeft === "number" ? analyzeData.previewsLeft : null,
+        details: {
+          faceShape: analyzeData.faceShape,
+          secondFaceShape: analyzeData.secondFaceShape ?? null,
+          sure: analyzeData.sure ?? "low",
+          readBy: analyzeData.readBy ?? "measurement",
+          hair: { length: analyzeData.hair?.length ?? null, texture: analyzeData.hair?.texture ?? null },
+        },
+      });
+      if (typeof analyzeData.previewsLeft === "number") setPreviewsLeft(analyzeData.previewsLeft);
       setStep("results");
-
-      const finish = (styleName: string, patch: Partial<PreviewCard>) =>
-        setResults((prev) => prev.map((r) => (r.styleName === styleName ? { ...r, ...patch } : r)));
-
-      // All previews at once; each card fills in as soon as its image is ready.
-      await Promise.all(
-        styles.map(async (styleName) => {
-          try {
-            const res = await fetch("/api/generate", {
-              method: "POST",
-              headers,
-              body: JSON.stringify(
-                SUPABASE_MOCK_MODE
-                  ? {
-                      userId: mockUserId,
-                      photoId: "demo-photo",
-                      sourceImageUrl: photos.front,
-                      styleName,
-                      faceShape: analyzeData.faceShape,
-                    }
-                  : { photoId: analyzeData.photoId, styleName, faceShape: analyzeData.faceShape }
-              ),
-            });
-            const data = await res.json();
-            if (res.status === 402) {
-              // Allowance ran out between the analysis and this request —
-              // drop the card and show the same friendly note.
-              setResults((prev) => prev.filter((r) => r.styleName !== styleName));
-              setAllowanceSpent(true);
-              return;
-            }
-            if (!res.ok) {
-              // previewRejected: the picture was made but failed the check
-              // against the customer's photo twice, so it was not counted.
-              finish(styleName, { state: "failed", rejected: Boolean(data.previewRejected) });
-              setError(data.error || "One of your previews couldn't be created.");
-              return;
-            }
-            finish(styleName, { state: "done", imageUrl: data.resultImageUrl });
-            if (data.samplePreview) setSamplePreviews(true);
-            if (typeof data.freePreviewsUsed === "number" && typeof data.freePreviewsLimit === "number" && !data.samplePreview) {
-              setPreviewsLeft(Math.max(0, data.freePreviewsLimit - data.freePreviewsUsed));
-            }
-          } catch {
-            finish(styleName, { state: "failed" });
-            setError("One of your previews couldn't be created. Please check your connection and try again.");
-          }
-        })
-      );
+      // The list is long; bring its top into view rather than leaving the
+      // customer where the button was.
+      window.setTimeout(() => card.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong analyzing your photos.");
       setStep("capture");
     }
   }
 
-  const missing = !allUploaded
-    ? "Add all three photos to continue."
-    : !consent
-      ? "Tick the box above to continue."
-      : "";
+  /** Ask for one preview: one style from the customer's list, on their photo. */
+  async function makePreview(styleId: string, details: ConfirmedDetails): Promise<PreviewOutcome> {
+    if (!analysis) throw new Error("no analysis");
+    const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(
+        SUPABASE_MOCK_MODE
+          ? { userId: mockUserId, photoId: "demo-photo", sourceImageUrl: photos.front, styleId, details }
+          : { photoId: analysis.photoId, styleId, details }
+      ),
+    });
+    const data = await res.json();
+    if (res.status === 401) {
+      window.location.assign(loginUrl("/#upload"));
+      return { ok: false, noAllowance: false, rejected: false, message: "Please log in again to continue." };
+    }
+    if (res.status === 402) return { ok: false, noAllowance: true, rejected: false, message: "" };
+    if (!res.ok) {
+      return {
+        ok: false,
+        noAllowance: false,
+        // previewRejected: the picture was made but failed the check against
+        // the customer's photo twice, so it was not shown or counted.
+        rejected: Boolean(data.previewRejected),
+        message: data.previewRejected
+          ? "This one didn't come out true to you, so we haven't shown it or counted it."
+          : data.error || "This preview couldn't be created. Please try again.",
+      };
+    }
+    const counted = typeof data.freePreviewsUsed === "number" && typeof data.freePreviewsLimit === "number" && !data.samplePreview;
+    const left = counted ? Math.max(0, data.freePreviewsLimit - data.freePreviewsUsed) : null;
+    if (left !== null) setPreviewsLeft(left);
+    return { ok: true, imageUrl: data.resultImageUrl, sample: Boolean(data.samplePreview), previewsLeft: left };
+  }
+
+  function startOver() {
+    setStep("capture");
+    setPhotos({ front: null, left: null, right: null });
+    blobs.current = { front: null, left: null, right: null };
+    setAnalysis(null);
+    setConsent(false);
+    setError(null);
+    window.setTimeout(() => card.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
+  const missing = !gender
+    ? "Choose men's or women's hairstyles to continue."
+    : !allUploaded
+      ? "Add all three photos to continue."
+      : !consent
+        ? "Tick the box above to continue."
+        : "";
 
   return (
     <section id="upload" className="bg-mint-pale text-ink-body">
@@ -407,7 +441,7 @@ export default function UploadFlow() {
             </div>
           </div>
 
-          <div className="min-w-0 rounded-[28px] bg-surface p-5 shadow-card sm:p-8 lg:p-10">
+          <div ref={card} className="min-w-0 scroll-mt-24 rounded-[28px] bg-surface p-5 shadow-card sm:p-8 lg:p-10">
             {error && (
               <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[14.5px] font-medium text-danger">{error}</div>
             )}
@@ -435,6 +469,31 @@ export default function UploadFlow() {
 
             {step === "capture" && !sessionLoading && !needsLogin && (
               <div>
+                <fieldset className="mb-6 sm:mb-7">
+                  <legend className="text-[17px] font-semibold text-ink-heading">Which hairstyles do you want to see?</legend>
+                  <div role="radiogroup" aria-label="Which hairstyles do you want to see?" className="mt-3 grid grid-cols-2 gap-3">
+                    {GENDER_OPTIONS.map((option) => {
+                      const selected = gender === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => chooseGender(option.value)}
+                          className={`rounded-[16px] border-[1.5px] px-3 py-3.5 font-heading text-[16px] font-semibold leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint-deep ${
+                            selected
+                              ? "border-mint bg-mint text-white"
+                              : "border-line bg-surface text-ink-heading hover:border-ink-heading"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
                 <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mb-6">
                   <button type="button" className="btn-secondary gap-2.5 !px-6 !py-3" onClick={openCamera}>
                     <CameraIcon />
@@ -516,7 +575,7 @@ export default function UploadFlow() {
                   ) : (
                     <>
                       <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
-                        See my preview
+                        See my hairstyles
                       </button>
                       <p className="mt-3 min-h-[20px] text-center text-[13.5px] text-ink-muted" aria-live="polite">
                         {missing}
@@ -577,78 +636,15 @@ export default function UploadFlow() {
               </div>
             )}
 
-            {step === "results" && (
-              <div>
-                <div className="mb-6">
-                  <h3 className="text-[26px] font-semibold leading-tight">
-                    {results.length === 1 ? "Your preview" : "Your previews"}
-                  </h3>
-                  {faceShape && (
-                    <p className="mt-1.5 text-[15.5px] text-ink-muted">
-                      Chosen for your {faceShape.toLowerCase()} face shape.
-                    </p>
-                  )}
-                  {samplePreviews && !SUPABASE_MOCK_MODE && (
-                    <p className="mt-3 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
-                      These are placeholder images while we finish switching on live previews. They don&apos;t use
-                      up your free previews.
-                    </p>
-                  )}
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {results.map((r) => (
-                    <figure key={r.styleName}>
-                      {r.state === "done" && r.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.imageUrl} alt={r.styleName} className="w-full rounded-[18px]" />
-                      ) : (
-                        <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-[18px] bg-bg-soft px-4 text-center">
-                          {r.state === "loading" ? (
-                            <>
-                              <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
-                              <p className="text-[14px] font-medium text-ink-muted">Creating your preview…</p>
-                            </>
-                          ) : (
-                            <p className="text-[14px] font-medium text-ink-muted">
-                              {r.rejected
-                                ? "This one didn't come out true to you, so we haven't shown it or counted it."
-                                : "This preview couldn't be created. Start over to try again."}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      <figcaption className="mt-3 text-[15px] font-semibold text-ink-heading">{r.styleName}</figcaption>
-                    </figure>
-                  ))}
-                </div>
-                {allowanceSpent && !results.some((r) => r.state === "loading") && (
-                  <div className="mt-7 rounded-[16px] bg-bg-soft px-5 py-5 text-center">
-                    <p className="mb-4 text-[15px] font-medium text-ink-body">
-                      {results.length > 0
-                        ? "Those were your free previews. Choose a pack to see more styles on your own photo."
-                        : "You've already used your free previews. Choose a pack to see more styles on your own photo."}
-                    </p>
-                    <a href="#pricing" className="btn-primary">
-                      See packs
-                    </a>
-                  </div>
-                )}
-                <button
-                  className="btn-secondary mt-6 w-full"
-                  onClick={() => {
-                    setStep("capture");
-                    setPhotos({ front: null, left: null, right: null });
-                    blobs.current = { front: null, left: null, right: null };
-                    setSamplePreviews(false);
-                    setAllowanceSpent(false);
-                    setConsent(false);
-                    setResults([]);
-                    setError(null);
-                  }}
-                >
-                  Start over
-                </button>
-              </div>
+            {step === "results" && analysis && gender && (
+              <StylePicks
+                gender={gender}
+                frontPhoto={photos.front}
+                initial={analysis.details}
+                previewsLeft={analysis.previewsLeft}
+                makePreview={makePreview}
+                onStartOver={startOver}
+              />
             )}
           </div>
         </div>

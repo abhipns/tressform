@@ -115,5 +115,10 @@ export async function GET(req: NextRequest) {
     moreWaiting: filesDue >= MAX_FILES_PER_RUN,
   };
   console.log("[Tressform] Clean-up run:", JSON.stringify(summary));
+  // 11.10.2026: every run also leaves one row in the job_runs table, so
+  // "did last night's clean-up happen?" can be answered by looking there
+  // rather than by digging through the hosting logs.
+  const { error: recordError } = await admin.from("job_runs").insert({ job: "cleanup", summary });
+  if (recordError) console.error("[Tressform] Clean-up could not record its run:", recordError.message);
   return NextResponse.json(summary, { status: summary.ok ? 200 : 500 });
 }

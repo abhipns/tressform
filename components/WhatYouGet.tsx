@@ -2,34 +2,42 @@
 //
 // 10.10.2026 design pass: merges the old "Your personal hair profile &
 // guided haircut" section (HairProfile.tsx) and the three-box "More than a
-// preview" section into one. The hair profile and the barber card are drawn
-// as two slips of paper, because that is what they are in the customer's
-// hand, and the barber card is the same object the hero shows.
+// preview" section into one. The two are drawn as slips of paper, because
+// that is what they are in the customer's hand.
 //
-// Both slips are EXAMPLES and are labelled so. (Their contents are the same
-// example values the old section showed.)
+// 11.10.2026: both slips now show what the result screen really gives
+// (components/StylePicks.tsx). The first used to list hair density and
+// hairline, which are not read; the second showed clipper guard numbers and
+// styling products, which are not given; and the list underneath promised
+// front, left, right and back views when a preview is the front view only.
+// The barber wording is the real wording for that style, taken from the
+// same list the result screen uses.
+//
+// Both slips are EXAMPLES and are labelled so.
 
 import { Band, Rail } from "./Section";
+import { barberLine, hairstyleById } from "@/lib/content/hairstyles";
 
 const PROFILE = [
-  { label: "Face shape", value: "Oval" },
-  { label: "Hair texture", value: "Wavy" },
-  { label: "Hair density", value: "Medium" },
-  { label: "Hairline", value: "Rounded" },
-  { label: "Maintenance", value: "Low" },
+  { label: "Face shape", value: "Round" },
+  { label: "Hair type", value: "Wavy" },
+  { label: "Hair now", value: "Medium" },
+  { label: "Best match", value: "Textured quiff" },
+  { label: "Upkeep", value: "Some" },
 ];
 
-const CARD = [
-  { part: "Top", detail: "3–4 inches (7.5–10 cm), scissor-cut for texture" },
-  { part: "Sides", detail: "Clipper taper, guard 1.5–2 fading to 0.5 around the ears" },
-  { part: "Back", detail: "0.5 blend, sharp neckline" },
-  { part: "Styling", detail: "Blow-dry, then matte pomade" },
-];
+const EXAMPLE_STYLE = hairstyleById("m-textured-quiff");
 
 const INCLUDED = [
-  { title: "Hairstyles matched to you", body: "Recommendations based on your own face shape, not a list of what is trending." },
-  { title: "Four-side preview", body: "Front, left, right and back views of the hairstyle you pick." },
-  { title: "Barber-ready instructions", body: "Exact lengths, cutting technique and styling guidance, so your barber can recreate the look." },
+  {
+    title: "Hairstyles matched to you",
+    body: "Chosen for your face shape, your hair type and the length you have now, not from a list of what is trending.",
+  },
+  { title: "A preview on your own photo", body: "Each hairstyle you choose is shown on your own front photo, not on a model." },
+  {
+    title: "Barber-ready instructions",
+    body: "The cut written out in a barber's words, with lengths, so your barber can recreate the look.",
+  },
 ];
 
 function Slip({ title, className = "", children }: { title: string; className?: string; children: React.ReactNode }) {
@@ -49,7 +57,7 @@ export default function WhatYouGet() {
     <Band id="what" tone="cream">
       <Rail
         heading="You leave with more than a picture."
-        lead="A preview shows you the look. Your hair profile and the barber card are what get you the same cut in the chair."
+        lead="A preview shows you the look. Your hair profile and the words for your barber are what get you the same cut in the chair."
         aside={
           <a href="#pricing" className="btn-secondary mt-8">
             See the packs
@@ -68,17 +76,13 @@ export default function WhatYouGet() {
             </dl>
           </Slip>
 
-          <Slip title="Barber card" className="sm:mt-12 sm:rotate-[1.5deg]">
-            <dl className="mt-1">
-              {CARD.map((row) => (
-                <div key={row.part} className="grid grid-cols-[72px_1fr] items-baseline gap-3 border-b border-line/70 py-3 last:border-b-0">
-                  <dt className="text-[15px] text-ink-muted">{row.part}</dt>
-                  <dd className="text-[15.5px] leading-[1.5] text-ink-heading">{row.detail}</dd>
-                </div>
-              ))}
-            </dl>
+          <Slip title="For your barber" className="sm:mt-12 sm:rotate-[1.5deg]">
+            <p className="mt-4 font-heading text-[17px] font-semibold leading-snug text-ink-heading">
+              {EXAMPLE_STYLE?.name}
+            </p>
+            <p className="mt-2 text-[15.5px] leading-[1.6] text-ink-heading">{EXAMPLE_STYLE ? barberLine(EXAMPLE_STYLE) : ""}</p>
             <p className="mt-3 text-[13.5px] leading-[1.5] text-ink-muted">
-              Trim every 3 weeks. Works best on straight to wavy hair.
+              Every style on your list comes with its own.
             </p>
           </Slip>
         </div>

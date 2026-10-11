@@ -176,16 +176,30 @@ export function describeStyle(styleName: string): string {
 // "keep … any beard or moustache", and naming a beard is enough to make
 // these models paint one. The facial-hair line is now a plain statement of
 // fact taken from the face analysis.
+//
+// 11.10.2026: the same mistake in a new form. A man with a goatee (hair on the chin
+// and upper lip, bare cheeks) came back from the Studio with a full beard
+// in some pictures. The face service only says "beard: yes", and the line
+// then read "Keep their beard and moustache exactly as they are now" — the
+// same trap as before: the word "beard" with nothing said about where it
+// stops. The lines below no longer name what the person has. They point at
+// the photo, and say outright that bare skin stays bare.
 function facialHairLine(facialHair: GenerateHairstyleParams["facialHair"]): string {
   switch (facialHair) {
     case "clean":
       return "They are clean-shaven: keep the face clean-shaven, with no beard, moustache or stubble added.";
     case "beard":
-      return "Keep their beard and moustache exactly as they are now: the same length, shape and coverage.";
+      return (
+        "Leave their facial hair exactly as it is in the photo: the same shape, the same edges, the same length and the same colour, grey included. " +
+        "Skin that is bare or only stubbled in the photo, on the cheeks, jaw or neck, stays that way: do not grow, thicken, extend or join up the facial hair."
+      );
     case "moustache":
-      return "Keep their moustache exactly as it is now and do not add a beard.";
+      return (
+        "Leave their moustache exactly as it is in the photo, and keep the rest of the face as bare as it is in the photo: " +
+        "do not add a beard or stubble."
+      );
     default:
-      return "Do not add, remove or change any facial hair.";
+      return "Leave any facial hair exactly as it is in the photo: do not add, remove, grow, thicken or reshape it.";
   }
 }
 
@@ -235,7 +249,7 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
         // person a little fairer when asked for a flattering photo, so
         // the request now says outright that skin tone is not part of it.
         "Make it a flattering, high-quality photograph: soft, even, natural light on the face, crisp focus and clean detail, " +
-        "with hair that looks neatly styled and freshly finished by a professional barber, natural hair texture and a " +
+        "with the hair on their head looking neatly styled and freshly finished by a professional barber, natural hair texture and a " +
         "realistic hairline. Do not make their skin lighter or change the shape of their face. ") +
     "Do not add text, logos, watermarks, borders or other people."
   );

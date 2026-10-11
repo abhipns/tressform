@@ -110,6 +110,11 @@ create table if not exists photos (
 
 create index if not exists idx_photos_user on photos (user_id);
 
+-- 11.10.2026: what the customer confirmed on the result screen (whose
+-- styles, face shape, hair length, hair type). Kept beside the reading in
+-- rekognition_raw so the two can be compared.
+alter table photos add column if not exists customer_details jsonb;
+
 -- ============================================================================
 -- style_results — generated hairstyle previews (FAL AI / PuLID Flux output)
 -- ============================================================================
@@ -637,3 +642,18 @@ revoke execute on function public.purge_expired_photo_records(integer) from publ
 grant execute on function public.account_last_seen() to service_role;
 grant execute on function public.expired_storage_objects(integer, integer) to service_role;
 grant execute on function public.purge_expired_photo_records(integer) to service_role;
+
+-- ============================================================================
+-- job_runs — one row each time a scheduled job runs (11.10.2026)
+-- ============================================================================
+-- Written by /api/cron/cleanup at the end of every nightly run, with what
+-- it found and deleted. Only the server can read or write it: row level
+-- security is on and there are no policies.
+create table if not exists job_runs (
+  id uuid primary key default gen_random_uuid(),
+  job text not null,
+  summary jsonb,
+  ran_at timestamptz not null default now()
+);
+alter table job_runs enable row level security;
+create index if not exists idx_job_runs_job_time on job_runs (job, ran_at desc);

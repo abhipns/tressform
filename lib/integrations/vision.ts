@@ -1,0 +1,315 @@
+// Tressform — reading a customer's photo the way a stylist would.
+//
+// 11.10.2026. WHY THIS EXISTS. The face-shape reading was built on the face
+// service's jawline points (lib/faceShape.ts). Looking back over the first
+// 23 real photos, 22 were called "Oval": the jaw measurement came out as
+// 0.81 and the forehead measurement as 0.80 for every single face. Those
+// points are placed by the service's own face template, not traced from the
+// photo, so they carry nothing about the person. Hairstyle picks built on
+// that reading would be the same for everybody.
+//
+// So the photo is now also read by a vision model, which is asked the three
+// things the picker needs (lib/recommend.ts) and that the face service
+// cannot give:
+//   - face shape, with a second guess and how sure it is
+//   - how long the hair is now
+//   - whether the hair is straight, wavy or curly
+//
+// It runs through the FAL account the site already uses for pictures (FAL
+// passes the request to the model), so there is no new account or key. The
+// model is asked to write down what it sees first (which part of the face
+// is widest, the jaw, length against width) and only then to name a shape:
+// asked for a shape straight off, these models say "oval" far too often.
+//
+// A READING IS A STARTING POINT, NEVER THE LAST WORD. The customer sees
+// what was read and can correct each item with one tap on the result
+// screen. And when the reading fails for any reason (the model is down, it
+// answers with something unusable, it takes too long) the site carries on:
+// the customer is simply asked instead. Nothing here can stop an upload.
+//
+// NOT YET CHECKED ON REAL PHOTOS when this was written: this code cannot be
+// run from the build machine. /api/admin/reread reads the owner's earlier
+// photos again so the first results can be looked at before customers rely
+// on them.
+
+import type { FaceShape } from "../faceShape";
+import { MEN_LENGTHS, WOMEN_LENGTHS, type HairGender, type HairLength, type HairTexture } from "../content/hairstyles";
+
+const FAL_AI_API_KEY = process.env.FAL_AI_API_KEY;
+
+export const VISION_MOCK_MODE = !FAL_AI_API_KEY;
+
+const ENDPOINT = "openrouter/router/vision";
+// Both were on the service's list, with working endpoints, when checked on
+// 11.10.2026 (about $0.30 per million tokens in for the first; a reading
+// is roughly two thousand tokens). The second is only tried when the first
+// cannot be reached at all, for example on the day it is retired.
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
+const BACKUP_MODEL = "google/gemini-3.8-flash";
+/** PHOTO_READING_MODEL in Vercel swaps the model without a code change. Unset on the live site. */
+export const VISION_MODEL = process.env.PHOTO_READING_MODEL || DEFAULT_MODEL;
+
+// Long enough for a slow answer, short enough that a customer is never
+// left staring at the waiting screen because of it.
+const TIMEOUT_MS = 20_000;
+const RUPEES_PER_DOLLAR = 88;
+
+export type Sureness = "high" | "medium" | "low";
+
+export interface PhotoReading {
+  /** True when a usable face shape came back. */
+  ok: boolean;
+  faceShape: FaceShape | null;
+  secondFaceShape: FaceShape | null;
+  sure: Sureness | null;
+  /** null = could not be told from the photo (tied back, covered, cropped). */
+  hairLength: HairLength | null;
+  hairTexture: HairTexture | null;
+  /** What the model said it saw, kept for tuning. */
+  observations: Record<string, string> | null;
+  model: string;
+  /** What this reading cost, when the service reported it. */
+  costPaise: number | null;
+  /** Why there is no reading, when ok is false. */
+  note: string;
+  mock: boolean;
+}
+
+const FACE_SHAPES: FaceShape[] = ["Oval", "Round", "Square", "Heart", "Diamond", "Long"];
+const TEXTURES: HairTexture[] = ["straight", "wavy", "curly"];
+
+const SYSTEM_PROMPT =
+  "You are an experienced hairstylist looking at a client's front-facing photo before a haircut. " +
+  "You answer with one JSON object and nothing else: no explanation, no markdown.";
+
+function lengthGuide(gender: HairGender): string {
+  if (gender === "men") {
+    return (
+      '"hair_length": how long the hair on TOP of the head is now. One of:\n' +
+      '  "very-short" = clipped, under 2 cm\n' +
+      '  "short" = about 2 to 5 cm\n' +
+      '  "medium" = about 5 to 10 cm\n' +
+      '  "long" = over 10 cm, long enough to cover the ears\n' +
+      "  null = cannot be judged (covered by a cap or turban, tied back, or cut off by the frame)"
+    );
+  }
+  return (
+    '"hair_length": where the hair reaches when it is left open. One of:\n' +
+    '  "ear" = ends around the ears\n' +
+    '  "chin" = ends around the chin or jaw\n' +
+    '  "shoulder" = rests on or just above the shoulders\n' +
+    '  "below-shoulder" = clearly longer than the shoulders\n' +
+    "  null = cannot be judged (tied back, in a bun or plait, covered, or cut off by the frame)"
+  );
+}
+
+export function buildReadingPrompt(gender: HairGender): string {
+  return (
+    "Look at the person in this photo and fill in this JSON object, in this order.\n\n" +
+    "First, what you see of the face outline (estimate where hair covers it):\n" +
+    '"widest_part": "forehead", "cheekbones", "jaw" or "all similar"\n' +
+    '"jaw": "rounded", "angular" or "pointed"\n' +
+    '"length_vs_width": the face from hairline to chin against its width: "about equal", "a little longer" or "much longer"\n\n' +
+    "Then the face shape that fits what you wrote:\n" +
+    '"face_shape": one of\n' +
+    '  "Round" = about as wide as it is long, full cheeks, soft rounded jaw\n' +
+    '  "Square" = about as wide as it is long, forehead and jaw of similar width, strong angular jaw\n' +
+    '  "Oval" = a little longer than wide, cheekbones the widest part, jaw gently narrower and rounded\n' +
+    '  "Long" = clearly longer than wide, forehead, cheeks and jaw of similar width\n' +
+    '  "Heart" = forehead the widest part, narrowing to a small or pointed chin\n' +
+    '  "Diamond" = cheekbones the widest part, forehead and jaw both narrower, pointed chin\n' +
+    "  Do not choose Oval as a safe answer. Choose it only when the description of Oval fits better than the other five.\n" +
+    '"second_shape": the next closest of the same six, different from face_shape\n' +
+    '"sure": how sure you are of face_shape: "high", "medium" or "low"\n\n' +
+    "Then the hair:\n" +
+    `${lengthGuide(gender)}\n` +
+    '"hair_type": the natural texture: "straight", "wavy" or "curly"; null if it cannot be judged\n\n' +
+    "Answer with the JSON object only."
+  );
+}
+
+function pickFrom<T extends string>(value: unknown, allowed: readonly T[], aliases: Record<string, T> = {}): T | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim().toLowerCase().replace(/[_\s]+/g, "-");
+  const exact = allowed.find((option) => option.toLowerCase() === cleaned);
+  return exact ?? aliases[cleaned] ?? null;
+}
+
+const SHAPE_ALIASES: Record<string, FaceShape> = {
+  oblong: "Long",
+  rectangle: "Long",
+  rectangular: "Long",
+  "heart-shaped": "Heart",
+  "diamond-shaped": "Diamond",
+};
+
+/**
+ * Turn the model's answer into a reading. Anything that is not exactly one
+ * of the allowed values is dropped, so a strange answer can make a reading
+ * incomplete but never wrong in a new way.
+ */
+export function parseReading(output: string, gender: HairGender): Omit<PhotoReading, "model" | "costPaise" | "mock"> {
+  const none = (note: string) => ({
+    ok: false,
+    faceShape: null,
+    secondFaceShape: null,
+    sure: null,
+    hairLength: null,
+    hairTexture: null,
+    observations: null,
+    note,
+  });
+
+  const start = output.indexOf("{");
+  const end = output.lastIndexOf("}");
+  if (start < 0 || end <= start) return none("the answer was not JSON");
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(output.slice(start, end + 1));
+  } catch {
+    return none("the answer was not valid JSON");
+  }
+
+  const faceShape = pickFrom(data.face_shape, FACE_SHAPES, SHAPE_ALIASES);
+  const second = pickFrom(data.second_shape, FACE_SHAPES, SHAPE_ALIASES);
+  const lengths: readonly HairLength[] = gender === "men" ? MEN_LENGTHS : WOMEN_LENGTHS;
+  const observations: Record<string, string> = {};
+  for (const key of ["widest_part", "jaw", "length_vs_width"]) {
+    if (typeof data[key] === "string") observations[key] = (data[key] as string).slice(0, 40);
+  }
+
+  return {
+    ok: faceShape !== null,
+    faceShape,
+    secondFaceShape: second && second !== faceShape ? second : null,
+    sure: pickFrom(data.sure, ["high", "medium", "low"] as const),
+    hairLength: pickFrom(data.hair_length, lengths),
+    hairTexture: pickFrom(data.hair_type, TEXTURES),
+    observations,
+    note: faceShape ? "" : "no usable face shape in the answer",
+  };
+}
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer after ${ms / 1000} seconds`)), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+/**
+ * Read a front photo. `imageUrl` must be a link the model can open (a
+ * signed storage link) or a data: URL. Never throws: a failure comes back
+ * as `ok: false` with the reason in `note`.
+ */
+export async function readPhoto(imageUrl: string, gender: HairGender): Promise<PhotoReading> {
+  if (VISION_MOCK_MODE) {
+    // No FAL key (local demo): a fixed, plausible reading so the whole
+    // flow can be tried. PHOTO_READING_MOCK=fail tries the fallback path.
+    if (process.env.PHOTO_READING_MOCK === "fail") {
+      return {
+        ok: false,
+        faceShape: null,
+        secondFaceShape: null,
+        sure: null,
+        hairLength: null,
+        hairTexture: null,
+        observations: null,
+        model: "mock",
+        costPaise: 0,
+        note: "mock failure",
+        mock: true,
+      };
+    }
+    return {
+      ok: true,
+      faceShape: gender === "men" ? "Square" : "Round",
+      secondFaceShape: "Oval",
+      sure: "medium",
+      hairLength: gender === "men" ? "medium" : "below-shoulder",
+      hairTexture: gender === "men" ? "straight" : "wavy",
+      observations: { widest_part: "all similar", jaw: gender === "men" ? "angular" : "rounded", length_vs_width: "about equal" },
+      model: "mock",
+      costPaise: 0,
+      note: "",
+      mock: true,
+    };
+  }
+
+  const failed = (note: string): PhotoReading => ({
+    ok: false,
+    faceShape: null,
+    secondFaceShape: null,
+    sure: null,
+    hairLength: null,
+    hairTexture: null,
+    observations: null,
+    model: VISION_MODEL,
+    costPaise: null,
+    note,
+    mock: false,
+  });
+
+  const started = Date.now();
+  let lastNote = "the reading service did not answer";
+  for (const model of VISION_MODEL === BACKUP_MODEL ? [VISION_MODEL] : [VISION_MODEL, BACKUP_MODEL]) {
+    const timeLeft = TIMEOUT_MS - (Date.now() - started);
+    if (timeLeft < 3000) break;
+    try {
+      const { createFalClient } = await import("@fal-ai/client");
+      const fal = createFalClient({ credentials: FAL_AI_API_KEY });
+      const response = (await withTimeout(
+        fal.subscribe(ENDPOINT as string, {
+          input: {
+            model,
+            system_prompt: SYSTEM_PROMPT,
+            prompt: buildReadingPrompt(gender),
+            image_urls: [imageUrl],
+            // The same photo should give the same reading every time.
+            temperature: 0,
+            // The answer itself is about 100 tokens; the room is for a model
+            // that thinks before it answers.
+            max_tokens: 2000,
+          },
+          logs: false,
+        }),
+        timeLeft
+      )) as { data?: { output?: unknown; usage?: { cost?: unknown } } };
+
+      const output = response.data?.output;
+      if (typeof output !== "string" || !output.trim()) {
+        console.error("[Tressform] Photo reading came back empty:", model, JSON.stringify(response.data ?? "").slice(0, 400));
+        return { ...failed("empty answer"), model };
+      }
+      const cost = response.data?.usage?.cost;
+      const parsed = parseReading(output, gender);
+      if (!parsed.ok) console.error("[Tressform] Photo reading not usable:", model, parsed.note, output.slice(0, 400));
+      return {
+        ...parsed,
+        model,
+        // Kept to a hundredth of a paisa: one reading costs a fraction of a rupee.
+        costPaise: typeof cost === "number" ? Math.round(cost * RUPEES_PER_DOLLAR * 100 * 100) / 100 : null,
+        mock: false,
+      };
+    } catch (err) {
+      // The model could not be reached (retired, down, too slow): the next one is tried.
+      const status = (err as { status?: number })?.status;
+      const body = (err as { body?: unknown })?.body;
+      console.error("[Tressform] Photo reading failed:", model, status ?? "", (err as Error)?.message ?? "", JSON.stringify(body ?? "").slice(0, 400));
+      // The note is saved with the photo (never shown to a customer), so the
+      // service's own explanation is kept in it.
+      const detail = body ? ` ${JSON.stringify(body).slice(0, 200)}` : "";
+      lastNote = `${model}: ${(err as Error)?.message || "no answer"}${status ? ` (${status})` : ""}${detail}`;
+    }
+  }
+  return failed(lastNote);
+}

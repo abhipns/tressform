@@ -9,11 +9,11 @@ import { Band, Rail } from "./Section";
 const FAQS = [
   {
     q: "Will it actually look like me?",
-    a: "Yes — your preview is generated from your own three photos, not a generic model. It reads your actual face shape, hair texture, and proportions, so the result is recognizably you wearing the new style. It's a very close, realistic guide — not a lab-exact promise, since real hair and your barber's hand always add small differences.",
+    a: "Yes — your preview is generated from your own photo, not a generic model. It reads your actual face shape, hair texture, and proportions, so the result is recognizably you wearing the new style. It's a very close, realistic guide — not a lab-exact promise, since real hair and your barber's hand always add small differences.",
   },
   {
     q: "Will my barber understand what I want?",
-    a: "That's the point of the barber-instruction card — it doesn't just show a picture, it spells out the cut in inches and centimetres, names the cutting technique, and notes what to watch for with your hair type. Bring that card in (or show it on your phone) and there's no guesswork for your barber either.",
+    a: "That's what the barber instructions are for. Every style on your list comes with the cut written out in words a barber uses: the lengths in centimetres and how the sides and back are cut. Show that on your phone together with your preview picture, and there is very little left to guess.",
   },
   {
     q: "What if I don't like any of the styles?",

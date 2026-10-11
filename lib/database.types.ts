@@ -53,6 +53,8 @@ export interface PhotoRow {
   face_shape: string | null;
   face_shape_confidence: number | null;
   rekognition_raw: Record<string, unknown> | null;
+  /** What the customer confirmed on the result screen: whose styles, face shape, hair length, hair type. */
+  customer_details: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -194,6 +196,11 @@ export interface Database {
         Row: CarouselPhotoRow;
         Insert: Partial<CarouselPhotoRow> & { session_id: string; src: string };
         Update: Partial<CarouselPhotoRow>;
+      };
+      job_runs: {
+        Row: { id: string; job: string; summary: Record<string, unknown> | null; ran_at: string };
+        Insert: { job: string; summary?: Record<string, unknown> | null };
+        Update: { job?: string; summary?: Record<string, unknown> | null };
       };
       notifications_log: {
         Row: NotificationsLogRow;

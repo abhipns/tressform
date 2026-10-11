@@ -197,31 +197,47 @@ export default function StudioPage() {
   }
 
   /**
-   * Run the same-person / head-turn check over pictures made before that
-   * check existed, a few at a time, until none are left. The numbers are
-   * saved with each picture; they are what the check's limits are set from.
+   * Read the owner's earlier photos again with the new photo reading (face
+   * shape, hair length, hair type), a few at a time, until none are left.
+   * The answers are saved beside each photo; the line under the link says
+   * how the face shapes came out and what the readings cost.
    */
-  async function scoreEarlierPictures() {
+  async function readEarlierPhotos() {
     setRescoring(true);
     setRescore("Starting…");
     let done = 0;
+    let paise = 0;
+    const shapes: Record<string, number> = {};
+    const summary = () =>
+      Object.entries(shapes)
+        .sort((a, b) => b[1] - a[1])
+        .map(([shape, n]) => `${shape} ${n}`)
+        .join(", ");
     try {
       for (let round = 0; round < 40; round++) {
-        const res = await fetch("/api/admin/recheck", {
+        const res = await fetch("/api/admin/reread", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(await authHeaders()) },
           body: "{}",
         });
         const data = await res.json();
-        done += data.scored ?? 0;
-        if (!res.ok) throw new Error(data.error || "The check could not run.");
+        done += data.read ?? 0;
+        paise += data.costPaise ?? 0;
+        for (const [shape, n] of Object.entries((data.shapes ?? {}) as Record<string, number>)) {
+          shapes[shape] = (shapes[shape] ?? 0) + n;
+        }
+        if (!res.ok) throw new Error(data.error || "The reading could not run.");
         if (!data.remaining) {
-          setRescore(done > 0 ? `Done: ${done} earlier pictures scored.` : "Nothing left to score.");
+          setRescore(
+            done > 0
+              ? `Done: ${done} photos read. Face shapes: ${summary()}. Cost ₹${(paise / 100).toFixed(2)}.`
+              : "Nothing left to read."
+          );
           return;
         }
-        setRescore(`${done} scored, ${data.remaining} to go…`);
+        setRescore(`${done} read, ${data.remaining} to go…`);
       }
-      setRescore(`${done} scored. Press again to continue.`);
+      setRescore(`${done} read. Press again to continue.`);
     } catch (err) {
       setRescore(`Stopped after ${done}: ${err instanceof Error ? err.message : "something went wrong"}`);
     } finally {
@@ -289,14 +305,14 @@ export default function StudioPage() {
           <button
             type="button"
             disabled={rescoring}
-            onClick={scoreEarlierPictures}
-            title="Runs the same-person and head-turn check on pictures made before that check existed. About 9 paise a picture."
+            onClick={readEarlierPhotos}
+            title="Reads your earlier uploaded photos again for face shape, hair length and hair type, so the new reading can be checked. Well under a rupee a photo."
             className="mt-2 text-[14px] font-semibold text-mint-deep underline decoration-mint/50 underline-offset-4 transition hover:decoration-mint-deep disabled:cursor-wait disabled:opacity-60"
           >
-            Score my earlier pictures
+            Read my earlier photos
           </button>
           {rescore && (
-            <p className="mt-1 text-[13.5px] text-ink-muted" aria-live="polite">
+            <p className="ml-auto mt-1 max-w-[46ch] text-[13.5px] text-ink-muted" aria-live="polite">
               {rescore}
             </p>
           )}

@@ -20,7 +20,7 @@ const PAIRS = [
     reality: "Real hair has its own texture and growth pattern, so the finished look softens slightly in person",
   },
   {
-    shows: "How the style sits from multiple angles",
+    shows: "How the style looks on you from the front",
     reality: "Your barber's hand and technique add small, natural differences the preview can't capture",
   },
   {

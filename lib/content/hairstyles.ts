@@ -32,6 +32,13 @@
 //            chin-length bob and wavy lob came out too long, and "no
 //            fringe" is now said outright where there is none.
 //
+//   effects  (added 11.10.2026, see EFFECTS below) what the cut does to the
+//            look of a face, in a stylist's terms: height on top, a fringe,
+//            fullness at the sides and so on. lib/pickReasons.ts turns these
+//            into the "why it suits you" line on the customer's result screen.
+//   barber   (added 11.10.2026, see BARBER below) the words to ask a barber
+//            or stylist for the cut, where `prompt` does not read as a request.
+//
 // The order inside each list breaks ties between equal scores: the common,
 // everyday styles come first.
 
@@ -85,9 +92,13 @@ export interface Hairstyle {
   prompt: string;
   /** The cut as seen from the front, where `prompt` talks about the back of the head. */
   front?: string;
+  /** What the cut does to the look of a face (see EFFECTS below). Used to say why a pick suits a customer. */
+  effects: StyleEffect[];
+  /** What to ask the barber or stylist for, where `prompt` does not read well as a request. */
+  barber?: string;
 }
 
-type Row = Omit<Hairstyle, "gender">;
+type Row = Omit<Hairstyle, "gender" | "effects" | "front" | "barber">;
 
 const MEN: Row[] = [
   {
@@ -938,14 +949,166 @@ const FRONT_VIEW: Record<string, string> = {
   "w-a-line-bob": "an A-line bob: sleek hair angled longer toward the front, the front pieces ending just below the chin, with no fringe",
 };
 
+// WHAT EACH CUT DOES TO A FACE. 11.10.2026, for the customer's result
+// screen. A stylist does not say "this suits a round face" and stop; they
+// say why: "the height on top makes your face look longer". Each style
+// lists the things it does, most important first, and lib/pickReasons.ts
+// holds one sentence for each (face shape, effect) pair that is a real
+// reason. A pair with no sentence is simply not used.
+//   height        hair lifted up on top
+//   low-top       sits low and flat on top
+//   fringe        hair falling onto the forehead
+//   side-sweep    hair swept across to one side, or a side parting
+//   side-volume   fullness at the sides of the face
+//   width-low     fullness or a blunt edge around the jaw and neck
+//   long-lines    lengths falling straight down past the chin
+//   soft-length   longer, soft hair around the ears and neck
+//   soft-texture  loose, soft or curly texture rather than hard lines
+//   face-framing  shorter front pieces curving in around the face
+//   sharp         clean, neat, structured lines
+//   show-face     very short or swept away, so the face itself is on show
+export type StyleEffect =
+  | "height"
+  | "low-top"
+  | "fringe"
+  | "side-sweep"
+  | "side-volume"
+  | "width-low"
+  | "long-lines"
+  | "soft-length"
+  | "soft-texture"
+  | "face-framing"
+  | "sharp"
+  | "show-face";
+
+const EFFECTS: Record<string, StyleEffect[]> = {
+  "m-textured-quiff": ["height", "soft-texture"],
+  "m-side-part": ["sharp", "low-top", "side-sweep"],
+  "m-textured-crop": ["fringe", "low-top"],
+  "m-crew-cut": ["show-face", "sharp"],
+  "m-buzz-cut": ["show-face"],
+  "m-slick-back-undercut": ["sharp"],
+  "m-pompadour": ["height"],
+  "m-medium-flow": ["soft-length"],
+  "m-curly-top": ["height", "soft-texture"],
+  "m-short-spiky": ["height"],
+  "m-messy-fringe": ["fringe", "soft-texture"],
+  "m-ivy-league": ["sharp", "side-sweep"],
+  "m-buzz-fade": ["show-face", "sharp"],
+  "m-comb-over": ["side-sweep", "sharp"],
+  "m-burst-fade": ["height", "soft-texture"],
+  "m-faux-hawk": ["height"],
+  "m-brush-up": ["height"],
+  "m-side-swept-fringe": ["side-sweep", "fringe"],
+  "m-two-block": ["fringe"],
+  "m-slick-back-taper": ["sharp"],
+  "m-short-back-sides": ["sharp"],
+  "m-high-and-tight": ["show-face", "sharp"],
+  "m-curly-fringe": ["fringe", "soft-texture"],
+  "m-short-curls": ["soft-texture"],
+  "m-wavy-side-sweep": ["side-sweep", "soft-texture"],
+  "m-middle-part": ["fringe", "soft-texture"],
+  "m-modern-mullet": ["soft-texture", "soft-length"],
+  "m-shoulder-layers": ["soft-length"],
+  "m-top-knot": ["sharp", "show-face"],
+  "m-long-curls": ["side-volume", "soft-texture"],
+  "w-long-layers": ["long-lines", "soft-length"],
+  "w-long-layers-curtain-bangs": ["fringe"],
+  "w-lob": ["long-lines", "width-low"],
+  "w-blunt-bob": ["width-low"],
+  "w-wavy-lob": ["side-volume", "soft-texture"],
+  "w-face-framing-medium": ["face-framing"],
+  "w-step-cut": ["long-lines"],
+  "w-feather-cut": ["soft-texture", "soft-length"],
+  "w-u-cut": ["long-lines", "soft-length"],
+  "w-layered-shag": ["fringe", "side-volume"],
+  "w-pixie": ["show-face"],
+  "w-side-swept-bangs-medium": ["side-sweep"],
+  "w-v-cut": ["long-lines"],
+  "w-face-framing-long": ["face-framing"],
+  "w-long-side-swept-bangs": ["side-sweep"],
+  "w-butterfly-cut": ["side-volume"],
+  "w-straight-cut": ["long-lines", "soft-length"],
+  "w-wispy-bangs-long": ["fringe"],
+  "w-long-curly-layers": ["side-volume", "soft-texture"],
+  "w-collarbone-cut": ["long-lines"],
+  "w-textured-pixie": ["show-face"],
+  "w-medium-curtain-bangs": ["fringe"],
+  "w-wolf-cut": ["fringe", "side-volume"],
+  "w-blunt-shoulder-cut": ["width-low"],
+  "w-curly-shoulder-cut": ["side-volume", "soft-texture"],
+  "w-layered-bob": ["width-low"],
+  "w-a-line-bob": ["long-lines"],
+  "w-french-bob": ["fringe"],
+  "w-curly-bob": ["width-low", "soft-texture"],
+  "w-bixie": ["side-sweep"],
+};
+
+// WHAT TO ASK THE BARBER FOR. 11.10.2026. For most styles the full
+// description (`prompt`) already reads as a request: "Ask for a classic
+// side part: hair on top about 5–6 cm…". These are the ones where it does
+// not. The women's long-hair cuts are here because their descriptions give
+// a length ("below the shoulders to the chest") while the cut itself keeps
+// whatever length the customer has; a stylist told the first would cut a
+// waist-length customer's hair to her chest.
+const BARBER: Record<string, string> = {
+  "m-shoulder-layers":
+    "shoulder-length layers: hair to the shoulders with soft layers, parted slightly off-centre and swept away from the face",
+  "m-top-knot":
+    "an undercut for a top knot: the sides and back clipped short, and the hair on top left long enough to tie back in a small knot at the crown",
+  "m-long-curls":
+    "long curls cut into shape: curls about 12–15 cm long all over, cut into a balanced, rounded shape that falls to around the jaw",
+  "w-long-layers":
+    "long layers that keep your length: soft layers starting at the collarbone, only the ends trimmed, and no fringe",
+  "w-long-layers-curtain-bangs":
+    "long layers that keep your length, with curtain bangs: a long fringe parted in the centre that sweeps out to each side at cheekbone level, not a full fringe straight across the forehead",
+  "w-step-cut":
+    "a step cut that keeps your length: clearly defined layered steps, each layer visibly shorter than the one beneath it",
+  "w-feather-cut":
+    "a feather cut that keeps your length: light, wispy, feathered layers that flick softly outward at the ends",
+  "w-u-cut":
+    "a U-cut that keeps your length: one length through the front, with the ends at the back curved into a soft U",
+  "w-v-cut":
+    "a V-cut that keeps your length: the ends at the back cut to a soft point in the centre so the sides fall shorter, and no fringe",
+  "w-face-framing-long":
+    "face-framing layers that keep your length: shorter front pieces starting at the chin and curving in around the face, and no fringe",
+  "w-long-side-swept-bangs":
+    "long layers that keep your length, with side-swept bangs: a side parting and a long fringe swept diagonally across the forehead to one side",
+  "w-butterfly-cut":
+    "a butterfly cut that keeps your length: shorter, full layers around the face and crown that sweep away from the face, blended into long layers below the shoulders",
+  "w-straight-cut":
+    "a one-length cut that keeps your length: the ends cut straight across in one blunt, even line, with no layers or fringe",
+  "w-wispy-bangs-long":
+    "wispy bangs with your length kept: a light, thin, see-through fringe that falls to just above the eyebrows",
+  "w-long-curly-layers":
+    "long curly layers that keep your length: layers cut so the curls stack into a rounded, balanced shape, and no fringe",
+};
+
 export const HAIRSTYLES: Hairstyle[] = [
   ...MEN.map((row) => ({ ...row, gender: "men" as const })),
   ...WOMEN.map((row) => ({ ...row, gender: "women" as const })),
-].map((style) => (FRONT_VIEW[style.id] ? { ...style, front: FRONT_VIEW[style.id] } : style));
+].map((style) => ({
+  ...style,
+  effects: EFFECTS[style.id] ?? [],
+  ...(FRONT_VIEW[style.id] ? { front: FRONT_VIEW[style.id] } : {}),
+  ...(BARBER[style.id] ? { barber: BARBER[style.id] } : {}),
+}));
+
+const BY_ID = new Map(HAIRSTYLES.map((style) => [style.id, style]));
+
+/** A style by its id, or null. The server uses this so a browser can only ever name a style, never describe one. */
+export function hairstyleById(id: unknown): Hairstyle | null {
+  return typeof id === "string" ? (BY_ID.get(id) ?? null) : null;
+}
 
 /** What the image model is told for the front picture of a style. */
 export function frontDescription(style: Hairstyle): string {
   return style.front ?? style.prompt;
+}
+
+/** The sentence a customer can read out or show to a barber or stylist. */
+export function barberLine(style: Hairstyle): string {
+  return `Ask for ${style.barber ?? style.prompt}.`;
 }
 
 export function hairstylesFor(gender: HairGender): Hairstyle[] {

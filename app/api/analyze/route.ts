@@ -27,6 +27,17 @@
 // the uploaded files when a photo is turned away, and stores the
 // classifier's measurements alongside the result so its thresholds can be
 // tuned from real photos.
+//
+// 11.10.2026 (the photo reading): those measurements turned out to say
+// almost nothing: 22 of the first 23 real photos were called "Oval",
+// because the jaw and forehead figures come out the same for every face.
+// The photo is now also read by a vision model (lib/integrations/vision.ts)
+// for face shape, hair length and hair type, at the same moment as the face
+// service checks the photo, so the customer waits no longer. Its face shape
+// is the one used. If that reading fails, the old measurement is used and
+// marked as unsure, and the page asks the customer to check it. The page
+// also says whose hairstyles are wanted (men's or women's), because hair
+// length is described differently for each.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -38,6 +49,7 @@ import {
   type DetectFaceResult,
 } from "@/lib/integrations/rekognition";
 import { classifyFaceShape } from "@/lib/faceShape";
+import { readPhoto, type PhotoReading } from "@/lib/integrations/vision";
 import { FALAI_MOCK_MODE } from "@/lib/integrations/falai";
 import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
@@ -51,7 +63,14 @@ interface AnalyzeBody {
   photoUrl?: string; // mock mode: data: URL of the (browser-shrunk) front photo
   storagePath?: string; // real mode: front photo's path in the "photos" bucket
   extraPaths?: string[]; // real mode: the left/right photos, same folder
+  /** Whose hairstyles the customer asked for. Without it the photo is not read for hair. */
+  gender?: string;
 }
+
+// How long the model gets to open the photo through its private link.
+const READING_LINK_SECONDS = 300;
+// The face-shape confidence stored with the photo (0–100), from how sure the reading said it was.
+const CONFIDENCE = { high: 80, medium: 65, low: 50 } as const;
 
 function ownsPath(path: unknown, userId: string): path is string {
   return typeof path === "string" && path.startsWith(`${userId}/`) && !path.includes("..");
@@ -98,6 +117,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { consentGiven, photoUrl, storagePath, extraPaths } = body;
+  const gender = body.gender === "men" || body.gender === "women" ? body.gender : null;
 
   const auth = await requireUser(req, body.userId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -146,6 +166,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "We couldn't read that photo — please try another one." }, { status: 400 });
   }
 
+  // The reading runs alongside the face check rather than after it. A photo
+  // the face check turns away has then been read for nothing, which costs a
+  // fraction of a rupee; doing them in turn would cost every customer a few
+  // seconds. readPhoto never throws.
+  const reading: Promise<PhotoReading | null> = (async () => {
+    if (!gender) return null;
+    if (!admin) return readPhoto(photoUrl!, gender);
+    const { data: link, error: linkError } = await admin.storage
+      .from("photos")
+      .createSignedUrl(storagePath!, READING_LINK_SECONDS);
+    if (linkError || !link?.signedUrl) {
+      console.error("[Tressform] No link for the photo reading:", linkError?.message);
+      return null;
+    }
+    return readPhoto(link.signedUrl, gender);
+  })().catch((err) => {
+    console.error("[Tressform] Photo reading could not start:", (err as Error)?.message);
+    return null;
+  });
+
   let detection: DetectFaceResult;
   try {
     detection = await detectFace(bytes ?? photoUrl!);
@@ -165,6 +205,36 @@ export async function POST(req: NextRequest) {
 
   const imageSize = detection.mock ? MOCK_IMAGE_SIZE : bytes ? readImageSize(bytes) : null;
   const classification = classifyFaceShape(detection, imageSize);
+  const read = await reading;
+
+  // The face shape the customer is shown: the reading's when there is one,
+  // otherwise the measurement's, marked as unsure so the page asks them to
+  // check it.
+  const face =
+    read?.ok && read.faceShape
+      ? {
+          shape: read.faceShape,
+          second: read.secondFaceShape,
+          sure: read.sure ?? ("medium" as const),
+          confidence: CONFIDENCE[read.sure ?? "medium"],
+          readBy: "reading" as const,
+        }
+      : {
+          shape: classification.faceShape,
+          second: null,
+          sure: "low" as const,
+          confidence: Math.min(classification.confidence, 45),
+          readBy: "measurement" as const,
+        };
+  const forPage = {
+    faceShape: face.shape,
+    secondFaceShape: face.second,
+    sure: face.sure,
+    readBy: face.readBy,
+    confidence: face.confidence,
+    gender,
+    hair: { length: read?.hairLength ?? null, texture: read?.hairTexture ?? null },
+  };
 
   // Stored with the photo for audit and for tuning the classifier later.
   const analysisRecord = {
@@ -172,7 +242,12 @@ export async function POST(req: NextRequest) {
     tressform: {
       classifier: classification.version,
       features: classification.features,
+      measuredShape: classification.faceShape,
       imageSize,
+      // The vision model's reading, kept whole (what it saw, what it
+      // answered, what it cost) so its answers can be checked.
+      reading: read,
+      gender,
       // Read back by /api/generate so the image model is told, as a fact,
       // whether to keep the customer clean-shaven or keep their beard.
       facialHair: detection.facialHair,
@@ -184,8 +259,8 @@ export async function POST(req: NextRequest) {
       id: randomUUID(),
       userId,
       storagePath: photoUrl!,
-      faceShape: classification.faceShape,
-      faceShapeConfidence: classification.confidence,
+      faceShape: face.shape,
+      faceShapeConfidence: face.confidence,
       rekognitionRaw: analysisRecord,
       createdAt: new Date().toISOString(),
     });
@@ -193,8 +268,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       mockMode: true,
       photoId: photo.id,
-      faceShape: classification.faceShape,
-      confidence: classification.confidence,
+      ...forPage,
       previewsLeft: Math.max(0, demoProfile.freePreviewsLimit - demoProfile.freePreviewsUsed),
     });
   }
@@ -212,8 +286,8 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: userId,
         storage_path: storagePath,
-        face_shape: classification.faceShape,
-        face_shape_confidence: classification.confidence,
+        face_shape: face.shape,
+        face_shape_confidence: face.confidence,
         rekognition_raw: analysisRecord,
       })
       .select()
@@ -233,8 +307,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     mockMode: false,
     photoId: photo.id,
-    faceShape: classification.faceShape,
-    confidence: classification.confidence,
+    ...forPage,
     previewsLeft,
   });
 }

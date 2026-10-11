@@ -19,19 +19,19 @@ import { Band, Rail } from "./Section";
 const STEPS = [
   {
     title: "Take three selfies",
-    body: "Front, left and right, on any phone. Tressform reads your face shape from them.",
+    body: "Front, left and right, on any phone. Tressform reads your face shape and your hair from them.",
     image: "/images/step-analyse-selfie.jpg",
     alt: "A man taking a selfie on his phone by a window.",
   },
   {
     title: "See the styles on your own face",
-    body: "You get hairstyles matched to your face shape, shown on your own photo and not on a model.",
+    body: "You get hairstyles matched to your face shape and your hair, shown on your own photo and not on a model.",
     image: "/images/step-choose-hairstyles.jpg",
     alt: "Hands holding a phone that shows a grid of hairstyle previews.",
   },
   {
     title: "Take the instructions to your barber",
-    body: "Each style comes with the lengths, clipper guards and technique written out, so your barber knows exactly what to do.",
+    body: "Each style comes with the cut written out in a barber's words, with lengths, so your barber knows exactly what you are asking for.",
     image: "/images/step-show-barber.jpg",
     alt: "A customer showing a hairstyle on his phone to a barber.",
   },
