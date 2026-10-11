@@ -196,6 +196,17 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
   const shape = params.faceShape ? ` It should suit their ${params.faceShape.toLowerCase()} face shape.` : "";
   return (
     `Change only this person's hairstyle to ${params.styleDescription?.trim() || describeStyle(params.styleName)}.${shape} ` +
+    // 11.10.2026: on a man with thick, curly grey hair the standard model
+    // kept his face perfectly but barely cut the hair: a "classic side
+    // part" came back as a light trim. Telling it outright to cut made a
+    // real side part on the same man. The first attempt at that wording
+    // also asked for "both ears fully visible", and the model turned his
+    // head to show one; so the cut is asked for by length only, and the
+    // pose is pinned in the same breath. Both lines were checked by the
+    // owner in the Studio on that photo before going in here.
+    "Cut the hair to the lengths described, clearly shorter than in the photo wherever the style is shorter than " +
+    "their hair is now, so the new haircut is plain to see. " +
+    "They keep facing the camera exactly as in the photo: do not turn or tilt their head. " +
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
     "expression, head position, camera angle, clothing and background. " +
