@@ -17,11 +17,20 @@
 //   - The picture on screen is mirrored, the way a selfie camera always is,
 //     but the photo that is saved is not: left stays left.
 //
+// 11.10.2026 (later): it also watches the light. Twice a second it measures
+// the picture (lib/photoLight.ts) and says, on the picture itself, whether
+// the light is good or what is wrong with it: too dark, light behind the
+// head, one side in shadow, too much light. The button will not take a
+// photo while the light is poor, and a photo that turns out poor anyway
+// (the light changed during the countdown) can only be retaken. The owner
+// asked for this after the site accepted a selfie he took in bad light.
+//
 // If the browser will not open the camera (permission refused, no camera,
 // or an in-app browser that does not allow it), it says so in plain words
 // and the customer can still upload photos from the frames underneath.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { GUIDE_OVAL, readLightFrom, type LightReading } from "@/lib/photoLight";
 
 export type SelfieSlot = "front" | "left" | "right";
 
@@ -45,6 +54,18 @@ const STEPS: Record<SelfieSlot, { label: string; title: string; hint: string }> 
 
 const COUNTDOWN_FROM = 3;
 const PHOTO_RATIO = 3 / 4; // width / height — the same shape as the frames on the page
+const LIGHT_CHECK_MS = 450;
+
+/** The middle of the camera picture, in the 3:4 shape that is shown and saved. */
+function visibleArea(video: HTMLVideoElement) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  let sw = vw;
+  let sh = vh;
+  if (vw / vh > PHOTO_RATIO) sw = Math.round(vh * PHOTO_RATIO);
+  else sh = Math.round(vw / PHOTO_RATIO);
+  return { sx: (vw - sw) / 2, sy: (vh - sh) / 2, sw, sh };
+}
 
 type Status = "starting" | "live" | "denied" | "unavailable";
 
@@ -64,7 +85,9 @@ export default function SelfieCamera({
   const [status, setStatus] = useState<Status>("starting");
   const [index, setIndex] = useState(0);
   const [count, setCount] = useState<number | null>(null);
-  const [shot, setShot] = useState<{ blob: Blob; url: string } | null>(null);
+  const [shot, setShot] = useState<{ blob: Blob; url: string; lightMessage: string | null } | null>(null);
+  // What the light looks like right now; null until the first measurement.
+  const [light, setLight] = useState<LightReading | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   const slot = slots[index];
@@ -126,31 +149,51 @@ export default function SelfieCamera({
     if (status === "live" && !shot && count === null) shutterRef.current?.focus();
   }, [status, shot, count, index]);
 
+  // The front photo is judged on both cheeks; a side-on photo is not,
+  // because there one "cheek" is hair.
+  const judgeSides = slot === "front";
+
+  // Watch the light while the camera is showing.
+  useEffect(() => {
+    if (status !== "live" || shot) return;
+    let last: string | null | undefined;
+    const measure = () => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth) return;
+      const reading = readLightFrom(video, visibleArea(video), GUIDE_OVAL, { sides: judgeSides });
+      if (!reading) return;
+      // Only change what the screen says when two measurements in a row
+      // agree, so it does not flicker as the customer moves.
+      if (last === undefined || reading.problem === last) setLight(reading);
+      last = reading.problem;
+    };
+    measure();
+    const timer = window.setInterval(measure, LIGHT_CHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [status, shot, judgeSides]);
+
   const takePhoto = useCallback(() => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
     // Save the part of the picture the customer could see: the middle,
     // in the same 3:4 shape as the frame on screen.
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    let cw = vw;
-    let ch = vh;
-    if (vw / vh > PHOTO_RATIO) cw = Math.round(vh * PHOTO_RATIO);
-    else ch = Math.round(vw / PHOTO_RATIO);
+    const area = visibleArea(video);
     const canvas = document.createElement("canvas");
-    canvas.width = cw;
-    canvas.height = ch;
+    canvas.width = area.sw;
+    canvas.height = area.sh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(video, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, cw, ch);
+    ctx.drawImage(video, area.sx, area.sy, area.sw, area.sh, 0, 0, area.sw, area.sh);
+    // Measure the light on the photo itself: it may have changed during the countdown.
+    const reading = readLightFrom(canvas, { sx: 0, sy: 0, sw: area.sw, sh: area.sh }, GUIDE_OVAL, { sides: judgeSides });
     canvas.toBlob(
       (blob) => {
-        if (blob) setShot({ blob, url: URL.createObjectURL(blob) });
+        if (blob) setShot({ blob, url: URL.createObjectURL(blob), lightMessage: reading?.message ?? null });
       },
       "image/jpeg",
       0.92
     );
-  }, []);
+  }, [judgeSides]);
 
   // 3 … 2 … 1 … photo.
   useEffect(() => {
@@ -170,7 +213,7 @@ export default function SelfieCamera({
   }
 
   function keepShot() {
-    if (!shot) return;
+    if (!shot || shot.lightMessage) return;
     onCapture(slot, shot.blob);
     URL.revokeObjectURL(shot.url);
     setShot(null);
@@ -179,6 +222,8 @@ export default function SelfieCamera({
   }
 
   const blocked = status === "denied" || status === "unavailable";
+  const lightMessage = !shot && status === "live" ? (light?.message ?? null) : null;
+  const lightKnown = !shot && status === "live" && light !== null;
 
   return (
     <div
@@ -245,6 +290,20 @@ export default function SelfieCamera({
                     <ellipse cx="150" cy="178" rx="92" ry="128" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" strokeDasharray="9 9" />
                   </svg>
                 )}
+                {lightKnown && count === null && (
+                  <p
+                    aria-live="polite"
+                    className={`absolute inset-x-3 top-3 flex items-start gap-2.5 rounded-[14px] px-3.5 py-2.5 text-[14.5px] font-semibold leading-[1.35] shadow-card ${
+                      lightMessage ? "bg-lilac text-header-dark" : "bg-black/55 text-white backdrop-blur-[2px]"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full ${lightMessage ? "bg-header-dark" : "bg-[#7BE0A6]"}`}
+                    />
+                    {lightMessage ?? "The light is good"}
+                  </p>
+                )}
                 {status === "starting" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
                     <div className="h-9 w-9 animate-spin rounded-full border-[3.5px] border-white/25 border-t-white" />
@@ -263,10 +322,10 @@ export default function SelfieCamera({
 
             <div className="mt-4 text-center">
               <h2 className="font-heading text-[22px] font-semibold leading-tight text-white sm:text-[24px]">
-                {shot ? "Is this photo clear?" : step.title}
+                {shot ? (shot.lightMessage ? "The light changed. Please retake" : "Is this photo clear?") : step.title}
               </h2>
               <p className="mx-auto mt-1.5 max-w-[42ch] text-[15px] leading-[1.5] text-white/70">
-                {shot ? "Your face should be sharp, well lit and not cut off." : step.hint}
+                {shot ? (shot.lightMessage ?? "Your face should be sharp, well lit and not cut off.") : step.hint}
               </p>
             </div>
 
@@ -280,15 +339,17 @@ export default function SelfieCamera({
                   >
                     Retake
                   </button>
-                  <button type="button" className="btn-amber !px-7 !py-3.5" onClick={keepShot}>
-                    {index + 1 >= slots.length ? "Use photo and finish" : "Use photo"}
-                  </button>
+                  {!shot.lightMessage && (
+                    <button type="button" className="btn-amber !px-7 !py-3.5" onClick={keepShot}>
+                      {index + 1 >= slots.length ? "Use photo and finish" : "Use photo"}
+                    </button>
+                  )}
                 </>
               ) : (
                 <button
                   ref={shutterRef}
                   type="button"
-                  disabled={status !== "live" || count !== null}
+                  disabled={status !== "live" || count !== null || light === null || Boolean(lightMessage)}
                   onClick={() => setCount(COUNTDOWN_FROM)}
                   aria-label={`Take the ${step.label.toLowerCase()} photo after a ${COUNTDOWN_FROM}-second countdown`}
                   className="group flex h-[76px] w-[76px] items-center justify-center rounded-full border-[4px] border-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-40"
@@ -298,7 +359,11 @@ export default function SelfieCamera({
               )}
             </div>
             <p className="mt-2 min-h-[20px] text-center text-[13.5px] text-white/55">
-              {!shot && status === "live" && count === null ? `Press the button. The photo is taken after ${COUNTDOWN_FROM} seconds.` : ""}
+              {!shot && status === "live" && count === null
+                ? lightMessage
+                  ? "The button works once the light is good."
+                  : `Press the button. The photo is taken after ${COUNTDOWN_FROM} seconds.`
+                : ""}
             </p>
           </>
         )}

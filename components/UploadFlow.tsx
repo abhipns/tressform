@@ -87,6 +87,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import SelfieCamera from "./SelfieCamera";
+import { readLight } from "@/lib/photoLight";
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
@@ -114,8 +115,13 @@ function pause(ms: number) {
 const MAX_SIDE_PX = 1600;
 const JPEG_QUALITY = 0.85;
 
-/** Shrink a photo in the browser and re-encode it as JPEG. */
-async function shrinkPhoto(file: Blob): Promise<{ dataUrl: string; blob: Blob }> {
+/**
+ * Shrink a photo in the browser and re-encode it as JPEG. Also says when
+ * the picture is too dark all over to use (lib/photoLight.ts). A photo
+ * chosen from the gallery has no face outline to measure inside, so only
+ * that one rule applies here; the selfie camera checks the light fully.
+ */
+async function shrinkPhoto(file: Blob): Promise<{ dataUrl: string; blob: Blob; lightMessage: string | null }> {
   const objectUrl = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -136,7 +142,21 @@ async function shrinkPhoto(file: Blob): Promise<{ dataUrl: string; blob: Blob }>
     const blob = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode"))), "image/jpeg", JPEG_QUALITY)
     );
-    return { dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY), blob };
+    let lightMessage: string | null = null;
+    try {
+      const small = document.createElement("canvas");
+      small.width = 60;
+      small.height = Math.max(1, Math.round((60 * height) / width));
+      const smallCtx = small.getContext("2d");
+      if (smallCtx) {
+        smallCtx.drawImage(canvas, 0, 0, small.width, small.height);
+        const pixels = smallCtx.getImageData(0, 0, small.width, small.height).data;
+        lightMessage = readLight(pixels, small.width, small.height, null).message;
+      }
+    } catch {
+      // A browser that will not let the page read the pixels: skip the check.
+    }
+    return { dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY), blob, lightMessage };
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -211,7 +231,11 @@ export default function UploadFlow() {
   async function handleFile(slot: Slot, file: Blob) {
     setError(null);
     try {
-      const { dataUrl, blob } = await shrinkPhoto(file);
+      const { dataUrl, blob, lightMessage } = await shrinkPhoto(file);
+      if (lightMessage) {
+        setError(`Your ${SLOT_LABEL[slot]} photo can't be used. ${lightMessage}`);
+        return;
+      }
       blobs.current[slot] = blob;
       setPhotos((prev) => ({ ...prev, [slot]: dataUrl }));
     } catch {

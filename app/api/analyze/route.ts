@@ -74,6 +74,18 @@ function photoProblem(d: DetectFaceResult): string | null {
   if (d.pose && (Math.abs(d.pose.yaw) > 25 || Math.abs(d.pose.pitch) > 25)) {
     return "Please look straight at the camera for the Front photo — your head is turned or tilted.";
   }
+  // 11.10.2026: a last line of defence on photo quality. The real light
+  // check happens in the browser (lib/photoLight.ts); these two only stop
+  // a photo the face service itself scores as very dark or very blurred.
+  // They are set low on purpose: its brightness score cannot tell a poor
+  // selfie (69.7) from a well-lit portrait (71.0), so it is only trusted
+  // at the extreme.
+  if (d.quality && d.quality.brightness < 40) {
+    return "Your Front photo is too dark — face a window or switch on a light in front of you, then take it again.";
+  }
+  if (d.quality && d.quality.sharpness < 35) {
+    return "Your Front photo is blurred — hold the phone still, or rest it against something, and take it again.";
+  }
   return null;
 }
 
