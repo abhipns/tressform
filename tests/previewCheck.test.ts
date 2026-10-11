@@ -28,8 +28,20 @@ describe("judgePreview", () => {
   it("measures the turn from the customer's own photo, not from zero", () => {
     // A customer whose photo is already turned 12° is not failed for a preview turned 14°.
     expect(judgePreview(comparison({ pose: { roll: 0, yaw: 14, pitch: 0 } }), { yaw: 12, pitch: 0 }).ok).toBe(true);
-    expect(judgePreview(comparison({ pose: { roll: 0, yaw: 14, pitch: 0 } }), null).ok).toBe(true);
-    expect(judgePreview(comparison({ pose: { roll: 0, yaw: 18, pitch: 0 } }), null).problem).toBe("turned");
+    expect(judgePreview(comparison({ pose: { roll: 0, yaw: 6, pitch: 0 } }), null).ok).toBe(true);
+    expect(judgePreview(comparison({ pose: { roll: 0, yaw: 14, pitch: 0 } }), null).problem).toBe("turned");
+  });
+
+  it("agrees with the owner's real pictures of 11.10.2026", () => {
+    const straight = { yaw: 0.3, pitch: 8.3 };
+    // The two turned heads (13.1° and 30° from the photo) fail …
+    expect(judgePreview(comparison({ similarity: 100, pose: { roll: 0, yaw: 13.4, pitch: 3.2 } }), straight).problem).toBe("turned");
+    expect(judgePreview(comparison({ similarity: 100, pose: { roll: 0, yaw: 30.3, pitch: 0.4 } }), straight).problem).toBe("turned");
+    // … the most-moved good picture (2.6°) passes …
+    expect(judgePreview(comparison({ similarity: 100, pose: { roll: 0, yaw: 2.9, pitch: 8 } }), straight).ok).toBe(true);
+    // … the best-scoring wrong face (37.1) fails and the worst-scoring right one (99) passes.
+    expect(judgePreview(comparison({ similarity: 37.1 }), straight).problem).toBe("different-person");
+    expect(judgePreview(comparison({ similarity: 99 }), straight).ok).toBe(true);
   });
 
   it("fails a different person", () => {

@@ -10,19 +10,33 @@
 // fails too, the customer is told and that preview is not counted against
 // them (the routes do that part).
 //
-// The two limits below are first settings, not measured ones. The owner's
-// Studio shows the numbers for every picture it makes and they are saved
-// with each result (style_results.check_result), so the limits can be set
-// from real pictures: pass ones that look right, fail ones that do not.
+// THE LIMITS, AND WHERE THEY COME FROM. On 11.10.2026 the check was run over
+// the 85 pictures the owner had made in two days of choosing an image model
+// (the numbers are saved with each: style_results.check_result). They fell
+// into groups with wide gaps between them:
+//
+//   likeness   the 6 pictures everyone agreed showed another man's face
+//              scored 2.7 to 37.1; every other picture scored 99 or more.
+//   head turn  77 pictures were within 2.6° of the customer's photo. The
+//              two with a visibly turned head were 13.1° and 30° away.
+//   nodding    never more than 5.1° in any picture.
+//
+// Each limit sits inside its gap. With them, all 6 wrong faces and both
+// turned heads fail, and all 77 good pictures pass. (The first guesses were
+// 85, 15° and 20°; 15° would have let the 13.1° turned head through.)
+//
+// What this check cannot see: a face that is the same person but smoother,
+// fairer or slightly reshaped still scores 100, and it knows nothing about
+// whether the haircut itself is right.
 
 import { comparePreview, type PreviewComparison } from "./integrations/rekognition";
 
 /** Below this likeness (0–100) the preview is treated as a different person. */
-export const SAME_PERSON_MIN = 85;
+export const SAME_PERSON_MIN = 90;
 /** The head may turn left/right this many degrees from the customer's photo … */
-export const YAW_CHANGE_MAX = 15;
+export const YAW_CHANGE_MAX = 8;
 /** … and nod up/down this many. */
-export const PITCH_CHANGE_MAX = 20;
+export const PITCH_CHANGE_MAX = 12;
 
 export type PreviewProblem = "no-face" | "different-person" | "turned";
 
