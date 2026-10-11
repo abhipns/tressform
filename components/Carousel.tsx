@@ -13,6 +13,12 @@
 //               a strip they scroll themselves instead.
 //
 // The intro says plainly that these are model photos and not customers.
+//
+// 11.10.2026 (later): the owner asked for the original to stand out from
+// the generated pictures. Of three drawn options he chose this one: the
+// uploaded photo as a print in a dark frame, tilted and taped on, with a
+// small "AI preview" mark on each generated picture. Nobody should have to
+// work out which of six similar faces is the real photograph.
 
 import Image from "next/image";
 import { CAROUSEL_PEOPLE, type CarouselPerson } from "@/lib/content/carousel";
@@ -21,28 +27,37 @@ const MOVING_STRIP_FROM = 4;
 const SECONDS_PER_CARD = 14;
 
 function Tile({ src, alt, caption, original = false }: { src: string; alt: string; caption: string; original?: boolean }) {
+  const picture = (
+    <Image src={src} alt={alt} width={560} height={700} sizes="(min-width: 1024px) 280px, (min-width: 640px) 30vw, 44vw" className="h-full w-full object-cover" />
+  );
+  // The uploaded photo is drawn as a print in a dark frame, taped on at a
+  // slight angle, so it can never be taken for one of the generated
+  // pictures (see the note at the top of this file).
+  if (original) {
+    return (
+      <figure className="relative z-[1] -rotate-[3deg] rounded-[8px] bg-ink-heading px-[7px] pt-[7px] shadow-[0_14px_28px_-12px_rgba(17,28,21,0.7)]">
+        <span aria-hidden="true" className="absolute -top-[9px] left-1/2 h-5 w-16 -translate-x-1/2 rotate-2 bg-lilac/80" />
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[4px] bg-mint-pale">{picture}</div>
+        <figcaption className="py-2 text-center font-heading text-[13px] font-semibold leading-tight text-white sm:text-[14.5px]">{caption}</figcaption>
+      </figure>
+    );
+  }
   return (
     <figure>
       <div className="relative aspect-[4/5] overflow-hidden rounded-[14px] bg-mint-pale sm:rounded-[16px]">
-        <Image src={src} alt={alt} width={560} height={700} sizes="(min-width: 1024px) 280px, (min-width: 640px) 30vw, 44vw" className="h-full w-full object-cover" />
-        {original && (
-          <span className="absolute left-2 top-2 rounded-full bg-header-dark/85 px-2.5 py-1 text-[11.5px] font-semibold leading-none text-white">
-            Original
-          </span>
-        )}
+        {picture}
+        <span className="absolute bottom-2 right-2 rounded-full bg-white/90 px-2 py-1 text-[10.5px] font-bold leading-none text-mint-deep sm:text-[11px]">
+          AI preview
+        </span>
       </div>
-      <figcaption
-        className={`mt-2 text-[13.5px] leading-[1.3] sm:text-[14.5px] ${original ? "text-ink-muted" : "font-semibold text-ink-heading"}`}
-      >
-        {caption}
-      </figcaption>
+      <figcaption className="mt-2 text-[13.5px] font-semibold leading-[1.3] text-ink-heading sm:text-[14.5px]">{caption}</figcaption>
     </figure>
   );
 }
 
 function tilesFor(person: CarouselPerson) {
   return [
-    <Tile key="original" src={person.original} alt={`The original photo of ${person.who}.`} caption="The photo uploaded" original />,
+    <Tile key="original" src={person.original} alt={`The original photo of ${person.who}.`} caption="Original photo" original />,
     ...person.previews.map((preview) => (
       <Tile
         key={preview.src}
@@ -98,8 +113,8 @@ export default function Carousel() {
         <div className="grid items-end gap-x-16 gap-y-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] xl:gap-x-24">
           <h2 className="h-display max-w-[17ch]">One photo in. Five haircuts to compare.</h2>
           <p className="lead max-w-[54ch]">
-            Each {moving ? "card" : "row"} is one person. The first picture is the photo they uploaded. The other five are Tressform
-            previews of different cuts on that same photo. These are model photos, not customers.
+            Each {moving ? "card" : "row"} is one person. The framed picture is the photo they uploaded. The other five are
+            Tressform previews of different cuts on that same photo. These are model photos, not customers.
           </p>
         </div>
       </div>

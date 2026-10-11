@@ -27,10 +27,20 @@
 // answers with something unusable, it takes too long) the site carries on:
 // the customer is simply asked instead. Nothing here can stop an upload.
 //
-// NOT YET CHECKED ON REAL PHOTOS when this was written: this code cannot be
-// run from the build machine. /api/admin/reread reads the owner's earlier
-// photos again so the first results can be looked at before customers rely
-// on them.
+// FIRST RUN ON REAL PHOTOS, 11.10.2026 (the owner's 28 earlier uploads,
+// through /api/admin/reread, each read once with the men's question and
+// once with the women's): it worked, at about 5 paise a reading, and where
+// the old measurement had said "Oval" for nearly everyone the people now
+// came out as Round, Oval, Long, Heart and Square. Three things it showed
+// were then fixed here:
+//   - the same photo got a different face shape from the two questions in
+//     3 of 28 cases, with the model "highly sure" each time. So a photo is
+//     now read twice, with two wordings, and a disagreement is what marks
+//     the reading as unsure (readPhotoTwice);
+//   - a man with a receding hairline was read as "Heart";
+//   - two curly-haired men were read as having long hair.
+// The second and third are changes to the question that have not been run
+// yet; the same tool reads the photos again to check them.
 
 import type { FaceShape } from "../faceShape";
 import { MEN_LENGTHS, WOMEN_LENGTHS, type HairGender, type HairLength, type HairTexture } from "../content/hairstyles";
@@ -82,15 +92,22 @@ const SYSTEM_PROMPT =
   "You are an experienced hairstylist looking at a client's front-facing photo before a haircut. " +
   "You answer with one JSON object and nothing else: no explanation, no markdown.";
 
+// How curly hair is to be judged, said in both lists. In the first run on
+// real photos (11.10.2026) both curly-haired men were read as "long" when
+// their hair stops above the ears: curls stand out from the head, and the
+// model took the volume for length.
+const CURLS_NOTE = "  Judge curly hair by where it ends, not by how much it stands out from the head.";
+
 function lengthGuide(gender: HairGender): string {
   if (gender === "men") {
     return (
       '"hair_length": how long the hair on TOP of the head is now. One of:\n' +
-      '  "very-short" = clipped, under 2 cm\n' +
-      '  "short" = about 2 to 5 cm\n' +
-      '  "medium" = about 5 to 10 cm\n' +
-      '  "long" = over 10 cm, long enough to cover the ears\n' +
-      "  null = cannot be judged (covered by a cap or turban, tied back, or cut off by the frame)"
+      '  "very-short" = clipped close to the scalp, under 2 cm\n' +
+      '  "short" = about 2 to 5 cm, lying close to the head, ears completely clear\n' +
+      '  "medium" = about 5 to 10 cm, enough to comb over, sweep back or stand up; ends at or above the ears\n' +
+      '  "long" = hangs down over the ears to the jaw, the collar or lower\n' +
+      "  null = cannot be judged (covered by a cap or turban, tied back, or cut off by the frame)\n" +
+      CURLS_NOTE
     );
   }
   return (
@@ -99,31 +116,52 @@ function lengthGuide(gender: HairGender): string {
     '  "chin" = ends around the chin or jaw\n' +
     '  "shoulder" = rests on or just above the shoulders\n' +
     '  "below-shoulder" = clearly longer than the shoulders\n' +
-    "  null = cannot be judged (tied back, in a bun or plait, covered, or cut off by the frame)"
+    "  null = cannot be judged (tied back in a bun or ponytail, covered, or cut off by the frame)\n" +
+    CURLS_NOTE
   );
 }
 
-export function buildReadingPrompt(gender: HairGender): string {
-  return (
-    "Look at the person in this photo and fill in this JSON object, in this order.\n\n" +
-    "First, what you see of the face outline (estimate where hair covers it):\n" +
+const SHAPE_LINES = [
+  '  "Round" = about as wide as it is long, full cheeks, soft rounded jaw',
+  '  "Square" = about as wide as it is long, forehead and jaw of similar width, strong angular jaw',
+  '  "Oval" = a little longer than wide, cheekbones the widest part, jaw gently narrower and rounded',
+  '  "Long" = clearly longer than wide, forehead, cheeks and jaw of similar width',
+  '  "Heart" = forehead the widest part, narrowing to a small or pointed chin',
+  '  "Diamond" = cheekbones the widest part, forehead and jaw both narrower, pointed chin',
+];
+
+/**
+ * The question put to the model. There are two wordings of it (`variant`),
+ * asking for exactly the same things: the second lists the six shapes in
+ * the opposite order and asks about the hair first. A photo is read with
+ * both (readPhotoTwice below), because the first run on real photos showed
+ * that a small change in the question can change the answer for a face
+ * that sits between two shapes, and that the model calls itself "highly
+ * sure" either way. Two answers that agree are worth trusting; two that
+ * differ tell us to ask the customer.
+ */
+export function buildReadingPrompt(gender: HairGender, variant: 0 | 1 = 0): string {
+  const face =
+    "What you see of the face outline. Where hair or a beard covers it, estimate the outline underneath. " +
+    // 11.10.2026: a man with a receding hairline and a full jaw was read
+    // as "Heart": the bare forehead was taken for a wide one.
+    "Judge the forehead by its width at the temples, not by its height: a high or receding hairline does not make the forehead the widest part.\n" +
     '"widest_part": "forehead", "cheekbones", "jaw" or "all similar"\n' +
     '"jaw": "rounded", "angular" or "pointed"\n' +
     '"length_vs_width": the face from hairline to chin against its width: "about equal", "a little longer" or "much longer"\n\n' +
-    "Then the face shape that fits what you wrote:\n" +
+    "The face shape that fits what you wrote:\n" +
     '"face_shape": one of\n' +
-    '  "Round" = about as wide as it is long, full cheeks, soft rounded jaw\n' +
-    '  "Square" = about as wide as it is long, forehead and jaw of similar width, strong angular jaw\n' +
-    '  "Oval" = a little longer than wide, cheekbones the widest part, jaw gently narrower and rounded\n' +
-    '  "Long" = clearly longer than wide, forehead, cheeks and jaw of similar width\n' +
-    '  "Heart" = forehead the widest part, narrowing to a small or pointed chin\n' +
-    '  "Diamond" = cheekbones the widest part, forehead and jaw both narrower, pointed chin\n' +
+    `${(variant === 0 ? SHAPE_LINES : [...SHAPE_LINES].reverse()).join("\n")}\n` +
     "  Do not choose Oval as a safe answer. Choose it only when the description of Oval fits better than the other five.\n" +
     '"second_shape": the next closest of the same six, different from face_shape\n' +
-    '"sure": how sure you are of face_shape: "high", "medium" or "low"\n\n' +
-    "Then the hair:\n" +
+    '"sure": how sure you are of face_shape: "high", "medium" or "low"';
+  const hair =
+    "The hair:\n" +
     `${lengthGuide(gender)}\n` +
-    '"hair_type": the natural texture: "straight", "wavy" or "curly"; null if it cannot be judged\n\n' +
+    '"hair_type": the natural texture: "straight", "wavy" or "curly"; null if it cannot be judged';
+  return (
+    "Look at the person in this photo and fill in this JSON object, in this order.\n\n" +
+    `${variant === 0 ? `${face}\n\n${hair}` : `${hair}\n\n${face}`}\n\n` +
     "Answer with the JSON object only."
   );
 }
@@ -211,7 +249,7 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
  * signed storage link) or a data: URL. Never throws: a failure comes back
  * as `ok: false` with the reason in `note`.
  */
-export async function readPhoto(imageUrl: string, gender: HairGender): Promise<PhotoReading> {
+export async function readPhoto(imageUrl: string, gender: HairGender, variant: 0 | 1 = 0): Promise<PhotoReading> {
   if (VISION_MOCK_MODE) {
     // No FAL key (local demo): a fixed, plausible reading so the whole
     // flow can be tried. PHOTO_READING_MOCK=fail tries the fallback path.
@@ -272,7 +310,7 @@ export async function readPhoto(imageUrl: string, gender: HairGender): Promise<P
           input: {
             model,
             system_prompt: SYSTEM_PROMPT,
-            prompt: buildReadingPrompt(gender),
+            prompt: buildReadingPrompt(gender, variant),
             image_urls: [imageUrl],
             // The same photo should give the same reading every time.
             temperature: 0,
@@ -312,4 +350,45 @@ export async function readPhoto(imageUrl: string, gender: HairGender): Promise<P
     }
   }
   return failed(lastNote);
+}
+
+export interface CheckedReading extends PhotoReading {
+  /** Whether the two readings named the same face shape. null = only one reading came back. */
+  agreed: boolean | null;
+  /** The second reading's answer, kept for looking back at. */
+  other: { faceShape: FaceShape | null; secondFaceShape: FaceShape | null; sure: Sureness | null; note: string } | null;
+}
+
+/**
+ * Read a photo with both wordings of the question, at the same moment, and
+ * settle the two answers:
+ *   - same face shape twice: that shape, as sure as the reading said;
+ *   - two different shapes: the first reading's shape with the other as
+ *     the second guess, marked "low", so the page asks the customer to
+ *     check and the picker leaves out styles that are wrong for either;
+ *   - only one reading came back: that one, never more than "medium";
+ *   - neither: no reading (the page asks the customer everything).
+ * Hair length and type come from the first reading, or from the second
+ * where the first could not tell. Costs two readings, a few paise each.
+ */
+export async function readPhotoTwice(imageUrl: string, gender: HairGender): Promise<CheckedReading> {
+  const [a, b] = await Promise.all([readPhoto(imageUrl, gender, 0), readPhoto(imageUrl, gender, 1)]);
+  return settleReadings(a, b);
+}
+
+/** The settling rule on its own, so it can be tested without calling a model. */
+export function settleReadings(a: PhotoReading, b: PhotoReading): CheckedReading {
+  const costPaise = a.costPaise === null && b.costPaise === null ? null : Math.round(((a.costPaise ?? 0) + (b.costPaise ?? 0)) * 100) / 100;
+  const brief = (r: PhotoReading) => ({ faceShape: r.faceShape, secondFaceShape: r.secondFaceShape, sure: r.sure, note: r.note });
+
+  if (!a.ok && !b.ok) return { ...a, costPaise, agreed: null, other: brief(b) };
+
+  if (a.ok && b.ok) {
+    const hair = { hairLength: a.hairLength ?? b.hairLength, hairTexture: a.hairTexture ?? b.hairTexture };
+    if (a.faceShape === b.faceShape) return { ...a, ...hair, costPaise, agreed: true, other: brief(b) };
+    return { ...a, ...hair, secondFaceShape: b.faceShape, sure: "low", costPaise, agreed: false, other: brief(b) };
+  }
+
+  const one = a.ok ? a : b;
+  return { ...one, sure: one.sure === "low" ? "low" : "medium", costPaise, agreed: null, other: brief(a.ok ? b : a) };
 }

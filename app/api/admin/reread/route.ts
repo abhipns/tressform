@@ -1,29 +1,40 @@
 // /api/admin/reread — owner only. Reads the owner's earlier photos again
-// with the new photo reading (11.10.2026).
+// with the photo reading (11.10.2026).
 //
 // The reading (lib/integrations/vision.ts) gives face shape, hair length
 // and hair type. It was written without being able to run it against a real
-// photo, so before customers rely on it, it is tried on photos already in
-// storage: the ones the owner uploaded while testing. This route reads each
-// of them and saves the answer beside the photo's other measurements, where
-// it can be looked at: do different people get different shapes, does the
-// same person get the same shape twice, and what does a reading cost.
+// photo, so it is tried on photos already in storage: the ones the owner
+// uploaded while testing. This route reads each of them and saves the
+// answer beside the photo's other measurements, where it can be looked at:
+// do different people get different shapes, do the two wordings of the
+// question agree, and what does a reading cost.
 //
 // Earlier photos were uploaded before the site asked whether men's or
 // women's hairstyles were wanted, and hair length is described differently
 // for each, so every photo is read both ways.
 //
+// ROUNDS. Each time the question is changed, ROUND below goes up by one and
+// the tool reads every photo again; the earlier answers are kept beside the
+// new ones (reread, reread2, …) so the two can be compared.
+//   1  the first wording, one reading per photo and gender
+//   2  two readings per photo and gender (readPhotoTwice), with the
+//      hairline and curly-hair notes added to the question
+//
 // It changes nothing a customer sees. Each call does a small batch and says
 // how many are left; the Studio page calls it until none are.
 
 import { NextRequest, NextResponse } from "next/server";
-import { readPhoto, type PhotoReading } from "@/lib/integrations/vision";
+import { readPhotoTwice, type CheckedReading } from "@/lib/integrations/vision";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 export const maxDuration = 60;
 
-const BATCH = 6;
-const AT_ONCE = 3;
+const ROUND = 2;
+const KEY = `reread${ROUND}`;
+const BATCH = 4;
+const AT_ONCE = 2;
+// Photos looked through for ones this round has not read yet. Far more than the owner has uploaded.
+const LOOK_AT = 300;
 const LINK_SECONDS = 300;
 
 export async function POST(req: NextRequest) {
@@ -34,18 +45,26 @@ export async function POST(req: NextRequest) {
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
 
-  const pending = () =>
-    admin
-      .from("photos")
-      .select("id, storage_path, rekognition_raw", { count: "exact" })
-      .is("rekognition_raw->tressform->reread", null)
-      .not("storage_path", "like", "data:%");
-
-  const { data: rows, error, count } = await pending().order("created_at", { ascending: false }).limit(BATCH);
+  // The filter is done here rather than in the query: "this key is missing
+  // inside a JSON column" is easy to get subtly wrong in a query string,
+  // and there are only a few dozen photos.
+  const { data: all, error } = await admin
+    .from("photos")
+    .select("id, storage_path, rekognition_raw")
+    .not("storage_path", "like", "data:%")
+    .order("created_at", { ascending: false })
+    .limit(LOOK_AT);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!rows || rows.length === 0) return NextResponse.json({ read: 0, remaining: 0, shapes: {}, costPaise: 0 });
+  const waiting = (all ?? []).filter((photo) => {
+    const tressform = (photo.rekognition_raw as { tressform?: Record<string, unknown> } | null)?.tressform;
+    return !tressform?.[KEY];
+  });
+  const rows = waiting.slice(0, BATCH);
+  if (rows.length === 0) return NextResponse.json({ read: 0, remaining: 0, shapes: {}, costPaise: 0, agreed: 0, differed: 0 });
 
   let read = 0;
+  let agreed = 0;
+  let differed = 0;
   let costPaise = 0;
   let stopped: string | null = null;
   const shapes: Record<string, number> = {};
@@ -56,7 +75,7 @@ export async function POST(req: NextRequest) {
     const tressform = (raw.tressform ?? {}) as Record<string, unknown>;
     const { error: saveError } = await admin
       .from("photos")
-      .update({ rekognition_raw: { ...raw, tressform: { ...tressform, reread } } })
+      .update({ rekognition_raw: { ...raw, tressform: { ...tressform, [KEY]: reread } } })
       .eq("id", row.id);
     if (saveError) console.error("[Tressform] Could not save a re-read:", saveError.message);
   };
@@ -69,9 +88,9 @@ export async function POST(req: NextRequest) {
         await save(row, { note: "file no longer in storage" });
         continue;
       }
-      const [men, women]: PhotoReading[] = await Promise.all([
-        readPhoto(link.signedUrl, "men"),
-        readPhoto(link.signedUrl, "women"),
+      const [men, women]: CheckedReading[] = await Promise.all([
+        readPhotoTwice(link.signedUrl, "men"),
+        readPhotoTwice(link.signedUrl, "women"),
       ]);
       costPaise += (men.costPaise ?? 0) + (women.costPaise ?? 0);
       // The very first reading failing means the service itself is not
@@ -84,13 +103,14 @@ export async function POST(req: NextRequest) {
       await save(row, { men, women, at: new Date().toISOString() });
       const shape = men.faceShape ?? women.faceShape ?? "No reading";
       shapes[shape] = (shapes[shape] ?? 0) + 1;
+      if (men.agreed === true) agreed += 1;
+      if (men.agreed === false) differed += 1;
       read += 1;
     }
   };
   await Promise.all(Array.from({ length: AT_ONCE }, worker));
 
-  if (stopped) return NextResponse.json({ error: `The reading could not run: ${stopped}.`, read, shapes, costPaise }, { status: 502 });
+  if (stopped) return NextResponse.json({ error: `The reading could not run: ${stopped}.`, read, shapes, costPaise, agreed, differed }, { status: 502 });
 
-  const { count: left } = await pending().limit(1);
-  return NextResponse.json({ read, remaining: left ?? Math.max(0, (count ?? 0) - rows.length), shapes, costPaise });
+  return NextResponse.json({ read, remaining: Math.max(0, waiting.length - rows.length), shapes, costPaise, agreed, differed });
 }

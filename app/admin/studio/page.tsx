@@ -207,6 +207,8 @@ export default function StudioPage() {
     setRescore("Starting…");
     let done = 0;
     let paise = 0;
+    let agreed = 0;
+    let differed = 0;
     const shapes: Record<string, number> = {};
     const summary = () =>
       Object.entries(shapes)
@@ -223,6 +225,8 @@ export default function StudioPage() {
         const data = await res.json();
         done += data.read ?? 0;
         paise += data.costPaise ?? 0;
+        agreed += data.agreed ?? 0;
+        differed += data.differed ?? 0;
         for (const [shape, n] of Object.entries((data.shapes ?? {}) as Record<string, number>)) {
           shapes[shape] = (shapes[shape] ?? 0) + n;
         }
@@ -230,7 +234,7 @@ export default function StudioPage() {
         if (!data.remaining) {
           setRescore(
             done > 0
-              ? `Done: ${done} photos read. Face shapes: ${summary()}. Cost ₹${(paise / 100).toFixed(2)}.`
+              ? `Done: ${done} photos read. Face shapes: ${summary()}. The two readings agreed on ${agreed} and differed on ${differed}. Cost ₹${(paise / 100).toFixed(2)}.`
               : "Nothing left to read."
           );
           return;

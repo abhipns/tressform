@@ -38,6 +38,11 @@
 // marked as unsure, and the page asks the customer to check it. The page
 // also says whose hairstyles are wanted (men's or women's), because hair
 // length is described differently for each.
+//
+// 11.10.2026 (later): the photo is read twice, with two wordings of the
+// same question. When the two name different face shapes the reading is
+// marked unsure and the page asks the customer to check it; see
+// readPhotoTwice for why.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -49,7 +54,7 @@ import {
   type DetectFaceResult,
 } from "@/lib/integrations/rekognition";
 import { classifyFaceShape } from "@/lib/faceShape";
-import { readPhoto, type PhotoReading } from "@/lib/integrations/vision";
+import { readPhotoTwice, type CheckedReading } from "@/lib/integrations/vision";
 import { FALAI_MOCK_MODE } from "@/lib/integrations/falai";
 import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
@@ -169,10 +174,10 @@ export async function POST(req: NextRequest) {
   // The reading runs alongside the face check rather than after it. A photo
   // the face check turns away has then been read for nothing, which costs a
   // fraction of a rupee; doing them in turn would cost every customer a few
-  // seconds. readPhoto never throws.
-  const reading: Promise<PhotoReading | null> = (async () => {
+  // seconds. The reading never throws.
+  const reading: Promise<CheckedReading | null> = (async () => {
     if (!gender) return null;
-    if (!admin) return readPhoto(photoUrl!, gender);
+    if (!admin) return readPhotoTwice(photoUrl!, gender);
     const { data: link, error: linkError } = await admin.storage
       .from("photos")
       .createSignedUrl(storagePath!, READING_LINK_SECONDS);
@@ -180,7 +185,7 @@ export async function POST(req: NextRequest) {
       console.error("[Tressform] No link for the photo reading:", linkError?.message);
       return null;
     }
-    return readPhoto(link.signedUrl, gender);
+    return readPhotoTwice(link.signedUrl, gender);
   })().catch((err) => {
     console.error("[Tressform] Photo reading could not start:", (err as Error)?.message);
     return null;

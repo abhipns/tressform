@@ -4,7 +4,7 @@
 // fixed lists ever get through.
 
 import { describe, expect, it } from "vitest";
-import { buildReadingPrompt, parseReading } from "../lib/integrations/vision";
+import { buildReadingPrompt, parseReading, settleReadings, type PhotoReading } from "../lib/integrations/vision";
 
 describe("parseReading", () => {
   it("reads a clean answer", () => {
@@ -66,5 +66,70 @@ describe("buildReadingPrompt", () => {
   it("asks for what is seen before the face shape", () => {
     const prompt = buildReadingPrompt("men");
     expect(prompt.indexOf('"widest_part"')).toBeLessThan(prompt.indexOf('"face_shape"'));
+  });
+});
+
+describe("the two wordings of the question", () => {
+  it("ask for the same things in a different order", () => {
+    for (const gender of ["men", "women"] as const) {
+      const first = buildReadingPrompt(gender, 0);
+      const second = buildReadingPrompt(gender, 1);
+      expect(second).not.toBe(first);
+      // The same lines, whatever the order.
+      expect(second.split("\n").filter(Boolean).sort()).toEqual(first.split("\n").filter(Boolean).sort());
+      expect(first.indexOf('"Round"')).toBeLessThan(first.indexOf('"Diamond"'));
+      expect(second.indexOf('"Diamond"')).toBeLessThan(second.indexOf('"Round"'));
+      expect(second.indexOf('"hair_type"')).toBeLessThan(second.indexOf('"face_shape"'));
+    }
+  });
+
+  it("warn about a receding hairline and about curly hair", () => {
+    const prompt = buildReadingPrompt("men");
+    expect(prompt).toContain("a high or receding hairline does not make the forehead the widest part");
+    expect(prompt).toContain("Judge curly hair by where it ends");
+    expect(buildReadingPrompt("women")).toContain("Judge curly hair by where it ends");
+  });
+});
+
+describe("settling two readings of one photo", () => {
+  const reading = (over: Partial<PhotoReading>): PhotoReading => ({
+    ok: true,
+    faceShape: "Round",
+    secondFaceShape: "Square",
+    sure: "high",
+    hairLength: "short",
+    hairTexture: "straight",
+    observations: null,
+    model: "test",
+    costPaise: 5,
+    note: "",
+    mock: false,
+    ...over,
+  });
+  const failed = reading({ ok: false, faceShape: null, secondFaceShape: null, sure: null, hairLength: null, hairTexture: null, note: "no answer", costPaise: null });
+
+  it("keeps the answer, and how sure it was, when both agree", () => {
+    const settled = settleReadings(reading({}), reading({ secondFaceShape: "Oval" }));
+    expect(settled).toMatchObject({ ok: true, faceShape: "Round", secondFaceShape: "Square", sure: "high", agreed: true, costPaise: 10 });
+  });
+
+  it("marks the reading unsure, with the other shape as second guess, when they differ", () => {
+    // The real case from the first run: one question said Heart, the other Round, both "sure".
+    const settled = settleReadings(reading({ faceShape: "Heart", secondFaceShape: "Oval" }), reading({ faceShape: "Round" }));
+    expect(settled).toMatchObject({ ok: true, faceShape: "Heart", secondFaceShape: "Round", sure: "low", agreed: false });
+  });
+
+  it("is never more than medium sure on one reading alone", () => {
+    expect(settleReadings(reading({}), failed)).toMatchObject({ ok: true, faceShape: "Round", sure: "medium", agreed: null, costPaise: 5 });
+    expect(settleReadings(failed, reading({ sure: "low" }))).toMatchObject({ ok: true, faceShape: "Round", sure: "low", agreed: null });
+  });
+
+  it("is no reading when neither came back", () => {
+    expect(settleReadings(failed, failed)).toMatchObject({ ok: false, faceShape: null, agreed: null, costPaise: null });
+  });
+
+  it("fills in hair the first reading could not tell from the second", () => {
+    const settled = settleReadings(reading({ hairLength: null }), reading({ hairLength: "medium", hairTexture: "wavy" }));
+    expect(settled).toMatchObject({ hairLength: "medium", hairTexture: "straight" });
   });
 });
