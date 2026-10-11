@@ -43,6 +43,8 @@ interface GenerateBody {
   sourceImageUrl?: string; // mock mode only — real mode reads it from the photos row
   styleName?: string;
   faceShape?: string | null;
+  /** Whose hairstyle it is: decides which image model makes the preview. */
+  gender?: string | null;
 }
 
 function extensionFor(contentType: string | null): { ext: string; type: string } {
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { photoId, sourceImageUrl, styleName, faceShape } = body;
+  const gender = body.gender === "men" || body.gender === "women" ? body.gender : null;
 
   const auth = await requireUser(req, body.userId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -87,7 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await generateHairstyle({ sourceImageUrl: sourceImageUrl!, styleName, faceShape });
+    const result = await generateHairstyle({ sourceImageUrl: sourceImageUrl!, styleName, faceShape, gender });
 
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
@@ -200,6 +203,7 @@ export async function POST(req: NextRequest) {
       styleName,
       faceShape: analysedFaceShape,
       facialHair,
+      gender,
     });
   } catch (err) {
     await giveBack();

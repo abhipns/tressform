@@ -23,7 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import { shrinkPhoto } from "@/lib/shrinkPhoto";
-import { STUDIO_STYLES, type StudioStyle } from "@/lib/content/studioStyles";
+import { STUDIO_GROUPS, STUDIO_STYLES, type StudioStyle } from "@/lib/content/studioStyles";
 
 type Gender = "men" | "women";
 
@@ -31,6 +31,8 @@ type Shot = {
   id: string;
   label: string;
   modelLabel: string;
+  /** The photo this picture was made from, so a download is named after the right one. */
+  photoName: string;
   state: "loading" | "done" | "failed";
   url?: string;
   seconds?: number;
@@ -39,12 +41,20 @@ type Shot = {
 };
 
 const MODELS = [
-  { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "what customers get today, about ₹3.50 an image", paise: 350 },
+  { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "chosen for women's hairstyles, about ₹3.50 an image", paise: 350 },
   { id: "fal-ai/nano-banana-2/edit", label: "Nano Banana 2", note: "newer, mid-priced, about ₹7 an image", paise: 704 },
   { id: "fal-ai/nano-banana-pro/edit", label: "Nano Banana Pro", note: "most faithful so far, about ₹13 an image", paise: 1320 },
   { id: "fal-ai/bytedance/seedream/v4/edit", label: "Seedream 4", note: "a different maker, about ₹2.60 an image", paise: 264 },
-  { id: "fal-ai/flux-pro/kontext", label: "Flux Kontext Pro", note: "a different editor, about ₹3.50 an image", paise: 350 },
+  { id: "fal-ai/flux-pro/kontext", label: "Flux Kontext Pro", note: "chosen for men's hairstyles, about ₹3.50 an image", paise: 350 },
 ];
+
+// The owner's decision of 10.10.2026 (same rule customers get, see
+// FALAI_MODEL_BY_GENDER): picking Men's or Women's selects this model, and
+// any other can still be chosen by hand for a comparison.
+const CHOSEN_MODEL: Record<Gender, string> = {
+  men: "fal-ai/flux-pro/kontext",
+  women: "fal-ai/nano-banana/edit",
+};
 
 const BATCH_AT_ONCE = 3;
 
@@ -86,7 +96,7 @@ export default function StudioPage() {
 
   const [gender, setGender] = useState<Gender>("men");
   const [custom, setCustom] = useState("");
-  const [modelId, setModelId] = useState(MODELS[0].id);
+  const [modelId, setModelId] = useState(CHOSEN_MODEL.men);
   // On = what customers get today. Off = "change the hair, touch nothing else".
   const [polish, setPolish] = useState(true);
   const [shots, setShots] = useState<Shot[]>([]);
@@ -156,7 +166,7 @@ export default function StudioPage() {
   async function makeOne(style: StudioStyle) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     setShots((prev) => [
-      { id, label: style.label, modelLabel: `${model.label}${polish ? "" : ", hair only"}`, state: "loading" },
+      { id, label: style.label, modelLabel: `${model.label}${polish ? "" : ", hair only"}`, photoName, state: "loading" },
       ...prev,
     ]);
     const patch = (p: Partial<Shot>) => setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
@@ -181,8 +191,8 @@ export default function StudioPage() {
     }
   }
 
-  async function makeAll() {
-    const queue = [...STUDIO_STYLES[gender]];
+  async function makeAll(styles: StudioStyle[]) {
+    const queue = [...styles];
     const worker = async () => {
       for (let next = queue.shift(); next; next = queue.shift()) await makeOne(next);
     };
@@ -221,7 +231,7 @@ export default function StudioPage() {
   }
 
   // ------------------------------------------------------------------- page
-  const allCostRupees = Math.round((STUDIO_STYLES[gender].length * model.paise) / 100);
+  const costRupees = (count: number) => Math.round((count * model.paise) / 100);
 
   return (
     <section className="frame py-12 lg:py-16">
@@ -299,7 +309,10 @@ export default function StudioPage() {
               <button
                 key={g}
                 type="button"
-                onClick={() => setGender(g)}
+                onClick={() => {
+                  setGender(g);
+                  setModelId(CHOSEN_MODEL[g]);
+                }}
                 aria-pressed={gender === g}
                 className={`rounded-full px-5 py-2 text-[15px] font-semibold transition ${
                   gender === g ? "bg-ink-heading text-white" : "text-ink-heading hover:bg-bg-soft"
@@ -310,21 +323,47 @@ export default function StudioPage() {
             ))}
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2.5">
-            {STUDIO_STYLES[gender].map((style) => (
-              <button
-                key={style.label}
-                type="button"
-                disabled={!ready}
-                onClick={() => makeOne(style)}
-                title={style.prompt}
-                className="rounded-full border border-line bg-surface px-4 py-2.5 text-[15px] font-medium text-ink-heading transition hover:border-mint hover:bg-mint-pale disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {style.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-[13.5px] text-ink-muted">Click a style to make it. Each click makes one image.</p>
+          <p className="mt-4 text-[14.5px] text-ink-muted">
+            {STUDIO_STYLES[gender].length} {gender === "men" ? "men's" : "women's"} styles. Click one to make it; each click makes one
+            image.
+          </p>
+
+          {STUDIO_GROUPS[gender].map((group) => (
+            <div key={group.title} className="mt-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="text-[16.5px] font-semibold text-ink-heading">
+                  {group.title} <span className="font-body text-[13.5px] font-normal text-ink-muted">({group.hint})</span>
+                </h3>
+                <button
+                  type="button"
+                  disabled={!ready || inFlight > 0}
+                  onClick={() => makeAll(group.styles)}
+                  className="text-[14px] font-semibold text-mint-deep underline decoration-mint/50 underline-offset-4 transition hover:decoration-mint-deep disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Make all {group.styles.length} (about ₹{costRupees(group.styles.length)})
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2.5">
+                {group.styles.map((style) => (
+                  <button
+                    key={style.label}
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => makeOne(style)}
+                    title={style.prompt}
+                    className="rounded-full border border-line bg-surface px-4 py-2.5 text-[15px] font-medium text-ink-heading transition hover:border-mint hover:bg-mint-pale disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {style.label}
+                    {style.curlyOnly && <span className="ml-2 text-[12.5px] font-normal text-ink-muted">curly hair</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="mt-4 text-[13.5px] leading-[1.5] text-ink-muted">
+            Styles marked &ldquo;curly hair&rdquo; need a photo of someone with curls. Flux straightens curls, so pick Nano Banana
+            for those.
+          </p>
 
           <div className="mt-6">
             <label htmlFor="customStyle" className="block text-[15.5px] font-semibold text-ink-heading">
@@ -347,9 +386,6 @@ export default function StudioPage() {
                 onClick={() => makeOne({ label: custom.trim().slice(0, 60), prompt: custom.trim() })}
               >
                 Make this one
-              </button>
-              <button type="button" className="btn-secondary !px-6 !py-3" disabled={!ready || inFlight > 0} onClick={makeAll}>
-                Make all {STUDIO_STYLES[gender].length} {gender === "men" ? "men's" : "women's"} styles (about ₹{allCostRupees})
               </button>
             </div>
           </div>
@@ -429,7 +465,7 @@ export default function StudioPage() {
                 {shot.state === "done" && shot.url && (
                   <button
                     type="button"
-                    onClick={() => saveImage(shot.url!, `${photoName}-${slug(shot.label)}-${slug(shot.modelLabel)}.jpg`)}
+                    onClick={() => saveImage(shot.url!, `${shot.photoName}-${slug(shot.label)}-${slug(shot.modelLabel)}.jpg`)}
                     className="mt-2 text-[14.5px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4 hover:decoration-mint-deep"
                   >
                     Download

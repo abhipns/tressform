@@ -51,15 +51,41 @@ export type FalaiModel = keyof typeof FALAI_MODELS;
 
 const DEFAULT_MODEL: FalaiModel = "fal-ai/nano-banana/edit";
 
-function resolveModel(): FalaiModel {
+/** FAL_AI_MODEL in Vercel, when it names a model this code knows. Unset on the live site. */
+function modelOverride(): FalaiModel | null {
   const requested = process.env.FAL_AI_MODEL;
-  if (!requested) return DEFAULT_MODEL;
+  if (!requested) return null;
   if (requested in FALAI_MODELS) return requested as FalaiModel;
-  console.error(`[Tressform] FAL_AI_MODEL "${requested}" isn't one this code knows — using ${DEFAULT_MODEL}.`);
-  return DEFAULT_MODEL;
+  console.error(`[Tressform] FAL_AI_MODEL "${requested}" isn't one this code knows, so it is ignored.`);
+  return null;
 }
 
-export const FALAI_MODEL: FalaiModel = resolveModel();
+/** The model used when nothing says whose hairstyle it is. */
+export const FALAI_MODEL: FalaiModel = modelOverride() ?? DEFAULT_MODEL;
+
+// WHICH MODEL FOR WHOM. Decided by the owner on 10.10.2026 after making all
+// 12 Studio styles on both models for a man's and a woman's photo and
+// looking at them side by side:
+//   women: Nano Banana. It gave the cut that was asked for in about 8 of 11
+//     styles and kept her face close to the original. Flux cut most styles
+//     down to a short bob and added a blunt fringe nobody asked for.
+//   men: Flux Kontext Pro. Fades and tapers are clearly visible, like a
+//     real barber's cut, and short cuts (buzz, spiky) are more accurate.
+//     Known weakness: it straightens curly hair even when told not to.
+// Both cost about the same per image. Setting FAL_AI_MODEL in Vercel still
+// overrides this for everyone (a way back if one model has an outage).
+export type HairGender = "men" | "women";
+export const FALAI_MODEL_BY_GENDER: Record<HairGender, FalaiModel> = {
+  men: "fal-ai/flux-pro/kontext",
+  women: "fal-ai/nano-banana/edit",
+};
+
+export function modelForGender(gender: HairGender | null | undefined): FalaiModel {
+  const override = modelOverride();
+  if (override) return override;
+  return gender === "men" || gender === "women" ? FALAI_MODEL_BY_GENDER[gender] : DEFAULT_MODEL;
+}
+
 export const FALAI_COST_PER_IMAGE_PAISE = 350; // ≈₹3.50/image, see Part H / Part I
 /** What one image costs on each model, in paise, at about ₹88 to the dollar (list prices checked 10.10.2026). */
 export const FALAI_COST_BY_MODEL_PAISE: Record<FalaiModel, number> = {
@@ -83,6 +109,8 @@ export interface GenerateHairstyleParams {
    * own words, used instead of the built-in description for `styleName`.
    */
   styleDescription?: string | null;
+  /** Whose hairstyle this is. Decides which image model is used (see FALAI_MODEL_BY_GENDER). */
+  gender?: HairGender | null;
   /** Studio only: try a different one of the supported models for this one image. */
   model?: FalaiModel | null;
   /**
@@ -171,9 +199,12 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
       ? "Do not retouch, relight, smooth, slim, lighten or reframe anything: the face, skin texture, skin tone, " +
         "jewellery, clothing, background, framing and image size must stay exactly as they are in the photo. " +
         "The new hair should look freshly and neatly cut, with natural hair texture and a realistic hairline. "
-      : "Make it a flattering, high-quality photograph: soft, even, natural light on the face, crisp focus and clean detail, " +
+      : // 10.10.2026: in the side-by-side sheets both models made the
+        // person a little fairer when asked for a flattering photo, so
+        // the request now says outright that skin tone is not part of it.
+        "Make it a flattering, high-quality photograph: soft, even, natural light on the face, crisp focus and clean detail, " +
         "with hair that looks neatly styled and freshly finished by a professional barber, natural hair texture and a " +
-        "realistic hairline. ") +
+        "realistic hairline. Do not make their skin lighter or change the shape of their face. ") +
     "Do not add text, logos, watermarks, borders or other people."
   );
 }
@@ -256,7 +287,7 @@ export async function generateHairstyle(params: GenerateHairstyleParams): Promis
     };
   }
 
-  const model = params.model && params.model in FALAI_MODELS ? params.model : FALAI_MODEL;
+  const model = params.model && params.model in FALAI_MODELS ? params.model : modelForGender(params.gender);
   const { createFalClient } = await import("@fal-ai/client");
   const fal = createFalClient({ credentials: FAL_AI_API_KEY });
 
