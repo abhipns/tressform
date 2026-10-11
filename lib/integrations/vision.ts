@@ -356,16 +356,54 @@ export interface CheckedReading extends PhotoReading {
   /** Whether the two readings named the same face shape. null = only one reading came back. */
   agreed: boolean | null;
   /** The second reading's answer, kept for looking back at. */
-  other: { faceShape: FaceShape | null; secondFaceShape: FaceShape | null; sure: Sureness | null; note: string } | null;
+  other: {
+    faceShape: FaceShape | null;
+    secondFaceShape: FaceShape | null;
+    sure: Sureness | null;
+    observations: Record<string, string> | null;
+    note: string;
+  } | null;
+  /** How two different answers were settled: "observations" when what the model saw decided it. */
+  settledBy?: "observations";
+}
+
+/**
+ * The face shape that follows from what the model said it SAW, where that
+ * is clear-cut; null where it is not.
+ *
+ * 11.10.2026, from the second run on the owner's photos. Asked twice, the
+ * model often named two shapes for one face: "Long" with the first wording
+ * and "Oval" with the second, for six of the nine people. Yet both times it
+ * had written down the same observations, and those usually pointed to one
+ * of the two: a face "a little longer than wide" is not a long face, which
+ * is "clearly longer". What it saw is steadier than the name it gives, so a
+ * disagreement is settled by the observations when they favour one side.
+ */
+export function shapeFromObservations(observations: Record<string, string> | null): FaceShape | null {
+  if (!observations) return null;
+  const length = (observations.length_vs_width ?? "").toLowerCase();
+  const widest = (observations.widest_part ?? "").toLowerCase();
+  const jaw = (observations.jaw ?? "").toLowerCase();
+  if (length.includes("much")) return "Long";
+  if (length.includes("equal")) return jaw.includes("angular") ? "Square" : jaw.includes("rounded") ? "Round" : null;
+  if (length.includes("little")) {
+    if (widest.includes("forehead")) return "Heart";
+    if (widest.includes("cheek")) return jaw.includes("pointed") ? "Diamond" : "Oval";
+    if (widest.includes("similar") && jaw.includes("rounded")) return "Oval";
+  }
+  return null;
 }
 
 /**
  * Read a photo with both wordings of the question, at the same moment, and
  * settle the two answers:
  *   - same face shape twice: that shape, as sure as the reading said;
- *   - two different shapes: the first reading's shape with the other as
- *     the second guess, marked "low", so the page asks the customer to
- *     check and the picker leaves out styles that are wrong for either;
+ *   - two different shapes: if what the model said it saw points to one of
+ *     them (shapeFromObservations), that one, with the other as the second
+ *     guess, "medium" sure. Otherwise the first reading's shape with the
+ *     other as the second guess, marked "low", so the page asks the
+ *     customer to check and the picker leaves out styles that are wrong
+ *     for either;
  *   - only one reading came back: that one, never more than "medium";
  *   - neither: no reading (the page asks the customer everything).
  * Hair length and type come from the first reading, or from the second
@@ -379,13 +417,39 @@ export async function readPhotoTwice(imageUrl: string, gender: HairGender): Prom
 /** The settling rule on its own, so it can be tested without calling a model. */
 export function settleReadings(a: PhotoReading, b: PhotoReading): CheckedReading {
   const costPaise = a.costPaise === null && b.costPaise === null ? null : Math.round(((a.costPaise ?? 0) + (b.costPaise ?? 0)) * 100) / 100;
-  const brief = (r: PhotoReading) => ({ faceShape: r.faceShape, secondFaceShape: r.secondFaceShape, sure: r.sure, note: r.note });
+  const brief = (r: PhotoReading) => ({
+    faceShape: r.faceShape,
+    secondFaceShape: r.secondFaceShape,
+    sure: r.sure,
+    observations: r.observations,
+    note: r.note,
+  });
 
   if (!a.ok && !b.ok) return { ...a, costPaise, agreed: null, other: brief(b) };
 
   if (a.ok && b.ok) {
     const hair = { hairLength: a.hairLength ?? b.hairLength, hairTexture: a.hairTexture ?? b.hairTexture };
     if (a.faceShape === b.faceShape) return { ...a, ...hair, costPaise, agreed: true, other: brief(b) };
+    // Two different shapes. What each reading saw may settle it: the two
+    // sets of observations must not point to different shapes, and the
+    // shape they point to must be one of the two that were named.
+    const seenA = shapeFromObservations(a.observations);
+    const seenB = shapeFromObservations(b.observations);
+    const seen = seenA && seenB && seenA !== seenB ? null : (seenA ?? seenB);
+    if (seen && (seen === a.faceShape || seen === b.faceShape)) {
+      const other = seen === a.faceShape ? b.faceShape : a.faceShape;
+      return {
+        ...a,
+        ...hair,
+        faceShape: seen,
+        secondFaceShape: other,
+        sure: "medium",
+        costPaise,
+        agreed: false,
+        settledBy: "observations",
+        other: brief(b),
+      };
+    }
     return { ...a, ...hair, secondFaceShape: b.faceShape, sure: "low", costPaise, agreed: false, other: brief(b) };
   }
 

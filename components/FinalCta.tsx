@@ -16,7 +16,7 @@ export default function FinalCta() {
           <a href="#upload" className="btn-amber">
             Try it free
           </a>
-          <p className="text-[15px] text-white/60">Your first preview is free. No card needed.</p>
+          <p className="text-[15px] text-white/60">Your hairstyle list is free. You pay only to see a style on your own photo.</p>
         </div>
       </div>
     </section>

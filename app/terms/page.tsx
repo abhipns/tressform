@@ -28,8 +28,8 @@ const SECTIONS = [
     body: "You need an account to use Tressform, and you must be 18 or older. Please upload only photos of yourself, or of someone who has clearly agreed to it, and keep your login details to yourself. You retain ownership of the photos you upload. We use them only to generate your own results — see our Privacy Policy for how they're stored, secured, and deleted.",
   },
   {
-    heading: "Free previews",
-    body: "Every account gets 2 free previews, a lifetime allowance that doesn't refresh — including after you buy a paid pack. Further previews require a paid pack.",
+    heading: "What is free and what is paid",
+    body: "Creating an account, having your photo read and seeing your list of matched hairstyles are free. Hairstyle previews on your own photo are sold in packs; each preview you make uses one preview from your pack.",
   },
   {
     heading: "Paid plans and pricing",
@@ -51,7 +51,7 @@ const SECTIONS = [
   },
   {
     heading: "Fair use",
-    body: "Please don't misuse the service: no photos of other people without their consent, no unlawful or offensive content, no attempts to get around the free-preview limit with multiple accounts, and no automated use of the site. We may suspend accounts that do.",
+    body: "Please don't misuse the service: no photos of other people without their consent, no unlawful or offensive content, no attempts to obtain previews without paying for them, and no automated use of the site. We may suspend accounts that do.",
   },
   {
     heading: "Governing law",

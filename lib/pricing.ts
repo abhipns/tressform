@@ -26,12 +26,17 @@
 //      REFERRAL_CREDITS_BY_TIER_PAISE below, not a percentage of profit.
 
 // THE FREE-PREVIEW SWITCH (11.10.2026). While true, a new account's first
-// previews are free, up to the limit on its profile (2). Set it to false on
-// the day paid packs go live: from then on every preview comes from a pack,
-// whatever an account has left of its free ones. The wording on the site
-// that mentions free previews is changed in the same step; this constant is
-// the part that decides what is actually charged.
-export const FREE_PREVIEWS_ON: boolean = true;
+// previews are free, up to the limit on its profile (2).
+//
+// Switched OFF the same night, on the owner's instruction after his first
+// run as a customer: "we were not supposed to create images and show the
+// hairstyles unless the customer pays". So: reading the photo and the list
+// of matched hairstyles are free; every picture comes from a paid pack.
+// The site's wording says the same (Hero, upload section, Pricing, FAQ,
+// Terms, Privacy). The one exception is the owner's own account, which
+// keeps its small test allowance so the site can still be tried end to end
+// (lib/allowance.ts).
+export const FREE_PREVIEWS_ON: boolean = false;
 
 export type PackTier = "STARTER" | "STYLE" | "FULL_EXPLORE";
 export type AddonKind = "BACKGROUND" | "OUTFIT";

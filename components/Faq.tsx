@@ -19,7 +19,7 @@ const FAQS = [
     q: "What if I don't like any of the styles?",
     // 10.10.2026: no longer mentions "different questions in the assessment
     // step" — those option buttons were removed from the upload step.
-    a: "Your free previews cost nothing, so you've lost nothing. A paid pack shows you more styles on your own photo, and there's no obligation to buy one.",
+    a: "Your list of matched hairstyles is free, so you see what we suggest before paying anything. You buy a pack only if there are styles on it you want to see on your own photo, and you choose which ones.",
   },
   {
     q: "How accurate is the face-shape detection?",
@@ -34,8 +34,8 @@ const FAQS = [
     a: "Yes. Your photos are encrypted, only used to generate your own results, never used to train our AI, and deleted after a set period. You can request deletion at any time — see our Privacy Policy for details.",
   },
   {
-    q: "What happens after I use my 2 free previews?",
-    a: "Your 2 free previews are a one-time allowance per account and don't refresh, even after you buy a pack. Your list of matched hairstyles stays free to see. To see more of those styles on your own photo you choose a pack: 4 previews with the Starter Pack or 10 with the Style Pack, and you pick which styles to use them on.",
+    q: "What is free, and what do I pay for?",
+    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack gives you 4 previews and the Style Pack 10, and you pick which styles to use them on. Each preview comes with the words to give your barber.",
   },
   {
     // 10.10.2026: was "Are the prices GST-inclusive?". Tressform isn't

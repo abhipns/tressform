@@ -66,11 +66,13 @@ const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: bo
 // 11.10.2026: these say what a free account really gets. The earlier lines
 // promised low-resolution, watermarked previews that turn into
 // full-resolution ones after a purchase; free previews have never been
-// either, and nothing converts.
+// either, and nothing converts. Later the same night the free previews
+// themselves were switched off (lib/pricing.ts FREE_PREVIEWS_ON): what is
+// free is the reading and the list, and the third line says so.
 const FREE_FEATURES = [
   "Your face shape and hair read from your photo",
   "Your own list of matched hairstyles",
-  "2 free previews, once per account",
+  "Why each style suits you",
 ];
 
 const EARLY_BIRD_CUTOFF_LABEL = "31 Oct 2026";
@@ -100,7 +102,7 @@ export default function Pricing() {
           <h2 className="h-display">Pay only for the styles you love.</h2>
           <p className="lead max-w-[52ch]">
             {GST_REGISTERED ? "All prices are GST-inclusive. " : "The price you see is the price you pay. "}
-            Start free, then see more styles on your own photo as you go.
+            Your hairstyle list is free. A pack lets you see the styles on your own photo.
           </p>
         </div>
 
@@ -110,7 +112,7 @@ export default function Pricing() {
           <div className="flex flex-col gap-5 bg-surface p-6 lg:p-8">
             <div>
               <h3 className="text-[22px] font-semibold">Free</h3>
-              <p className="mt-1 text-[15px] text-ink-muted">Try it out, no commitment</p>
+              <p className="mt-1 text-[15px] text-ink-muted">Your hairstyle list, no commitment</p>
             </div>
             <p className="font-heading text-[44px] font-semibold leading-none text-ink-heading">₹0</p>
             <Features items={FREE_FEATURES} />

@@ -531,7 +531,7 @@ export default function UploadFlow() {
             <h2 className="h-display">Try it on your own face.</h2>
             <p className="lead mt-5 max-w-[44ch]">
               Three photos: front, left and right. Take them now with your camera, or upload ones you already have.
-              Your first preview is free.
+              Your list of matched hairstyles is free.
             </p>
             <div className="mt-8 max-w-[44ch]">
               <h3 className="text-[17px] font-semibold">For a good result</h3>
@@ -562,9 +562,9 @@ export default function UploadFlow() {
 
             {step === "capture" && needsLogin && !restoring && (
               <div className="mx-auto max-w-[460px] py-8 text-center">
-                <h3 className="mb-2 text-[24px] font-semibold">Log in to get your free previews</h3>
+                <h3 className="mb-2 text-[24px] font-semibold">Log in to get your hairstyle list</h3>
                 <p className="mb-7 text-[15.5px] leading-[1.6] text-ink-muted">
-                  It takes a few seconds. Your free previews and your photos are kept safely in your own account.
+                  It takes a few seconds. Your photos and your hairstyle list are kept safely in your own account.
                 </p>
                 <a href={loginUrl("/#upload")} className="btn-primary w-full">
                   Log in or create an account

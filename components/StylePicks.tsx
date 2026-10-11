@@ -26,6 +26,12 @@
 // reports every correction the customer makes (`onDetails`) so the page can
 // remember those too.
 //
+// 11.10.2026 (later still): free previews were switched off, so most
+// customers arrive here with no previews. The packs are therefore offered
+// on this screen, above the list, with a button each that goes straight to
+// checkout; the customer comes back to this same screen after paying. Each
+// style's button points up at that offer.
+//
 // This component only shows things and asks for previews. Which styles are
 // picked is decided in lib/recommend.ts; making a preview is done by the
 // function the upload flow passes in.
@@ -44,6 +50,10 @@ import {
 } from "@/lib/content/hairstyles";
 import { pickStyles, type CustomerHair, type StylePick } from "@/lib/recommend";
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
+import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
+
+// The two packs on sale, offered right on the result screen.
+const PACKS_ON_SALE: PackTier[] = ["STARTER", "STYLE"];
 
 export interface PhotoDetails {
   faceShape: FaceShape;
@@ -312,7 +322,7 @@ export default function StylePicks({
                 </button>
               )}
               {!preview && allowanceSpent && (
-                <a href="#pricing" className="btn-secondary !px-6 !py-2.5 !text-[15px]">
+                <a href="#get-previews" className="btn-secondary !px-6 !py-2.5 !text-[15px]">
                   Get a pack to see this
                 </a>
               )}
@@ -555,25 +565,36 @@ export default function StylePicks({
 
           {samples && (
             <p className="mt-4 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
-              These are placeholder images while live previews are being switched on. They don&apos;t use up your free
+              These are placeholder images while live previews are being switched on. They don&apos;t use up your
               previews.
             </p>
+          )}
+
+          {allowanceSpent && (
+            <div id="get-previews" className="mt-5 scroll-mt-24 rounded-[20px] bg-[#16261C] px-5 py-6 text-white sm:px-7">
+              <h4 className="text-[20px] font-semibold leading-tight text-white">See them on your own photo</h4>
+              <p className="mt-2 max-w-[56ch] text-[15px] leading-[1.5] text-white/75">
+                Your list is free. To see a style on your own photo, pick a pack and then choose which styles to use it
+                on. Each preview comes with the words to give your barber.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {PACKS_ON_SALE.map((tier, i) => (
+                  <a
+                    key={tier}
+                    href={`/checkout?tier=${tier}`}
+                    className={`${i === 0 ? "btn-secondary" : "btn-amber"} w-full !px-5 !py-3 !text-[15.5px]`}
+                  >
+                    {PACK_TIERS[tier].imageCount} previews · ₹{paiseToRupees(getCurrentPackPricePaise(tier)).split(".")[0]}
+                  </a>
+                ))}
+              </div>
+              <p className="mt-3 text-[13.5px] text-white/55">One-time payment. You come back to this list afterwards.</p>
+            </div>
           )}
 
           <ol className="mt-5 flex flex-col gap-4">
             {picks.top.map((pick, i) => renderPick(pick, i + 1))}
           </ol>
-
-          {allowanceSpent && (
-            <div className="mt-6 rounded-[16px] bg-mint-pale px-5 py-5 text-center">
-              <p className="mb-4 text-[15px] font-medium text-ink-heading">
-                You have no previews left. Choose a pack to see more of these styles on your own photo.
-              </p>
-              <a href="#pricing" className="btn-primary">
-                See packs
-              </a>
-            </div>
-          )}
 
           {picks.more.length > 0 && (
             <div className="mt-8">

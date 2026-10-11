@@ -9,6 +9,11 @@
 // Free ones are used first, so nobody spends a paid preview while a free
 // one is waiting.
 //
+// With FREE_PREVIEWS_ON false (the live setting), customers have no free
+// previews at all, whatever their profile says. The site owner's account
+// (profiles.role = 'ADMIN') still has its free allowance, so the owner can
+// run the customer journey for real without buying from himself.
+//
 // A preview is TAKEN before the picture is made and GIVEN BACK if the
 // picture fails or is thrown away by the safety net; both are single
 // database statements, so two requests at the same moment cannot both take
@@ -31,17 +36,19 @@ export interface PreviewsLeft {
 
 type Admin = SupabaseClient;
 
-function freeLeft(used: number, limit: number): number {
-  return FREE_PREVIEWS_ON ? Math.max(0, limit - used) : 0;
+function freeLeft(used: number, limit: number, freeOn: boolean): number {
+  return freeOn ? Math.max(0, limit - used) : 0;
 }
 
 // ------------------------------------------------------------ real database
 export async function previewsLeft(admin: Admin, userId: string): Promise<PreviewsLeft> {
   const [{ data: profile }, { data: orders }] = await Promise.all([
-    admin.from("profiles").select("free_previews_used, free_previews_limit").eq("id", userId).maybeSingle(),
+    admin.from("profiles").select("role, free_previews_used, free_previews_limit").eq("id", userId).maybeSingle(),
     admin.from("orders").select("preview_count, previews_used").eq("user_id", userId).eq("status", "PAID"),
   ]);
-  const free = profile ? freeLeft(profile.free_previews_used, profile.free_previews_limit) : 0;
+  const free = profile
+    ? freeLeft(profile.free_previews_used, profile.free_previews_limit, FREE_PREVIEWS_ON || profile.role === "ADMIN")
+    : 0;
   const paid = (orders ?? []).reduce(
     (sum: number, o: { preview_count: number | null; previews_used: number | null }) =>
       sum + Math.max(0, (o.preview_count ?? 0) - (o.previews_used ?? 0)),
@@ -52,7 +59,12 @@ export async function previewsLeft(admin: Admin, userId: string): Promise<Previe
 
 /** Take one preview: a free one if there is one, otherwise one from a pack. null = none left. */
 export async function reservePreview(admin: Admin, userId: string): Promise<Reservation | null> {
-  if (FREE_PREVIEWS_ON) {
+  let freeAllowed = FREE_PREVIEWS_ON;
+  if (!freeAllowed) {
+    const { data: profile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+    freeAllowed = profile?.role === "ADMIN";
+  }
+  if (freeAllowed) {
     const { data: ok, error } = await admin.rpc("reserve_free_preview", { profile_id: userId });
     if (error) throw new Error(`reserve_free_preview: ${error.message}`);
     if (ok) return { kind: "free" };
@@ -71,16 +83,17 @@ export async function releasePreview(admin: Admin, userId: string, reservation: 
 }
 
 // --------------------------------------------------------- demo (no database)
-export function mockPreviewsLeft(userId: string): PreviewsLeft {
+// `freeOn` is only passed by the tests, to check both settings of the switch.
+export function mockPreviewsLeft(userId: string, freeOn: boolean = FREE_PREVIEWS_ON): PreviewsLeft {
   const profile = mockStore.getOrCreateProfile(userId);
-  const free = freeLeft(profile.freePreviewsUsed, profile.freePreviewsLimit);
+  const free = freeLeft(profile.freePreviewsUsed, profile.freePreviewsLimit, freeOn);
   const paid = mockStore.paidPreviewsLeft(userId);
   return { free, paid, total: free + paid };
 }
 
-export function mockReservePreview(userId: string): Reservation | null {
+export function mockReservePreview(userId: string, freeOn: boolean = FREE_PREVIEWS_ON): Reservation | null {
   const profile = mockStore.getOrCreateProfile(userId);
-  if (FREE_PREVIEWS_ON && profile.freePreviewsUsed < profile.freePreviewsLimit) {
+  if (freeOn && profile.freePreviewsUsed < profile.freePreviewsLimit) {
     profile.freePreviewsUsed += 1;
     return { kind: "free" };
   }

@@ -16,8 +16,9 @@
 //
 // 11.10.2026 (later): the owner asked for the original to stand out from
 // the generated pictures. Of three drawn options he chose this one: the
-// uploaded photo as a print in a dark frame, tilted and taped on, with a
-// small "AI preview" mark on each generated picture. Nobody should have to
+// uploaded photo as a print in a dark frame, tilted, held by a paper clip
+// (first drawn with a strip of tape; he asked for a clip), with a small
+// "AI preview" mark on each generated picture. Nobody should have to
 // work out which of six similar faces is the real photograph.
 
 import Image from "next/image";
@@ -30,13 +31,25 @@ function Tile({ src, alt, caption, original = false }: { src: string; alt: strin
   const picture = (
     <Image src={src} alt={alt} width={560} height={700} sizes="(min-width: 1024px) 280px, (min-width: 640px) 30vw, 44vw" className="h-full w-full object-cover" />
   );
-  // The uploaded photo is drawn as a print in a dark frame, taped on at a
+  // The uploaded photo is drawn as a print in a dark frame, clipped on at a
   // slight angle, so it can never be taken for one of the generated
   // pictures (see the note at the top of this file).
   if (original) {
     return (
       <figure className="relative z-[1] -rotate-[3deg] rounded-[8px] bg-ink-heading px-[7px] pt-[7px] shadow-[0_14px_28px_-12px_rgba(17,28,21,0.7)]">
-        <span aria-hidden="true" className="absolute -top-[9px] left-1/2 h-5 w-16 -translate-x-1/2 rotate-2 bg-lilac/80" />
+        {/* A paper clip over the top edge (the owner asked for a clip in place of the strip of tape). */}
+        <svg
+          viewBox="0 0 24 56"
+          aria-hidden="true"
+          className="absolute -top-[22px] left-[16%] z-[2] h-[58px] w-[25px] rotate-[8deg] drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.4)]"
+          fill="none"
+          stroke="#B4B9B2"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 16v26a5 5 0 0 0 10 0V11a7 7 0 0 0-14 0v32a9 9 0 0 0 18 0V18" />
+        </svg>
         <div className="relative aspect-[4/5] overflow-hidden rounded-[4px] bg-mint-pale">{picture}</div>
         <figcaption className="py-2 text-center font-heading text-[13px] font-semibold leading-tight text-white sm:text-[14.5px]">{caption}</figcaption>
       </figure>

@@ -4,7 +4,7 @@
 // fixed lists ever get through.
 
 import { describe, expect, it } from "vitest";
-import { buildReadingPrompt, parseReading, settleReadings, type PhotoReading } from "../lib/integrations/vision";
+import { buildReadingPrompt, parseReading, settleReadings, shapeFromObservations, type PhotoReading } from "../lib/integrations/vision";
 
 describe("parseReading", () => {
   it("reads a clean answer", () => {
@@ -119,6 +119,38 @@ describe("settling two readings of one photo", () => {
     expect(settled).toMatchObject({ ok: true, faceShape: "Heart", secondFaceShape: "Round", sure: "low", agreed: false });
   });
 
+  // The real cases from the second run on the owner's photos (11.10.2026).
+  const little = { widest_part: "all similar", jaw: "rounded", length_vs_width: "a little longer" };
+  const equal = { widest_part: "all similar", jaw: "rounded", length_vs_width: "about equal" };
+
+  it("settles Long against Oval as Oval when the face was seen as only a little longer than wide", () => {
+    const settled = settleReadings(reading({ faceShape: "Long", observations: little }), reading({ faceShape: "Oval", observations: little }));
+    expect(settled).toMatchObject({ faceShape: "Oval", secondFaceShape: "Long", sure: "medium", agreed: false, settledBy: "observations" });
+  });
+
+  it("settles Round against Oval as Round when the face was seen as about as wide as long", () => {
+    const settled = settleReadings(reading({ faceShape: "Round", observations: equal }), reading({ faceShape: "Oval", observations: equal }));
+    expect(settled).toMatchObject({ faceShape: "Round", secondFaceShape: "Oval", sure: "medium", settledBy: "observations" });
+  });
+
+  it("leaves it unsure when what was seen points to neither shape", () => {
+    // One photo was called Long and Round, with observations that say Oval.
+    const settled = settleReadings(reading({ faceShape: "Long", observations: little }), reading({ faceShape: "Round", observations: little }));
+    expect(settled).toMatchObject({ faceShape: "Long", secondFaceShape: "Round", sure: "low" });
+    expect(settled.settledBy).toBeUndefined();
+  });
+
+  it("leaves it unsure when the two readings saw different things", () => {
+    const settled = settleReadings(reading({ faceShape: "Round", observations: equal }), reading({ faceShape: "Oval", observations: little }));
+    expect(settled).toMatchObject({ faceShape: "Round", sure: "low" });
+  });
+
+  it("never overrules two readings that agree", () => {
+    // Both said Long although the face was seen as only a little longer: the agreement stands.
+    const settled = settleReadings(reading({ faceShape: "Long", observations: little }), reading({ faceShape: "Long", observations: little }));
+    expect(settled).toMatchObject({ faceShape: "Long", agreed: true, sure: "high" });
+  });
+
   it("is never more than medium sure on one reading alone", () => {
     expect(settleReadings(reading({}), failed)).toMatchObject({ ok: true, faceShape: "Round", sure: "medium", agreed: null, costPaise: 5 });
     expect(settleReadings(failed, reading({ sure: "low" }))).toMatchObject({ ok: true, faceShape: "Round", sure: "low", agreed: null });
@@ -131,5 +163,20 @@ describe("settling two readings of one photo", () => {
   it("fills in hair the first reading could not tell from the second", () => {
     const settled = settleReadings(reading({ hairLength: null }), reading({ hairLength: "medium", hairTexture: "wavy" }));
     expect(settled).toMatchObject({ hairLength: "medium", hairTexture: "straight" });
+  });
+});
+
+describe("the shape that follows from what was seen", () => {
+  it("is only given where the observations are clear-cut", () => {
+    expect(shapeFromObservations({ length_vs_width: "much longer", widest_part: "all similar", jaw: "rounded" })).toBe("Long");
+    expect(shapeFromObservations({ length_vs_width: "about equal", widest_part: "all similar", jaw: "angular" })).toBe("Square");
+    expect(shapeFromObservations({ length_vs_width: "about equal", widest_part: "cheekbones", jaw: "rounded" })).toBe("Round");
+    expect(shapeFromObservations({ length_vs_width: "a little longer", widest_part: "forehead", jaw: "pointed" })).toBe("Heart");
+    expect(shapeFromObservations({ length_vs_width: "a little longer", widest_part: "cheekbones", jaw: "pointed" })).toBe("Diamond");
+    expect(shapeFromObservations({ length_vs_width: "a little longer", widest_part: "cheekbones", jaw: "rounded" })).toBe("Oval");
+    // A little longer, even widths, angular jaw: could be Square or Long. No opinion.
+    expect(shapeFromObservations({ length_vs_width: "a little longer", widest_part: "all similar", jaw: "angular" })).toBeNull();
+    expect(shapeFromObservations({})).toBeNull();
+    expect(shapeFromObservations(null)).toBeNull();
   });
 });

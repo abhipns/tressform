@@ -32,7 +32,7 @@ const SECTIONS = [
   },
   {
     heading: "What we collect",
-    body: "The photos you upload for face and hair analysis (three selfies — front, left and right), your account details (your email address, and your name if you sign in with Google), the hairstyle previews we create for you, and basic usage data needed to run the service, such as how many free previews you have used.",
+    body: "The photos you upload for face and hair analysis (three selfies — front, left and right), your account details (your email address, and your name if you sign in with Google), the hairstyle previews we create for you, and basic usage data needed to run the service, such as how many previews you have used.",
   },
   {
     heading: "How we use it",
@@ -52,7 +52,7 @@ const SECTIONS = [
   },
   {
     heading: "How long we keep it",
-    body: "Uploaded photos and free previews are automatically deleted 90 days after upload, unless your account is still active and using them. You can ask us to delete your photos, your previews or your whole account at any time, and we will do so without waiting for the 90-day period.",
+    body: "Uploaded photos are automatically deleted 90 days after upload, unless your account is still active and using them. Previews you have paid for are kept in your account until you ask us to delete them. You can ask us to delete your photos, your previews or your whole account at any time, and we will do so without waiting for the 90-day period.",
   },
   {
     heading: "Security",

@@ -55,7 +55,7 @@ export default function Hero() {
               See how it works
             </a>
           </div>
-          <p className="mt-5 text-[14px] text-white/55">Your first preview is free. No card needed.</p>
+          <p className="mt-5 text-[14px] text-white/55">Your hairstyle list is free. You pay only to see a style on your own photo.</p>
         </div>
 
         <HeroMedia />

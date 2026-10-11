@@ -6,7 +6,7 @@ const POINTS = [
   { title: "Never used for AI training.", body: "Your photos are only used to generate your own results — never to train our models." },
   {
     title: "Deleted automatically after 90 days.",
-    body: "Uploaded photos and free previews are auto-deleted 90 days after upload, unless your account is still active and using them — then they're kept only as long as you keep using them.",
+    body: "Uploaded photos are auto-deleted 90 days after upload, unless your account is still active and using them — then they're kept only as long as you keep using them. Previews you have paid for stay in your account.",
   },
   { title: "Encrypted, always.", body: "Your photos are encrypted both in transit and at rest." },
   {
