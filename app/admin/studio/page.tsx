@@ -38,6 +38,8 @@ type Shot = {
   seconds?: number;
   costPaise?: number;
   error?: string;
+  /** The automatic check against the photo: same person, head not turned. */
+  check?: { ok: boolean; checked: boolean; summary: string } | null;
 };
 
 const MODELS = [
@@ -185,7 +187,7 @@ export default function StudioPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "The image couldn't be made.");
-      patch({ state: "done", url: data.resultImageUrl, seconds: data.seconds, costPaise: data.costPaise });
+      patch({ state: "done", url: data.resultImageUrl, seconds: data.seconds, costPaise: data.costPaise, check: data.check ?? null });
     } catch (err) {
       patch({ state: "failed", error: err instanceof Error ? err.message : "The image couldn't be made." });
     }
@@ -462,6 +464,15 @@ export default function StudioPage() {
                   {shot.modelLabel}
                   {shot.state === "done" && shot.seconds !== undefined ? `, ${shot.seconds} seconds` : ""}
                 </p>
+                {shot.state === "done" && shot.check && (
+                  <p
+                    className={`mt-1.5 text-[13.5px] font-semibold leading-[1.35] ${
+                      !shot.check.checked ? "text-ink-muted" : shot.check.ok ? "text-mint-deep" : "text-danger"
+                    }`}
+                  >
+                    {shot.check.summary}
+                  </p>
+                )}
                 {shot.state === "done" && shot.url && (
                   <button
                     type="button"

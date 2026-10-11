@@ -68,6 +68,8 @@ export interface StyleResultRow {
   provider: string;
   cost_paise: number | null;
   error_message: string | null;
+  /** The automatic check of the picture against the customer's photo (lib/previewCheck.ts). */
+  check_result: Record<string, unknown> | null;
   created_at: string;
   completed_at: string | null;
 }

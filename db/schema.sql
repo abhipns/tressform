@@ -125,9 +125,13 @@ create table if not exists style_results (
   provider text not null default 'fal_ai_pulid_flux',
   cost_paise integer, -- actual provider cost incurred, in paise, for margin auditing
   error_message text,
+  -- 11.10.2026: the automatic check of the picture against the customer's
+  -- photo: likeness 0-100, head-pose change in degrees, verdict, attempts.
+  check_result jsonb,
   created_at timestamptz not null default now(),
   completed_at timestamptz
 );
+alter table style_results add column if not exists check_result jsonb;
 
 create index if not exists idx_style_results_user on style_results (user_id);
 create index if not exists idx_style_results_order on style_results (order_id);

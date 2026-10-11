@@ -922,6 +922,13 @@ const FRONT_VIEW: Record<string, string> = {
   "m-modern-mullet":
     "a modern mullet: textured hair on top about 6–8 cm, the sides tapered short, and longer hair below the ears that shows on both sides of the neck",
   "m-top-knot": "a top knot with an undercut: long hair on top gathered up and tied in a small knot at the crown, with the sides clipped short",
+  // The chin-length bob is here for a different reason. Asked for a bob "level
+  // with the chin", the model left the hair at the base of the neck three
+  // times running. Asked for one a little shorter than is wanted, it landed
+  // at the chin (owner's Studio test, 11.10.2026). The full description
+  // above still says chin length, which is what the stylist should cut.
+  "w-blunt-bob":
+    "a short blunt bob that ends level with the lips, about 3 cm above the chin, cut in one sharp, even line, sleek and smooth, with no fringe; the whole neck is bare from the jaw down to the shoulders",
   "w-u-cut": "long straight hair kept at one length through the front, falling in front of the shoulders, with smooth ends that curve gently inward",
   "w-pixie": "a pixie cut: short hair, about 4–6 cm on top with soft texture and a side-swept fringe, cut close around the ears",
   "w-v-cut":

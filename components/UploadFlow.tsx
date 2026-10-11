@@ -91,7 +91,13 @@ import { readLight } from "@/lib/photoLight";
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
-type PreviewCard = { styleName: string; imageUrl: string | null; state: "loading" | "done" | "failed" };
+type PreviewCard = {
+  styleName: string;
+  imageUrl: string | null;
+  state: "loading" | "done" | "failed";
+  /** Made, but it did not look enough like the customer to show; not counted. */
+  rejected?: boolean;
+};
 
 const TIPS = [
   "Face a window or a light, so your face is evenly lit.",
@@ -349,7 +355,9 @@ export default function UploadFlow() {
               return;
             }
             if (!res.ok) {
-              finish(styleName, { state: "failed" });
+              // previewRejected: the picture was made but failed the check
+              // against the customer's photo twice, so it was not counted.
+              finish(styleName, { state: "failed", rejected: Boolean(data.previewRejected) });
               setError(data.error || "One of your previews couldn't be created.");
               return;
             }
@@ -602,7 +610,9 @@ export default function UploadFlow() {
                             </>
                           ) : (
                             <p className="text-[14px] font-medium text-ink-muted">
-                              This preview couldn&apos;t be created. Start over to try again.
+                              {r.rejected
+                                ? "This one didn't come out true to you, so we haven't shown it or counted it."
+                                : "This preview couldn't be created. Start over to try again."}
                             </p>
                           )}
                         </div>

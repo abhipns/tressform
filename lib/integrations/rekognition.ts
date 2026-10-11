@@ -236,3 +236,87 @@ export async function detectFace(image: Uint8Array | string): Promise<DetectFace
     mock: false,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Comparing a generated preview with the customer's own photo (11.10.2026).
+//
+// The image model sometimes returns a picture of somebody else, or turns the
+// customer's head to the side. Wording reduces that; it cannot rule it out.
+// So every preview is compared with the photo it was made from before the
+// customer sees it (lib/previewCheck.ts decides what the numbers mean).
+//
+// One CompareFaces call answers both questions: how alike the two faces
+// are (0–100) and which way the face in the preview is turned. It needs the
+// `rekognition:CompareFaces` permission on the AWS user; if that is missing
+// the result says so (`checked: false`) and nothing is blocked because of
+// it. Nothing is stored at AWS: the call is stateless.
+// ---------------------------------------------------------------------------
+
+export interface PreviewComparison {
+  /** false when the comparison could not be made (mock mode, missing permission, a service error). */
+  checked: boolean;
+  /** Why it could not be made, in a few plain words; for the owner and the log, not for customers. */
+  note: string | null;
+  /** Was a face found in the preview at all? */
+  faceFound: boolean;
+  /** How alike the preview's face and the customer's face are, 0–100. */
+  similarity: number | null;
+  /** Which way the face in the preview is turned, in degrees. */
+  pose: { roll: number; yaw: number; pitch: number } | null;
+}
+
+export async function comparePreview(original: Uint8Array, preview: Uint8Array): Promise<PreviewComparison> {
+  if (REKOGNITION_MOCK_MODE) {
+    return { checked: false, note: "face service not connected", faceFound: true, similarity: null, pose: null };
+  }
+
+  const { RekognitionClient, CompareFacesCommand } = await import("@aws-sdk/client-rekognition");
+  const client = new RekognitionClient({
+    region: AWS_REGION,
+    credentials: { accessKeyId: AWS_ACCESS_KEY_ID!, secretAccessKey: AWS_SECRET_ACCESS_KEY! },
+  });
+
+  let response;
+  try {
+    response = await client.send(
+      new CompareFacesCommand({
+        SourceImage: { Bytes: original },
+        TargetImage: { Bytes: preview },
+        // 0 = report every face in the preview with its score, so a poor
+        // match comes back as a low number instead of as "no match".
+        SimilarityThreshold: 0,
+      })
+    );
+  } catch (err) {
+    const name = (err as { name?: string })?.name ?? "";
+    // "No face in one of the pictures" arrives as an error, not as an empty answer.
+    if (name === "InvalidParameterException") {
+      return { checked: true, note: null, faceFound: false, similarity: null, pose: null };
+    }
+    console.error("[Tressform] Rekognition CompareFaces failed:", name, (err as Error)?.message);
+    const note =
+      name === "AccessDeniedException"
+        ? "the AWS user is not allowed to compare faces (permission rekognition:CompareFaces is missing)"
+        : `the face service returned an error (${name || "unknown"})`;
+    return { checked: false, note, faceFound: true, similarity: null, pose: null };
+  }
+
+  const faces = [
+    ...(response.FaceMatches ?? []).map((m) => ({ similarity: m.Similarity ?? 0, face: m.Face })),
+    ...(response.UnmatchedFaces ?? []).map((face) => ({ similarity: 0, face })),
+  ];
+  if (faces.length === 0) return { checked: true, note: null, faceFound: false, similarity: null, pose: null };
+
+  // The preview should hold one face. If the model added another, judge the
+  // one that looks most like the customer.
+  faces.sort((a, b) => b.similarity - a.similarity);
+  const best = faces[0];
+  const p = best.face?.Pose;
+  return {
+    checked: true,
+    note: null,
+    faceFound: true,
+    similarity: Math.round(best.similarity * 10) / 10,
+    pose: p ? { roll: p.Roll ?? 0, yaw: p.Yaw ?? 0, pitch: p.Pitch ?? 0 } : null,
+  };
+}

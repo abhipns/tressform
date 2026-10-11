@@ -27,7 +27,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { generateHairstyle, FALAI_MOCK_MODE } from "@/lib/integrations/falai";
+import { generateHairstyle, FALAI_MOCK_MODE, type GenerateHairstyleResult } from "@/lib/integrations/falai";
+import { checkPreview, describeVerdict, poseFromAnalysis, type PreviewVerdict } from "@/lib/previewCheck";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
@@ -36,6 +37,11 @@ export const maxDuration = 60;
 
 const SOURCE_LINK_SECONDS = 600; // long enough for FAL to fetch the photo
 const RESULT_LINK_SECONDS = 3600; // how long the customer's preview link works
+// 11.10.2026 — the safety net. Every preview is compared with the customer's
+// photo before they see it (lib/previewCheck.ts). One that shows a different
+// person or a turned head is thrown away and made again, this many times in
+// all; if none passes, the customer is told and the preview is not counted.
+const MAX_ATTEMPTS = 2;
 
 interface GenerateBody {
   userId?: string; // mock mode only — ignored when a real project is connected
@@ -196,39 +202,108 @@ export async function POST(req: NextRequest) {
     if (error) console.error("[Tressform] release_free_preview failed for", userId, error.message);
   }
 
-  let result;
-  try {
-    result = await generateHairstyle({
-      sourceImageUrl: signed.signedUrl,
-      styleName,
-      faceShape: analysedFaceShape,
-      facialHair,
-      gender,
-    });
-  } catch (err) {
+  // The customer's own photo, to compare each preview against. If it can't
+  // be read back the preview is still made; it just goes out unchecked.
+  let originalBytes: Uint8Array | null = null;
+  if (!FALAI_MOCK_MODE) {
+    const { data: originalFile, error: originalError } = await admin.storage.from("photos").download(photo.storage_path);
+    if (originalError || !originalFile) {
+      console.error("[Tressform] Could not read the photo back for the preview check:", originalError?.message);
+    } else {
+      originalBytes = new Uint8Array(await originalFile.arrayBuffer());
+    }
+  }
+  const originalPose = poseFromAnalysis(photo.rekognition_raw);
+
+  let result: GenerateHairstyleResult | null = null;
+  let imageBytes: Uint8Array | null = null;
+  let imageType = extensionFor(null);
+  let verdict: PreviewVerdict | null = null;
+  let attempts = 0;
+  let spentPaise = 0;
+
+  while (attempts < MAX_ATTEMPTS) {
+    attempts += 1;
+    try {
+      result = await generateHairstyle({
+        sourceImageUrl: signed.signedUrl,
+        styleName,
+        faceShape: analysedFaceShape,
+        facialHair,
+        gender,
+      });
+    } catch (err) {
+      await giveBack();
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Generation failed." }, { status: 502 });
+    }
+
+    if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
+      await giveBack();
+      return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
+    }
+    if (result.mock) break; // a placeholder image: nothing to fetch or check
+    spentPaise += result.costPaise;
+
+    try {
+      const download = await fetch(result.resultImageUrl);
+      if (!download.ok) throw new Error(`download ${download.status}`);
+      imageType = extensionFor(result.contentType ?? download.headers.get("content-type"));
+      imageBytes = new Uint8Array(await download.arrayBuffer());
+    } catch (err) {
+      console.error("[Tressform] Could not fetch generated preview:", (err as Error).message);
+      await giveBack();
+      return NextResponse.json({ error: "We couldn't save your preview — please try again." }, { status: 502 });
+    }
+
+    verdict = await checkPreview(originalBytes, imageBytes, originalPose);
+    console.log(`[Tressform] Preview check, attempt ${attempts} of "${styleName}": ${describeVerdict(verdict)}`);
+    if (verdict.ok) break;
+  }
+  if (!result) {
     await giveBack();
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Generation failed." }, { status: 502 });
+    return NextResponse.json({ error: "Generation failed." }, { status: 502 });
   }
 
-  if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
+  const checkRecord = verdict ? { ...verdict, attempts } : null;
+
+  // Every attempt failed the check: don't show it, don't count it, and
+  // keep a record of what happened and what it cost.
+  if (verdict && !verdict.ok) {
     await giveBack();
-    return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
+    const { error: failedInsertError } = await admin.from("style_results").insert({
+      user_id: userId,
+      photo_id: photo.id,
+      style_name: styleName,
+      status: "FAILED",
+      provider: result.model,
+      cost_paise: spentPaise,
+      error_message: `Preview check: ${describeVerdict(verdict)}`,
+      check_result: checkRecord,
+      completed_at: new Date().toISOString(),
+    });
+    if (failedInsertError) console.error("[Tressform] style_results insert (failed check) failed:", failedInsertError.message);
+    return NextResponse.json(
+      {
+        error:
+          "We couldn't make a true-to-you preview of this style, so it hasn't been counted. Please try another style, or a clearer photo facing the camera.",
+        previewRejected: true,
+      },
+      { status: 422 }
+    );
   }
 
   // Placeholder image: record it and return the placeholder link as-is.
   // Real image: copy it into the customer's private results folder first.
-  let storedPath = result.resultImageUrl;
-  let linkForCustomer = result.resultImageUrl;
+  let storedPath = result.resultImageUrl!;
+  let linkForCustomer = result.resultImageUrl!;
 
-  if (!result.mock) {
+  if (!result.mock && imageBytes) {
     try {
-      const download = await fetch(result.resultImageUrl);
-      if (!download.ok) throw new Error(`download ${download.status}`);
-      const { ext, type } = extensionFor(result.contentType ?? download.headers.get("content-type"));
-      const bytes = new Uint8Array(await download.arrayBuffer());
-      const path = `${userId}/${randomUUID()}.${ext}`;
+      const path = `${userId}/${randomUUID()}.${imageType.ext}`;
 
-      const { error: uploadError } = await admin.storage.from("results").upload(path, bytes, { contentType: type });
+      const { error: uploadError } = await admin.storage
+        .from("results")
+        .upload(path, imageBytes, { contentType: imageType.type });
       if (uploadError) throw new Error(`upload ${uploadError.message}`);
 
       const { data: resultLink, error: linkError } = await admin.storage
@@ -252,7 +327,9 @@ export async function POST(req: NextRequest) {
     status: "SUCCEEDED",
     result_storage_path: storedPath,
     provider: result.mock ? "mock" : result.model,
-    cost_paise: result.mock ? 0 : result.costPaise,
+    // What every attempt cost, not just the one that was kept.
+    cost_paise: result.mock ? 0 : spentPaise,
+    check_result: checkRecord,
     completed_at: new Date().toISOString(),
   });
   if (insertError) {

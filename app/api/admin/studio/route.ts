@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { generateHairstyle, FALAI_MODELS, type FalaiModel } from "@/lib/integrations/falai";
+import { checkPreview, describeVerdict, poseFromAnalysis, type PreviewVerdict } from "@/lib/previewCheck";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 export const maxDuration = 60;
@@ -146,6 +147,11 @@ export async function POST(req: NextRequest) {
 
   let storedPath = result.resultImageUrl;
   let link = result.resultImageUrl;
+  // 11.10.2026: the same check customers' previews get (lib/previewCheck.ts)
+  // — is it the same person, has the head turned? Here the picture is
+  // never thrown away or remade: the owner is shown it together with the
+  // numbers, which is how the check's limits get set from real pictures.
+  let verdict: PreviewVerdict | null = null;
   if (!result.mock) {
     try {
       const download = await fetch(result.resultImageUrl);
@@ -153,6 +159,10 @@ export async function POST(req: NextRequest) {
       const { ext, type } = extensionFor(result.contentType ?? download.headers.get("content-type"));
       const bytes = new Uint8Array(await download.arrayBuffer());
       const path = `${userId}/studio/${randomUUID()}.${ext}`;
+
+      const { data: originalFile } = await admin.storage.from("photos").download(photo.storage_path);
+      const originalBytes = originalFile ? new Uint8Array(await originalFile.arrayBuffer()) : null;
+      verdict = await checkPreview(originalBytes, bytes, poseFromAnalysis(photo.rekognition_raw));
 
       const { error: uploadError } = await admin.storage.from("results").upload(path, bytes, { contentType: type });
       if (uploadError) throw new Error(`upload ${uploadError.message}`);
@@ -178,6 +188,7 @@ export async function POST(req: NextRequest) {
     result_storage_path: storedPath,
     provider: result.mock ? "mock" : result.model,
     cost_paise: result.mock ? 0 : result.costPaise,
+    check_result: verdict ? { ...verdict, attempts: 1 } : null,
     completed_at: new Date().toISOString(),
   });
   if (insertError) console.error("[Tressform] Studio: style_results insert failed:", insertError.message);
@@ -189,5 +200,6 @@ export async function POST(req: NextRequest) {
     model: result.model,
     seconds: Math.round((Date.now() - started) / 100) / 10,
     costPaise: result.mock ? 0 : result.costPaise,
+    check: verdict ? { ok: verdict.ok, checked: verdict.checked, summary: describeVerdict(verdict) } : null,
   });
 }
