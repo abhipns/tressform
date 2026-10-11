@@ -1,57 +1,61 @@
-// Real-photo content for the homepage carousel ("Real Portraits. Multiple
-// AI Transformations Each.").
+// The example cards on the home page ("One photo in. Five haircuts to
+// compare.").
 //
-// HOW TO ADD PHOTOS — two ways:
-//   A) Edit this file directly: drop image files into public/carousel/ (any
-//      name, .jpg/.png/.webp), add one entry below per customer "session"
-//      (each session = one card, up to 6 photos), save and refresh.
-//   B) Upload without touching code: visit /admin/carousel (per doc thread
-//      f3588221-19c8) — it posts to app/api/admin/carousel, which writes to
-//      the carousel_sessions/carousel_photos tables (db/schema.sql). NOTE:
-//      this component still only reads the static array below — sessions
-//      added via the admin page won't appear here automatically yet.
-//      Wiring this file to fetch from that table (or replacing it with a
-//      server component that queries carousel_sessions directly) is the
-//      next step; until then, mirror anything uploaded there into the array
-//      below if you want it live on the homepage immediately.
+// Each entry is ONE PERSON: the photo they started with and up to five
+// Tressform previews made from that same photo in the owner's Studio.
 //
-// Until you add at least one session here, the carousel falls back to the
-// original placeholder illustrations so the homepage never looks broken.
+// 11.10.2026: the first two people are the man and the woman from the
+// owner's model comparison of 10.10.2026 — his pictures made on Flux, hers
+// on Nano Banana, the models chosen for each. The owner is adding more
+// people; this section matters more once the free preview is switched off,
+// because it becomes the visitor's only look at what they are buying.
 //
-// NOTE: only use photos you have the customer's permission to display
-// publicly (this ties to the "Never used for AI training" / privacy
-// commitments in the Trust section) — this is marketing/testimonial use,
-// which is a separate consent from the analysis consent captured in the
-// upload flow.
+// TO ADD A PERSON: put six pictures in public/carousel/ (4:5 portrait, the
+// face in the middle; 560×700 is plenty) and add an entry below. With four
+// or more people the section turns into a moving strip by itself.
+//
+// Only pictures the business has the right to show: model photos, or a
+// customer's with their written permission to appear on the site (that is
+// a separate permission from the one given to analyse a photo).
 
-export interface CarouselPhoto {
-  /** Path under /public — e.g. a file at public/carousel/aarav-1.jpg is "/carousel/aarav-1.jpg". */
+export interface CarouselPreview {
+  /** A file in public/carousel/, written as "/carousel/name.jpg". */
   src: string;
-  /** Short label shown on the photo, e.g. "AI Generated" or "Before". */
-  tag: string;
-  /** Alt text for accessibility. */
-  alt: string;
+  /** The hairstyle, as it is named in the hairstyle list. */
+  style: string;
 }
 
-export interface CarouselSession {
+export interface CarouselPerson {
   id: string;
-  /** Caption under the card, e.g. "Aarav · 5 AI transformations". */
-  caption: string;
-  /** 3–6 photos recommended; the grid adapts to however many you give it. */
-  photos: CarouselPhoto[];
+  /** For screen readers, e.g. "a man with curly hair". Not shown. */
+  who: string;
+  original: string;
+  previews: CarouselPreview[];
 }
 
-export const CAROUSEL_SESSIONS: CarouselSession[] = [
-  // Example — copy this block, point `src` at your own file in
-  // public/carousel/, then delete this comment once you have real entries:
-  //
-  // {
-  //   id: "aarav",
-  //   caption: "Aarav · 5 AI transformations",
-  //   photos: [
-  //     { src: "/carousel/aarav-1.jpg", tag: "AI Generated", alt: "Aarav — textured quiff preview" },
-  //     { src: "/carousel/aarav-2.jpg", tag: "AI Generated", alt: "Aarav — classic crop preview" },
-  //     { src: "/carousel/aarav-3.jpg", tag: "AI Generated", alt: "Aarav — curl definition preview" },
-  //   ],
-  // },
+export const CAROUSEL_PEOPLE: CarouselPerson[] = [
+  {
+    id: "man-1",
+    who: "a man with curly hair",
+    original: "/carousel/man-1-original.jpg",
+    previews: [
+      { src: "/carousel/man-1-textured-quiff.jpg", style: "Textured quiff, low taper" },
+      { src: "/carousel/man-1-side-part.jpg", style: "Classic side part, taper" },
+      { src: "/carousel/man-1-buzz-cut.jpg", style: "Buzz cut" },
+      { src: "/carousel/man-1-short-spiky.jpg", style: "Short spiky, taper" },
+      { src: "/carousel/man-1-messy-fringe.jpg", style: "Messy fringe, taper" },
+    ],
+  },
+  {
+    id: "woman-1",
+    who: "a woman with long plaited hair",
+    original: "/carousel/woman-1-original.jpg",
+    previews: [
+      { src: "/carousel/woman-1-step-cut.jpg", style: "Step cut" },
+      { src: "/carousel/woman-1-lob.jpg", style: "Shoulder-length lob" },
+      { src: "/carousel/woman-1-layered-shag.jpg", style: "Layered shag" },
+      { src: "/carousel/woman-1-side-swept-bangs.jpg", style: "Side-swept bangs, medium" },
+      { src: "/carousel/woman-1-pixie.jpg", style: "Pixie cut" },
+    ],
+  },
 ];
