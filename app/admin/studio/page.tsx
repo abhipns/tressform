@@ -423,7 +423,8 @@ export default function StudioPage() {
             <span className="text-[15px] leading-[1.5] text-ink-body">
               <strong className="font-semibold text-ink-heading">Polish the picture</strong> (softer light, salon finish).
               This is what customers get today. Untick it to change the hair only and leave the face, skin, jewellery
-              and framing exactly as they are in the photo.
+              and framing exactly as they are in the photo. Flux always changes the hair only, so this box does nothing
+              for Flux.
             </span>
           </label>
         </div>

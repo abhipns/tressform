@@ -188,7 +188,12 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     `Change only this person's hairstyle to ${params.styleDescription?.trim() || describeStyle(params.styleName)}.${shape} ` +
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
-    "expression, head position, camera angle, clothing and background. Keep their natural hair colour. " +
+    "expression, head position, camera angle, clothing and background. " +
+    // 11.10.2026: a grey-haired man in his fifties came back from Flux
+    // with dark hair and a younger man's face. Age and grey hair are now
+    // named outright, for every model.
+    "Keep them the same age, with the same lines and skin texture: do not make them look younger. " +
+    "Keep their natural hair colour, including any grey or white hair. " +
     // 10.10.2026: in the owner's test a curly-haired man came back with
     // straight hair from two of the three models. A haircut changes length
     // and shape, not texture, so a preview that straightens curls shows
@@ -206,6 +211,33 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
         "with hair that looks neatly styled and freshly finished by a professional barber, natural hair texture and a " +
         "realistic hairline. Do not make their skin lighter or change the shape of their face. ") +
     "Do not add text, logos, watermarks, borders or other people."
+  );
+}
+
+/**
+ * The instruction for Flux Kontext (11.10.2026).
+ *
+ * Flux was given the same long instruction as Nano Banana until the owner
+ * made eight styles for a grey-haired, curly-haired man in his fifties: all
+ * eight came back with dark, straight hair, and five of them with another,
+ * younger man's face. Two things in that instruction work against Flux.
+ * It is long, and Kontext follows short, direct edits best. And it asks for
+ * "a flattering, high-quality photograph" with new light on the face, which
+ * invites the model to paint the whole picture again; the day before, the
+ * same model kept a man's face when that request was left out.
+ *
+ * So Flux gets its own instruction: short, the haircut first, then a plain
+ * list of what must stay, and never the "flattering photograph" request
+ * (the Studio's Polish box does nothing for this model).
+ */
+export function buildKontextPrompt(params: GenerateHairstyleParams): string {
+  return (
+    `Give this person a new haircut: ${params.styleDescription?.trim() || describeStyle(params.styleName)}. ` +
+    "Change only the hair on their head. " +
+    "Keep the exact same person: the same face, facial features, age, wrinkles and skin texture, skin tone, eye colour and expression. " +
+    "Keep their natural hair colour, including any grey or white hair, and their natural hair texture: curly hair stays curly. " +
+    `${facialHairLine(params.facialHair)} ` +
+    "Keep the clothing, background, lighting, camera angle and framing exactly as they are."
   );
 }
 
@@ -228,7 +260,7 @@ function buildInput(model: FalaiModel, params: GenerateHairstyleParams): Record<
       return { prompt: buildEditPrompt(params), image_urls: [params.sourceImageUrl], num_images: 1, ...sized };
     }
     case "edit-single":
-      return { prompt: buildEditPrompt(params), image_url: params.sourceImageUrl, num_images: 1, output_format: "jpeg" };
+      return { prompt: buildKontextPrompt(params), image_url: params.sourceImageUrl, num_images: 1, output_format: "jpeg" };
     case "identity":
       return {
         prompt: buildIdentityPrompt(params),
