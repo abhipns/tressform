@@ -102,6 +102,9 @@ export default function StudioPage() {
   // On = what customers get today. Off = "change the hair, touch nothing else".
   const [polish, setPolish] = useState(true);
   const [shots, setShots] = useState<Shot[]>([]);
+  // The "score my earlier pictures" tool: null = not started.
+  const [rescore, setRescore] = useState<string | null>(null);
+  const [rescoring, setRescoring] = useState(false);
 
   useEffect(() => {
     mockUserId.current = getMockUserId();
@@ -193,6 +196,39 @@ export default function StudioPage() {
     }
   }
 
+  /**
+   * Run the same-person / head-turn check over pictures made before that
+   * check existed, a few at a time, until none are left. The numbers are
+   * saved with each picture; they are what the check's limits are set from.
+   */
+  async function scoreEarlierPictures() {
+    setRescoring(true);
+    setRescore("Starting…");
+    let done = 0;
+    try {
+      for (let round = 0; round < 40; round++) {
+        const res = await fetch("/api/admin/recheck", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: "{}",
+        });
+        const data = await res.json();
+        done += data.scored ?? 0;
+        if (!res.ok) throw new Error(data.error || "The check could not run.");
+        if (!data.remaining) {
+          setRescore(done > 0 ? `Done: ${done} earlier pictures scored.` : "Nothing left to score.");
+          return;
+        }
+        setRescore(`${done} scored, ${data.remaining} to go…`);
+      }
+      setRescore(`${done} scored. Press again to continue.`);
+    } catch (err) {
+      setRescore(`Stopped after ${done}: ${err instanceof Error ? err.message : "something went wrong"}`);
+    } finally {
+      setRescoring(false);
+    }
+  }
+
   async function makeAll(styles: StudioStyle[]) {
     const queue = [...styles];
     const worker = async () => {
@@ -245,10 +281,26 @@ export default function StudioPage() {
             against free previews.
           </p>
         </div>
-        <p className="text-[15.5px] text-ink-muted">
-          Spent this session:{" "}
-          <strong className="font-heading text-[20px] text-ink-heading">₹{(spentPaise / 100).toFixed(2)}</strong>
-        </p>
+        <div className="text-right">
+          <p className="text-[15.5px] text-ink-muted">
+            Spent this session:{" "}
+            <strong className="font-heading text-[20px] text-ink-heading">₹{(spentPaise / 100).toFixed(2)}</strong>
+          </p>
+          <button
+            type="button"
+            disabled={rescoring}
+            onClick={scoreEarlierPictures}
+            title="Runs the same-person and head-turn check on pictures made before that check existed. About 9 paise a picture."
+            className="mt-2 text-[14px] font-semibold text-mint-deep underline decoration-mint/50 underline-offset-4 transition hover:decoration-mint-deep disabled:cursor-wait disabled:opacity-60"
+          >
+            Score my earlier pictures
+          </button>
+          {rescore && (
+            <p className="mt-1 text-[13.5px] text-ink-muted" aria-live="polite">
+              {rescore}
+            </p>
+          )}
+        </div>
       </div>
 
       {error && (
