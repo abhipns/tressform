@@ -63,20 +63,30 @@ function modelOverride(): FalaiModel | null {
 /** The model used when nothing says whose hairstyle it is. */
 export const FALAI_MODEL: FalaiModel = modelOverride() ?? DEFAULT_MODEL;
 
-// WHICH MODEL FOR WHOM. Decided by the owner on 10.10.2026 after making all
-// 12 Studio styles on both models for a man's and a woman's photo and
-// looking at them side by side:
-//   women: Nano Banana. It gave the cut that was asked for in about 8 of 11
-//     styles and kept her face close to the original. Flux cut most styles
-//     down to a short bob and added a blunt fringe nobody asked for.
-//   men: Flux Kontext Pro. Fades and tapers are clearly visible, like a
-//     real barber's cut, and short cuts (buzz, spiky) are more accurate.
-//     Known weakness: it straightens curly hair even when told not to.
-// Both cost about the same per image. Setting FAL_AI_MODEL in Vercel still
-// overrides this for everyone (a way back if one model has an outage).
+// WHICH MODEL FOR WHOM.
+//
+// 10.10.2026: after making all 12 Studio styles on both models for one
+// man's and one woman's photo, the owner chose Nano Banana for women (it
+// gave the cut that was asked for and kept her face; Flux cut most styles
+// down to a short bob with a fringe nobody asked for) and Flux for men
+// (clearer fades and tapers).
+//
+// 11.10.2026: Flux dropped for men too. The owner made eight styles for a
+// second man — in his fifties, grey curly hair — and Flux returned eight
+// pictures with dark straight hair, five of them with a different, younger
+// man's face. A shorter, identity-first instruction (buildKontextPrompt)
+// gave him his age back but still not his face, eye colour or grey hair.
+// Nano Banana, on the same photo and style, returned the same man. A
+// preview of somebody else is worth nothing to a customer, so keeping the
+// person comes before a sharper fade.
+//
+// Both genders are still listed separately so one can be moved without
+// touching the other. Setting FAL_AI_MODEL in Vercel overrides this for
+// everyone (a way back if a model has an outage). Flux stays available in
+// the owner's Studio for comparison.
 export type HairGender = "men" | "women";
 export const FALAI_MODEL_BY_GENDER: Record<HairGender, FalaiModel> = {
-  men: "fal-ai/flux-pro/kontext",
+  men: "fal-ai/nano-banana/edit",
   women: "fal-ai/nano-banana/edit",
 };
 

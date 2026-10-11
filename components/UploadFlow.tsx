@@ -67,10 +67,26 @@
 //   - the button says what it does ("See my preview") and, while it is
 //     greyed out, a line underneath says what is still missing.
 // None of the upload / analysis / preview logic changed.
+//
+// 11.10.2026: a "Take selfies now" button (asked for by the owner). It
+// opens the camera on the page (components/SelfieCamera.tsx) and takes the
+// photos that are still missing, one after another. Tapping a frame still
+// lets a customer upload a photo they already have; the frames no longer
+// force the phone's camera app open, so the gallery can be chosen there.
+//
+// 11.10.2026 (later): the waiting screen after "See my preview" (asked for
+// by the owner: "a small and simple animation like uploading, analyzing").
+// It was one spinner with one line of text. It now shows the customer's
+// own front photo with a band of light moving down it, beside the three
+// things that are really happening, each ticked off as it finishes:
+// uploading, reading the face shape, choosing hairstyles. The steps follow
+// the real work, with one small exception: each stays on screen for at
+// least a moment so a fast step does not flash past unread.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
+import SelfieCamera from "./SelfieCamera";
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
@@ -85,12 +101,21 @@ const TIPS = [
 const STYLE_NAMES = ["Textured Quiff — Low Taper", "Classic Crop — Mid Fade", "Curl Definition Crop"];
 
 const SLOT_LABEL: Record<Slot, string> = { front: "Front", left: "Left", right: "Right" };
+const SLOTS: Slot[] = ["front", "left", "right"];
+
+const STAGES = ["Uploading your photos", "Reading your face shape", "Choosing hairstyles for you"];
+// The least time a step stays on screen, so a fast one can still be read.
+const STAGE_MIN_MS = 700;
+
+function pause(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 const MAX_SIDE_PX = 1600;
 const JPEG_QUALITY = 0.85;
 
 /** Shrink a photo in the browser and re-encode it as JPEG. */
-async function shrinkPhoto(file: File): Promise<{ dataUrl: string; blob: Blob }> {
+async function shrinkPhoto(file: Blob): Promise<{ dataUrl: string; blob: Blob }> {
   const objectUrl = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -146,7 +171,10 @@ export default function UploadFlow() {
   const [samplePreviews, setSamplePreviews] = useState(false);
   // What the spinner screen says — real previews take 10–30 seconds each, so
   // "Analyzing…" alone would sit there long enough to look stuck.
-  const [progress, setProgress] = useState("Analyzing your face shape…");
+  // Which of STAGES the waiting screen is on.
+  const [stage, setStage] = useState(0);
+  // The photos the on-page camera is about to take; null while it is closed.
+  const [cameraSlots, setCameraSlots] = useState<Slot[] | null>(null);
   // The shrunk JPEGs that actually get uploaded (photos{} above only holds
   // their data: URLs, for the on-screen previews).
   const blobs = useRef<Record<Slot, Blob | null>>({ front: null, left: null, right: null });
@@ -180,7 +208,7 @@ export default function UploadFlow() {
   const allUploaded = photos.front && photos.left && photos.right;
   const canSubmit = allUploaded && consent && !noPreviewsLeft;
 
-  async function handleFile(slot: Slot, file: File) {
+  async function handleFile(slot: Slot, file: Blob) {
     setError(null);
     try {
       const { dataUrl, blob } = await shrinkPhoto(file);
@@ -189,6 +217,13 @@ export default function UploadFlow() {
     } catch {
       setError("We couldn't read that photo. Please try a JPG or PNG image.");
     }
+  }
+
+  /** Open the camera for the photos still missing, or for all three to redo them. */
+  function openCamera() {
+    setError(null);
+    const empty = SLOTS.filter((slot) => !photos[slot]);
+    setCameraSlots(empty.length > 0 ? empty : SLOTS);
   }
 
   /** Real mode: put the three photos in the customer's private storage folder. */
@@ -215,8 +250,15 @@ export default function UploadFlow() {
   async function handleSubmit() {
     setError(null);
     setSamplePreviews(false);
-    setProgress(SUPABASE_MOCK_MODE ? "Analyzing your face shape…" : "Uploading your photos…");
+    setStage(0);
     setStep("analyzing");
+    let stageStarted = Date.now();
+    // Move the waiting screen on, once the current step has been up long enough to read.
+    const nextStage = async (next: number) => {
+      await pause(Math.max(0, STAGE_MIN_MS - (Date.now() - stageStarted)));
+      setStage(next);
+      stageStarted = Date.now();
+    };
     try {
       const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
 
@@ -229,10 +271,10 @@ export default function UploadFlow() {
           return;
         }
         const paths = await uploadToStorage(session.user.id);
-        setProgress("Analyzing your face shape…");
         analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [paths.left, paths.right] };
       }
 
+      await nextStage(1);
       const analyzeRes = await fetch("/api/analyze", { method: "POST", headers, body: JSON.stringify(analyzeBody) });
       const analyzeData = await analyzeRes.json();
       if (analyzeRes.status === 401) {
@@ -241,6 +283,8 @@ export default function UploadFlow() {
       }
       if (!analyzeRes.ok) throw new Error(analyzeData.error || "Analysis failed.");
       setFaceShape(analyzeData.faceShape);
+      await nextStage(2);
+      await pause(STAGE_MIN_MS);
 
       // How many previews to start: all of them, unless the analysis says
       // the customer has fewer free ones left than there are styles.
@@ -315,7 +359,8 @@ export default function UploadFlow() {
           <div className="lg:sticky lg:top-28 lg:self-start">
             <h2 className="h-display">Try it on your own face.</h2>
             <p className="lead mt-5 max-w-[44ch]">
-              Three photos: front, left and right. Your first preview is free.
+              Three photos: front, left and right. Take them now with your camera, or upload ones you already have.
+              Your first preview is free.
             </p>
             <div className="mt-8 max-w-[44ch]">
               <h3 className="text-[17px] font-semibold">For a good result</h3>
@@ -358,8 +403,17 @@ export default function UploadFlow() {
 
             {step === "capture" && !sessionLoading && !needsLogin && (
               <div>
+                <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mb-6">
+                  <button type="button" className="btn-secondary gap-2.5 !px-6 !py-3" onClick={openCamera}>
+                    <CameraIcon />
+                    {allUploaded ? "Retake selfies" : "Take selfies now"}
+                  </button>
+                  <span className="text-[14.5px] text-ink-muted">or tap a frame to upload a photo</span>
+                </div>
+
                 {/* The whole column (frame + caption) is one <label>, so a tap
-                    anywhere on it opens the camera / file picker. */}
+                    anywhere on it opens the file picker (on a phone: gallery
+                    or camera, the customer's choice). */}
                 <div className="grid grid-cols-3 gap-3 sm:gap-5">
                   {(["front", "left", "right"] as Slot[]).map((slot) => (
                     <label key={slot} className="group flex cursor-pointer flex-col gap-2.5 text-center">
@@ -388,16 +442,16 @@ export default function UploadFlow() {
                       </div>
                       <span className="text-[15px] font-semibold leading-tight text-ink-heading">{SLOT_LABEL[slot]}</span>
                       <span className="-mt-1.5 text-[13.5px] font-medium text-mint-deep underline decoration-mint/40 underline-offset-4">
-                        {photos[slot] ? "Change photo" : "Add photo"}
+                        {photos[slot] ? "Change photo" : "Upload photo"}
                       </span>
                       <input
                         type="file"
                         accept="image/*"
-                        capture="user"
                         className="sr-only"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) handleFile(slot, file);
+                          e.target.value = "";
                         }}
                       />
                     </label>
@@ -442,10 +496,52 @@ export default function UploadFlow() {
             )}
 
             {step === "analyzing" && (
-              <div className="py-16 text-center">
-                <div className="mx-auto mb-5 h-11 w-11 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
-                <h3 className="mb-1.5 text-[19px] font-semibold">{progress}</h3>
-                <p className="text-[14.5px] text-ink-muted">This takes just a few seconds.</p>
+              <div className="flex flex-col items-center gap-7 py-6 sm:flex-row sm:justify-center sm:gap-10 sm:py-12">
+                <div className="relative aspect-[3/4] w-[150px] shrink-0 overflow-hidden rounded-[18px] bg-bg-soft shadow-card sm:w-[170px]">
+                  {photos.front && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photos.front} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-[24%] animate-[scan-down_2.2s_ease-in-out_infinite] border-b-2 border-white/90 bg-gradient-to-b from-transparent to-mint/45 motion-reduce:hidden"
+                  />
+                </div>
+                <div>
+                  <ol className="flex flex-col gap-4" aria-live="polite">
+                    {STAGES.map((label, i) => {
+                      const state = i < stage ? "done" : i === stage ? "active" : "todo";
+                      return (
+                        <li key={label} className="flex items-center gap-3.5">
+                          {state === "done" && (
+                            <span className="flex h-7 w-7 shrink-0 animate-[pop-in_0.25s_ease-out] items-center justify-center rounded-full bg-mint text-white">
+                              <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden="true">
+                                <path d="m5 10.5 3.2 3.2L15 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </span>
+                          )}
+                          {state === "active" && (
+                            <span className="h-7 w-7 shrink-0 animate-spin rounded-full border-[3px] border-mint-pale border-t-mint-deep" />
+                          )}
+                          {state === "todo" && <span className="h-7 w-7 shrink-0 rounded-full border-2 border-line" />}
+                          <span
+                            className={`text-[17px] leading-tight transition-colors duration-300 ${
+                              state === "active"
+                                ? "font-heading font-semibold text-ink-heading"
+                                : state === "done"
+                                  ? "text-ink-body"
+                                  : "text-ink-muted"
+                            }`}
+                          >
+                            {label}
+                            <span className="sr-only">{state === "done" ? " (done)" : state === "active" ? " (in progress)" : ""}</span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  <p className="mt-6 text-[14.5px] text-ink-muted">This takes a few seconds. Please keep this page open.</p>
+                </div>
               </div>
             )}
 
@@ -523,6 +619,9 @@ export default function UploadFlow() {
           </div>
         </div>
       </div>
+      {cameraSlots && (
+        <SelfieCamera slots={cameraSlots} onCapture={handleFile} onClose={() => setCameraSlots(null)} />
+      )}
     </section>
   );
 }

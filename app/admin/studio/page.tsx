@@ -41,18 +41,18 @@ type Shot = {
 };
 
 const MODELS = [
-  { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "chosen for women's hairstyles, about ₹3.50 an image", paise: 350 },
+  { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "what customers get, men and women, about ₹3.50 an image", paise: 350 },
   { id: "fal-ai/nano-banana-2/edit", label: "Nano Banana 2", note: "newer, mid-priced, about ₹7 an image", paise: 704 },
   { id: "fal-ai/nano-banana-pro/edit", label: "Nano Banana Pro", note: "most faithful so far, about ₹13 an image", paise: 1320 },
   { id: "fal-ai/bytedance/seedream/v4/edit", label: "Seedream 4", note: "a different maker, about ₹2.60 an image", paise: 264 },
-  { id: "fal-ai/flux-pro/kontext", label: "Flux Kontext Pro", note: "chosen for men's hairstyles, about ₹3.50 an image", paise: 350 },
+  { id: "fal-ai/flux-pro/kontext", label: "Flux Kontext Pro", note: "sharp fades but changes faces: not used for customers, about ₹3.50 an image", paise: 350 },
 ];
 
-// The owner's decision of 10.10.2026 (same rule customers get, see
-// FALAI_MODEL_BY_GENDER): picking Men's or Women's selects this model, and
-// any other can still be chosen by hand for a comparison.
+// The same rule customers get (see FALAI_MODEL_BY_GENDER): picking Men's
+// or Women's selects this model, and any other can still be chosen by hand
+// for a comparison. Men moved from Flux to Nano Banana on 11.10.2026.
 const CHOSEN_MODEL: Record<Gender, string> = {
-  men: "fal-ai/flux-pro/kontext",
+  men: "fal-ai/nano-banana/edit",
   women: "fal-ai/nano-banana/edit",
 };
 
@@ -361,8 +361,7 @@ export default function StudioPage() {
             </div>
           ))}
           <p className="mt-4 text-[13.5px] leading-[1.5] text-ink-muted">
-            Styles marked &ldquo;curly hair&rdquo; need a photo of someone with curls. Flux straightens curls, so pick Nano Banana
-            for those.
+            Styles marked &ldquo;curly hair&rdquo; need a photo of someone with curls.
           </p>
 
           <div className="mt-6">

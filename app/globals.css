@@ -49,6 +49,28 @@
   }
 }
 
+/* The waiting screen after "See my preview": a soft band of light that
+   travels down the customer's photo while it is being read. */
+@keyframes scan-down {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(420%);
+  }
+}
+/* A finished step's tick arriving. */
+@keyframes pop-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 @layer components {
   .wrap {
     @apply mx-auto w-full max-w-wrap px-6;

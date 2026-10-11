@@ -5,8 +5,10 @@
 // Tressform previews made from that same photo in the owner's Studio.
 //
 // 11.10.2026: the first two people are the man and the woman from the
-// owner's model comparison of 10.10.2026 — his pictures made on Flux, hers
-// on Nano Banana, the models chosen for each. The owner is adding more
+// owner's model comparison of 10.10.2026. Both are shown in their Nano
+// Banana pictures, the model customers get. (The man's row first used his
+// Flux pictures; they were swapped the same day, when Flux was dropped for
+// changing people's faces.) The owner is adding more
 // people; this section matters more once the free preview is switched off,
 // because it becomes the visitor's only look at what they are buying.
 //
@@ -41,8 +43,8 @@ export const CAROUSEL_PEOPLE: CarouselPerson[] = [
     previews: [
       { src: "/carousel/man-1-textured-quiff.jpg", style: "Textured quiff, low taper" },
       { src: "/carousel/man-1-side-part.jpg", style: "Classic side part, taper" },
-      { src: "/carousel/man-1-buzz-cut.jpg", style: "Buzz cut" },
-      { src: "/carousel/man-1-short-spiky.jpg", style: "Short spiky, taper" },
+      { src: "/carousel/man-1-textured-crop.jpg", style: "Textured crop, mid fade" },
+      { src: "/carousel/man-1-curly-top.jpg", style: "Curly top, taper fade" },
       { src: "/carousel/man-1-messy-fringe.jpg", style: "Messy fringe, taper" },
     ],
   },
