@@ -371,7 +371,7 @@ export default function UploadFlow() {
     try {
       const { dataUrl, blob, lightMessage } = await shrinkPhoto(file);
       if (lightMessage) {
-        setError(`Your ${SLOT_LABEL[slot]} photo can't be used. ${lightMessage}`);
+        setError(`${slot === "front" ? "Your selfie" : `Your ${SLOT_LABEL[slot]} photo`} can't be used. ${lightMessage}`);
         return;
       }
       blobs.current[slot] = blob;
@@ -604,59 +604,62 @@ export default function UploadFlow() {
                   </div>
                 </fieldset>
 
-                <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mb-6">
-                  <button type="button" className="btn-secondary gap-2.5 !px-6 !py-3" onClick={openCamera}>
-                    <CameraIcon />
-                    {allUploaded ? "Retake selfie" : "Take a selfie now"}
-                  </button>
-                  <span className="text-[14.5px] text-ink-muted">or tap the frame to upload a photo</span>
-                </div>
-
-                {/* The whole column (frame + caption) is one <label>, so a tap
-                    anywhere on it opens the file picker (on a phone: gallery
-                    or camera, the customer's choice). */}
-                <div className="grid max-w-[220px] grid-cols-1 gap-3 sm:max-w-[240px]">
-                  {SLOTS.map((slot) => (
-                    <label key={slot} className="group flex cursor-pointer flex-col gap-2.5 text-center">
-                      <div
-                        className={`relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border-[1.5px] bg-bg-soft transition group-hover:border-mint group-focus-within:border-mint ${
-                          photos[slot] ? "border-mint" : "border-dashed border-ink-muted/50"
-                        }`}
-                      >
-                        {photos[slot] ? (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={photos[slot]!}
-                              alt={`${SLOT_LABEL[slot]} photo`}
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                            <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-mint text-[13px] font-extrabold text-white shadow-card">
-                              ✓
-                            </span>
-                          </>
-                        ) : (
-                          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink-muted shadow-card">
-                            <CameraIcon />
+                {/* 12.10.2026: one selfie, so the frame sits beside its two
+                    buttons instead of a tall frame with empty space beside it.
+                    The frame and "Upload a photo" both open the same file
+                    picker (on a phone: gallery or camera). */}
+                <div className="border-t border-line pt-6 sm:pt-7">
+                  <p className="text-[17px] font-semibold text-ink-heading">Your selfie</p>
+                  <div className="mt-3 flex items-stretch gap-4 sm:gap-6">
+                    <label
+                      htmlFor="selfieInput"
+                      className={`group relative flex aspect-[3/4] w-[128px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-[1.5px] bg-bg-soft transition hover:border-mint sm:w-[168px] ${
+                        photos.front ? "border-mint" : "border-dashed border-ink-muted/50"
+                      }`}
+                    >
+                      {photos.front ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={photos.front} alt="Your selfie" className="absolute inset-0 h-full w-full object-cover" />
+                          <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-mint text-[13px] font-extrabold text-white shadow-card">
+                            ✓
                           </span>
-                        )}
-                      </div>
-                      <span className="text-[15px] font-semibold leading-tight text-ink-heading">Your selfie</span>
-                      <span className="-mt-1.5 text-[13.5px] font-medium text-mint-deep underline decoration-mint/40 underline-offset-4">
-                        {photos[slot] ? "Change photo" : "Upload photo"}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFile(slot, file);
-                          e.target.value = "";
-                        }}
-                      />
+                        </>
+                      ) : (
+                        // A face-and-shoulders guide: what the photo should look like.
+                        <svg viewBox="0 0 120 160" className="h-[82%] text-ink-muted/45" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" aria-hidden="true">
+                          <ellipse cx="60" cy="64" rx="30" ry="38" />
+                          <path d="M14 158c4-30 24-44 46-44s42 14 46 44" />
+                        </svg>
+                      )}
                     </label>
-                  ))}
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-3">
+                      <button type="button" className="btn-secondary w-full gap-2.5 !px-4 !py-3" onClick={openCamera}>
+                        <CameraIcon />
+                        {allUploaded ? "Retake selfie" : "Take a selfie now"}
+                      </button>
+                      <label
+                        htmlFor="selfieInput"
+                        className="cursor-pointer text-center text-[14.5px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4 hover:decoration-mint-deep"
+                      >
+                        {allUploaded ? "Choose a different photo" : "or upload a photo"}
+                      </label>
+                      <p className="text-center text-[13px] leading-[1.45] text-ink-muted">
+                        Looking straight at the camera, whole face and hair in the picture.
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    id="selfieInput"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFile("front", file);
+                      e.target.value = "";
+                    }}
+                  />
                 </div>
 
                 <div className="mt-7 flex items-start gap-3 rounded-[16px] bg-bg-soft p-4">
@@ -668,7 +671,7 @@ export default function UploadFlow() {
                     className="mt-0.5 h-5 w-5 shrink-0 accent-mint-deep"
                   />
                   <label htmlFor="consentBox" className="text-[15px] leading-[1.5] text-ink-body">
-                    I agree to Tressform analysing my photos to recommend hairstyles suited to me.
+                    I agree to Tressform analysing my photo to recommend hairstyles suited to me.
                   </label>
                 </div>
 

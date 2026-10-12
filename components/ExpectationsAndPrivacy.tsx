@@ -29,14 +29,63 @@ const PAIRS = [
   },
 ];
 
-const PRIVACY = [
-  { title: "Never used for AI training.", body: "Your photos are only used to generate your own results — never to train our models." },
+// 12.10.2026: a small drawing beside each promise (owner's request), so it
+// reads at a glance. Drawn here rather than photos: the promises are ideas,
+// and a picture of a padlock says "encrypted" faster than any photo.
+const S = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+
+function Pic({ kind }: { kind: "training" | "days" | "lock" | "delete" }) {
+  return (
+    <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[18px] bg-mint-pale text-mint-deep sm:h-[68px] sm:w-[68px]">
+      <svg viewBox="0 0 48 48" className="h-[36px] w-[36px] sm:h-[40px] sm:w-[40px]" aria-hidden="true">
+        {kind === "training" && (
+          <g {...S}>
+            {/* the usual "AI" sparkle, behind a no-entry sign */}
+            <path d="M22 13l2.4 6.6L31 22l-6.6 2.4L22 31l-2.4-6.6L13 22l6.6-2.4Z" />
+            <path d="M32 11.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9Z" />
+            <circle cx="24" cy="24" r="18" />
+            <path d="M11.3 11.3l25.4 25.4" />
+          </g>
+        )}
+        {kind === "days" && (
+          <g {...S}>
+            <rect x="7" y="10" width="34" height="30" rx="4" />
+            <path d="M7 18h34M15 6v7M33 6v7" />
+            <text x="24" y="34" textAnchor="middle" fontSize="12" fontWeight="700" fill="currentColor" stroke="none" fontFamily="inherit">
+              90
+            </text>
+          </g>
+        )}
+        {kind === "lock" && (
+          <g {...S}>
+            <rect x="10" y="21" width="28" height="21" rx="4" />
+            <path d="M16 21v-6a8 8 0 0 1 16 0v6" />
+            <circle cx="24" cy="30" r="2.6" />
+            <path d="M24 32.6V36" />
+          </g>
+        )}
+        {kind === "delete" && (
+          <g {...S}>
+            <path d="M9 14h30M19 14V9.5h10V14" />
+            <path d="M12.5 14l2 26a2.5 2.5 0 0 0 2.5 2.3h14a2.5 2.5 0 0 0 2.5-2.3l2-26" />
+            <path d="M20 21v14M28 21v14" />
+          </g>
+        )}
+      </svg>
+    </span>
+  );
+}
+
+const PRIVACY: { title: string; body: string; pic: "training" | "days" | "lock" | "delete" }[] = [
+  { pic: "training", title: "Never used for AI training.", body: "Your photos are only used to generate your own results — never to train our models." },
   {
+    pic: "days",
     title: "Deleted automatically after 90 days.",
     body: "Uploaded photos are auto-deleted 90 days after upload, unless your account is still active and using them — then they're kept only as long as you keep using them. Previews you have paid for stay in your account.",
   },
-  { title: "Encrypted, always.", body: "Your photos are encrypted both in transit and at rest." },
+  { pic: "lock", title: "Encrypted, always.", body: "Your photos are encrypted both in transit and at rest." },
   {
+    pic: "delete",
     title: "Delete anytime.",
     body: "You can request full deletion of your photos and data whenever you like — it doesn't have to wait for the 90-day auto-delete.",
   },
@@ -89,9 +138,12 @@ export default function ExpectationsAndPrivacy() {
           >
             <dl className="border-t border-line">
               {PRIVACY.map((p) => (
-                <div key={p.title} className="grid gap-x-8 gap-y-1 border-b border-line py-5 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-                  <dt className="font-heading text-[19px] font-semibold leading-snug text-ink-heading">{p.title}</dt>
-                  <dd className="text-[15.5px] leading-[1.6]">{p.body}</dd>
+                <div key={p.title} className="flex gap-4 border-b border-line py-5 sm:gap-6">
+                  <Pic kind={p.pic} />
+                  <div className="min-w-0 flex-1">
+                    <dt className="font-heading text-[19px] font-semibold leading-snug text-ink-heading">{p.title}</dt>
+                    <dd className="mt-1 text-[15.5px] leading-[1.6]">{p.body}</dd>
+                  </div>
                 </div>
               ))}
             </dl>

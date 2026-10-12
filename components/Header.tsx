@@ -204,7 +204,7 @@ export default function Header() {
 
           <a
             href="/#upload"
-            className="btn-primary group whitespace-nowrap rounded-full !px-4 !py-2.5 text-[14px] sm:!px-5 sm:text-[14.5px] lg:!px-6 lg:!py-3 lg:text-[15.5px]"
+            className="btn-amber group whitespace-nowrap rounded-full !shadow-none !px-4 !py-2.5 text-[14px] sm:!px-5 sm:text-[14.5px] lg:!px-6 lg:!py-3 lg:text-[15.5px]"
           >
             {/* Phones: the short label, so the menu button still fits beside it. */}
             <span className="sm:hidden">My hairstyles</span>

@@ -55,11 +55,14 @@ const MOMENTS = [
   },
 ];
 
-const FACE_SHAPES: { label: string; d: string }[] = [
-  { label: "Oval", d: "M50 8c16 0 26 16 26 34s-10 40-26 40-26-22-26-40S34 8 50 8Z" },
-  { label: "Square", d: "M50 8c20 0 30 10 30 30v18c0 20-14 26-30 26s-30-6-30-26V38c0-20 10-30 30-30Z" },
-  { label: "Round", d: "M50 10c22 0 32 16 32 34s-14 32-32 32-32-14-32-32S28 10 50 10Z" },
-  { label: "Heart", d: "M50 10c18 0 30 10 30 26 0 22-16 36-30 46-14-10-30-24-30-46 0-16 12-26 30-26Z" },
+// 12.10.2026: a real-looking face for each shape, above its outline (owner's
+// request). AI-made people, not customers; chosen because each one clearly
+// has its shape.
+const FACE_SHAPES: { label: string; d: string; photo: string }[] = [
+  { label: "Oval", photo: "/face-shapes/face-oval.jpg", d: "M50 8c16 0 26 16 26 34s-10 40-26 40-26-22-26-40S34 8 50 8Z" },
+  { label: "Square", photo: "/face-shapes/face-square.jpg", d: "M50 8c20 0 30 10 30 30v18c0 20-14 26-30 26s-30-6-30-26V38c0-20 10-30 30-30Z" },
+  { label: "Round", photo: "/face-shapes/face-round.jpg", d: "M50 10c22 0 32 16 32 34s-14 32-32 32-32-14-32-32S28 10 50 10Z" },
+  { label: "Heart", photo: "/face-shapes/face-heart.jpg", d: "M50 10c18 0 30 10 30 26 0 22-16 36-30 46-14-10-30-24-30-46 0-16 12-26 30-26Z" },
 ];
 
 const COSTS = [
@@ -186,6 +189,13 @@ export default function WhyItGoesWrong() {
             <ul className="mt-8 grid max-w-[520px] grid-cols-4 gap-4">
               {FACE_SHAPES.map((shape) => (
                 <li key={shape.label} className="flex flex-col items-center gap-2.5">
+                  <Image
+                    src={shape.photo}
+                    alt={`A person with a ${shape.label.toLowerCase()} face`}
+                    width={180}
+                    height={180}
+                    className="aspect-square w-full max-w-[110px] rounded-full object-cover ring-2 ring-white/15"
+                  />
                   <svg viewBox="0 0 100 100" fill="none" className="h-[72px] w-[72px] sm:h-[88px] sm:w-[88px]" aria-hidden="true">
                     <path d={shape.d} stroke="#B9DFCB" strokeWidth="2.5" strokeLinejoin="round" />
                   </svg>
