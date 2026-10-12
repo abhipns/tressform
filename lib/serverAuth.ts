@@ -21,7 +21,7 @@ export const SUPABASE_MOCK_MODE =
   !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export type AuthResult =
-  | { ok: true; userId: string; email: string | null }
+  | { ok: true; userId: string; email: string | null; name?: string | null }
   | { ok: false; status: number; error: string };
 
 /**
@@ -53,7 +53,9 @@ export async function requireUser(req: NextRequest, mockUserId?: string | null):
     return { ok: false, status: 401, error: "Your session has expired — please log in again." };
   }
 
-  return { ok: true, userId: data.user.id, email: data.user.email ?? null };
+  const meta = (data.user.user_metadata ?? {}) as Record<string, unknown>;
+  const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
+  return { ok: true, userId: data.user.id, email: data.user.email ?? null, name };
 }
 
 /**

@@ -21,7 +21,7 @@
 //    9. What to expect + privacy (ExpectationsAndPrivacy) id="expectations", id="privacy"
 //   10. Questions               (Faq)             id="faq"
 //   11. Closing call            (FinalCta)
-//  The sticky "Try it free" pill (StickyCta) still appears once the hero
+//  The sticky "See my hairstyles" pill (StickyCta) still appears once the hero
 //  has scrolled away. Header and Footer come from app/layout.tsx.
 //
 // MERGED (every point they made is in the section named; their own files

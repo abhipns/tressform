@@ -32,7 +32,7 @@ const SECTIONS = [
   },
   {
     heading: "What we collect",
-    body: "The photos you upload for face and hair analysis (three selfies — front, left and right), your account details (your email address, and your name if you sign in with Google), the hairstyle previews we create for you, and basic usage data needed to run the service, such as how many previews you have used.",
+    body: "The photos you upload for face and hair analysis (one front-facing selfie), your account details (your email address, and your name if you sign in with Google), the hairstyle previews we create for you, basic usage data needed to run the service, such as how many previews you have used, and your approximate city, which our hosting provider works out from your internet connection (not your exact location) so that we can later suggest salons near you.",
   },
   {
     heading: "How we use it",
@@ -48,7 +48,7 @@ const SECTIONS = [
   },
   {
     heading: "Payments",
-    body: "Payments for paid plans are handled by a payment gateway. Your card, UPI and bank details go directly to the gateway — we do not see or store them. We keep a record of your order (the plan, the amount and the payment reference).",
+    body: "Payments for paid plans are handled by our payment partner, PayU (PayU Payments Private Limited). You pay on PayU's own page: your card, UPI and bank details go directly to PayU — we do not see or store them. To start a payment we pass PayU your name, your email address and the mobile number you enter at checkout; we do not keep that mobile number ourselves. We keep a record of your order (the plan, the amount and the payment reference).",
   },
   {
     heading: "How long we keep it",

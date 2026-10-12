@@ -23,7 +23,7 @@ export const BUSINESS = {
   address: "H No. 38-39, Ground Floor, Pocket-10, Sector-21\nRohini, Sultanpuri C Block, North West Delhi\nDelhi - 110086, India",
   gstin: "",
   /** Shown as "Last updated" on the legal pages. Change it whenever their wording changes. */
-  legalLastUpdated: "10 October 2026",
+  legalLastUpdated: "12 October 2026",
 } as const;
 
 /** "Tressform is operated by Abhishek Sharma." */

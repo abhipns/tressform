@@ -35,7 +35,7 @@ const SECTIONS = [
     heading: "Paid plans and pricing",
     body: `Starter Pack, Style Pack, and Full Explore are priced in Indian rupees as shown on the Pricing section${
       GST_REGISTERED ? ", GST-inclusive" : "; the price shown is the full amount you pay"
-    }. Each pack is a one-time purchase, not a subscription. Early Bird pricing is a genuine, time-bound launch discount available until 31 October 2026, 23:59 IST — purchases made before that date keep their price and photo count even after the discount ends; new purchases after that date are charged the regular price.`,
+    }. Each pack is a one-time purchase, not a subscription. Early Bird pricing is a genuine, time-bound launch discount available until 31 December 2026, 23:59 IST — purchases made before that date keep their price and photo count even after the discount ends; new purchases after that date are charged the regular price.`,
   },
   {
     heading: "Delivery",

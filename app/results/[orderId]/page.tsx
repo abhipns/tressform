@@ -5,6 +5,12 @@
 // earlier per the doc's exact copy but deliberately not imported into
 // app/page.tsx since it's a post-payment screen, not a homepage section.
 // This is the page it was always meant to be dropped into.
+//
+// 12.10.2026 (PayU): PayU sends the customer here after paying. If the
+// payment isn't confirmed yet (UPI can take a moment), the page checks again
+// every few seconds for about a minute — the server asks PayU each time —
+// instead of telling the customer to refresh. A failed payment says so
+// plainly and offers to try again.
 
 "use client";
 
@@ -28,6 +34,15 @@ interface OrderSummary {
 export default function ResultsPage({ params }: { params: { orderId: string } }) {
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checks, setChecks] = useState(0);
+  const MAX_CHECKS = 12; // about a minute at 5 seconds apart
+
+  // Still waiting for PayU: check again shortly.
+  useEffect(() => {
+    if (!order || order.status !== "CREATED" || checks >= MAX_CHECKS) return;
+    const t = window.setTimeout(() => setChecks((c) => c + 1), 5000);
+    return () => window.clearTimeout(t);
+  }, [order, checks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +65,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
     return () => {
       cancelled = true;
     };
-  }, [params.orderId]);
+  }, [params.orderId, checks]);
 
   if (error) {
     return (
@@ -75,18 +90,47 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
     );
   }
 
-  if (order.status !== "PAID") {
+  if (order.status === "FAILED") {
     return (
       <section className="wrap py-16">
         <div className="mx-auto max-w-[480px] text-center">
-          <h1 className="mb-3 text-[24px]">Payment not confirmed yet</h1>
+          <h1 className="mb-3 text-[24px]">The payment didn&apos;t go through</h1>
           <p className="mb-6 text-[14.5px] text-ink-muted">
-            This order is still showing as &ldquo;{order.status}&rdquo;. If you completed payment, give it a moment
-            and refresh — otherwise, head back and try again.
+            No previews were added and no money was taken. If money did leave your account, your bank returns it
+            automatically within a few working days.
           </p>
-          <a href="/#pricing" className="btn-primary">
-            Back to Pricing
+          <a href={`/checkout?tier=${order.tier ?? ""}`} className="btn-primary">
+            Try again
           </a>
+        </div>
+      </section>
+    );
+  }
+
+  if (order.status !== "PAID") {
+    const stillChecking = checks < MAX_CHECKS;
+    return (
+      <section className="wrap py-16">
+        <div className="mx-auto max-w-[480px] text-center">
+          {stillChecking && (
+            <div className="mx-auto mb-4 h-9 w-9 animate-spin rounded-full border-[3.5px] border-mint-pale border-t-mint-deep" />
+          )}
+          <h1 className="mb-3 text-[24px]">{stillChecking ? "Confirming your payment…" : "Payment not confirmed yet"}</h1>
+          <p className="mb-6 text-[14.5px] text-ink-muted">
+            {stillChecking
+              ? "This usually takes a few seconds. Please keep this page open."
+              : "We haven't heard from the bank yet. If you paid, your previews are added automatically as soon as it confirms — come back to this page in a few minutes. If you didn't finish paying, you can try again."}
+          </p>
+          {!stillChecking && (
+            <div className="flex flex-col items-center gap-3">
+              <button className="btn-primary" onClick={() => setChecks(0)}>
+                Check again
+              </button>
+              <a href={`/checkout?tier=${order.tier ?? ""}`} className="text-[13.5px] font-semibold text-mint-deep">
+                Try the payment again
+              </a>
+            </div>
+          )}
         </div>
       </section>
     );

@@ -11,7 +11,14 @@
 // are the best pictures on the site and they stand out against dark green.
 // Desktop shows them as a set (two large, three smaller); on a phone they
 // are a row you swipe, so five photos don't cost five screens of scrolling.
+//
+// 12.10.2026: a sideways row on computers too (owner's choice), all five
+// the same size. The photos are all 4:3, so nothing is cropped differently.
+// On a computer, arrow buttons scroll the row, since a mouse can't swipe.
 
+"use client";
+
+import { useRef } from "react";
 import Image from "next/image";
 
 const MOMENTS = [
@@ -59,35 +66,57 @@ const COSTS = [
   "Another haircut to correct it",
 ];
 
-// Desktop: the first two photos span three of six columns, the other three span two.
-const SPAN = ["lg:col-span-3", "lg:col-span-3", "lg:col-span-2", "lg:col-span-2", "lg:col-span-2"];
+function Arrow({ dir, onClick }: { dir: -1 | 1; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={dir < 0 ? "Previous" : "Next"}
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-white/25 text-white transition-colors hover:bg-white/10"
+    >
+      <svg viewBox="0 0 14 14" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+        <path d={dir < 0 ? "M9 2 4 7l5 5" : "M5 2l5 5-5 5"} strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
 
 export default function WhyItGoesWrong() {
+  const row = useRef<HTMLUListElement>(null);
+  const scrollBy = (dir: -1 | 1) => {
+    const el = row.current;
+    if (!el) return;
+    const card = el.querySelector("li");
+    const step = card ? card.getBoundingClientRect().width + 24 : el.clientWidth * 0.8;
+    el.scrollBy({ left: dir * step, behavior: "smooth" });
+  };
+
   return (
     <section id="problem" className="bg-[#16261C] text-white/75">
       <div className="frame py-16 sm:py-20 lg:py-28">
-        <div className="max-w-[900px]">
-          <h2 className="h-display text-white">We&apos;ve all had these moments.</h2>
-          <p className="lead mt-5 max-w-[52ch]">
-            A haircut is hard to describe, impossible to try on, and takes weeks to undo.
-          </p>
+        <div className="flex items-end justify-between gap-6">
+          <div className="max-w-[900px]">
+            <h2 className="h-display text-white">We&apos;ve all had these moments.</h2>
+            <p className="lead mt-5 max-w-[52ch]">
+              A haircut is hard to describe, impossible to try on, and takes weeks to undo.
+            </p>
+          </div>
+          <div className="hidden shrink-0 gap-3 lg:flex">
+            <Arrow dir={-1} onClick={() => scrollBy(-1)} />
+            <Arrow dir={1} onClick={() => scrollBy(1)} />
+          </div>
         </div>
 
-        <ul className="-mx-5 mt-10 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto px-5 pb-4 sm:-mx-8 sm:scroll-px-8 sm:px-8 lg:mx-0 lg:mt-14 lg:grid lg:grid-cols-6 lg:gap-x-6 lg:gap-y-12 lg:overflow-visible lg:px-0 lg:pb-0">
-          {MOMENTS.map((m, i) => (
-            <li key={m.text} className={`w-[78vw] max-w-[360px] shrink-0 snap-start lg:w-auto lg:max-w-none ${SPAN[i]}`}>
+        <ul
+          ref={row}
+          className="-mx-5 mt-10 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto px-5 pb-4 [scrollbar-width:none] sm:-mx-8 sm:scroll-px-8 sm:px-8 lg:mx-0 lg:mt-14 lg:scroll-px-0 lg:gap-6 lg:px-0 [&::-webkit-scrollbar]:hidden"
+        >
+          {MOMENTS.map((m) => (
+            <li key={m.text} className="w-[78vw] max-w-[360px] shrink-0 snap-start lg:w-[calc((100%-48px)/3)] lg:max-w-none">
               <div className="aspect-[4/3] overflow-hidden rounded-[20px] bg-white/5">
-                <Image
-                  src={m.image}
-                  alt={m.alt}
-                  width={i < 2 ? 1100 : 720}
-                  height={i < 2 ? 825 : 540}
-                  className="h-full w-full object-cover"
-                />
+                <Image src={m.image} alt={m.alt} width={900} height={675} className="h-full w-full object-cover" />
               </div>
-              <p className={`mt-4 font-heading font-semibold leading-[1.25] text-white ${i < 2 ? "text-[20px] lg:text-[26px]" : "text-[20px]"}`}>
-                {m.text}
-              </p>
+              <p className="mt-4 font-heading text-[20px] font-semibold leading-[1.25] text-white lg:text-[22px]">{m.text}</p>
             </li>
           ))}
         </ul>

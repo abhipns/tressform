@@ -14,6 +14,12 @@
 // database is connected but Razorpay is still in mock mode, this route
 // refuses to create orders at all — otherwise the mock "payment" (which
 // accepts any signature) would mark real orders PAID for free.
+//
+// 12.10.2026 (PayU): the gateway is now PayU (lib/integrations/payu.ts). In
+// real mode this route also needs the customer's mobile number (PayU
+// requires one), saves the order with a fresh PayU transaction id, and
+// returns the form the checkout page posts to PayU. The mobile number is
+// passed to PayU only; Tressform does not store it.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -24,7 +30,7 @@ import {
   type PackTier,
   type AddonKind,
 } from "@/lib/pricing";
-import { createOrder as createRazorpayOrder, RAZORPAY_MOCK_MODE } from "@/lib/integrations/razorpay";
+import { PAYU_LIVE, PAYU_MOCK_MODE, buildPaymentForm, cleanFirstName, newTxnId } from "@/lib/integrations/payu";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
@@ -35,6 +41,15 @@ interface CreateOrderBody {
   tier?: PackTier;
   addonKind?: AddonKind;
   addonPhotoCount?: number;
+  phone?: string;
+}
+
+/** A 10-digit Indian mobile number, or null. Accepts +91 / 0 / spaces / dashes. */
+function cleanPhone(raw: string | undefined): string | null {
+  let d = (raw ?? "").replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return /^[6-9]\d{9}$/.test(d) ? d : null;
 }
 
 export async function POST(req: NextRequest) {
@@ -47,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   const { tier, addonKind, addonPhotoCount } = body;
 
-  if (!SUPABASE_MOCK_MODE && RAZORPAY_MOCK_MODE) {
+  if (!SUPABASE_MOCK_MODE && PAYU_MOCK_MODE) {
     return NextResponse.json({ error: "Payments aren't switched on yet — please check back soon.", paymentsOff: true }, { status: 503 });
   }
 
@@ -76,19 +91,7 @@ export async function POST(req: NextRequest) {
   const imageCount = tier ? PACK_TIERS[tier].imageCount : addonPhotoCount!;
   const internalOrderId = randomUUID();
 
-  let razorpayOrder;
-  try {
-    razorpayOrder = await createRazorpayOrder({
-      amountPaise: pnl.pricePaise,
-      receipt: internalOrderId,
-      notes: { userId, tier: tier ?? "", addonKind: addonKind ?? "" },
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Could not create a payment order." },
-      { status: 502 }
-    );
-  }
+  const txnid = PAYU_MOCK_MODE ? `mock_${newTxnId()}` : newTxnId();
 
   if (SUPABASE_MOCK_MODE) {
     const profile = mockStore.getOrCreateProfile(userId);
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
       isReferredFirstPurchase,
       referralCreditsPaise: 0, // settled in /api/payment/verify once payment is confirmed
       status: "CREATED",
-      razorpayOrderId: razorpayOrder.id,
+      razorpayOrderId: txnid,
       razorpayPaymentId: null,
       createdAt: new Date().toISOString(),
       paidAt: null,
@@ -120,16 +123,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       mockMode: true,
       orderId: order.id,
-      razorpayOrderId: razorpayOrder.id,
+      razorpayOrderId: txnid,
       amountPaise: pnl.pricePaise,
       currency: "INR",
       imageCount,
-      keyId: process.env.RAZORPAY_KEY_ID || null,
     });
   }
 
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
+
+  // PayU's test mode accepts test cards, so while PAYU_MODE isn't "live"
+  // only the site owner may start a payment — nobody else gets previews
+  // for a pretend payment.
+  if (!PAYU_LIVE) {
+    const { data: me } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+    if (me?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Payments aren't switched on yet — please check back soon.", paymentsOff: true }, { status: 503 });
+    }
+  }
+
+  const phone = cleanPhone(body.phone);
+  if (!phone) {
+    return NextResponse.json({ error: "Please enter your 10-digit mobile number.", field: "phone" }, { status: 400 });
+  }
+  if (!auth.email) {
+    return NextResponse.json({ error: "Your account has no email address. Please log in with Google again." }, { status: 400 });
+  }
 
   const { data: existingPaid } = await admin
     .from("orders")
@@ -157,7 +177,8 @@ export async function POST(req: NextRequest) {
       is_referred_first_purchase: isReferredFirstPurchase,
       referral_credits_paise: 0,
       status: "CREATED",
-      razorpay_order_id: razorpayOrder.id,
+      // PayU's transaction id (column name left over from Razorpay — see lib/payments.ts).
+      razorpay_order_id: txnid,
       // What the customer is buying: this many hairstyle previews (see the
       // "paid previews" section at the end of db/schema.sql).
       preview_count: imageCount,
@@ -169,13 +190,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error?.message ?? "Failed to create order." }, { status: 500 });
   }
 
+  const returnUrl = `${req.nextUrl.origin}/api/payment/payu-return`;
+  const payu = buildPaymentForm({
+    txnid,
+    amountPaise: pnl.pricePaise,
+    productinfo: tier ? `Tressform ${PACK_TIERS[tier].label}` : "Tressform add-on",
+    firstname: cleanFirstName(auth.name),
+    email: auth.email,
+    phone,
+    orderId: order.id,
+    surl: returnUrl,
+    furl: returnUrl,
+  });
+
   return NextResponse.json({
     mockMode: false,
     orderId: order.id,
-    razorpayOrderId: razorpayOrder.id,
     amountPaise: pnl.pricePaise,
     currency: "INR",
     imageCount,
-    keyId: process.env.RAZORPAY_KEY_ID || null,
+    payu,
   });
 }

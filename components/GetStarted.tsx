@@ -19,7 +19,7 @@ import Image from "next/image";
 const STEPS = [
   {
     title: "Analyse",
-    body: "Upload 3 selfies — front, left, and right — and Tressform reads your face shape, hair texture, and hairline.",
+    body: "Upload one selfie and Tressform reads your face shape, hair texture, and hairline.",
     image: "/images/step-analyse-selfie.jpg",
   },
   {

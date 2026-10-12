@@ -14,7 +14,7 @@ export default function FinalCta() {
         </h2>
         <div className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-4">
           <a href="#upload" className="btn-amber">
-            Try it free
+            See my hairstyles
           </a>
           <p className="text-[15px] text-white/60">Your hairstyle list is free. You pay only to see a style on your own photo.</p>
         </div>

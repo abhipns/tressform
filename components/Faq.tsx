@@ -23,7 +23,7 @@ const FAQS = [
   },
   {
     q: "How accurate is the face-shape detection?",
-    a: "We combine measurements from all three of your photos, so the read on your face shape is far more reliable than a single selfie. It's very good at spotting your shape and proportions — but it's a starting point for a great haircut conversation, not a lab measurement.",
+    a: "Your selfie is read twice, separately, comparing your forehead, cheekbones, jaw and face length; if the two readings disagree, the measurements decide. It's very good at spotting your shape and proportions — but it's a starting point for a great haircut conversation, not a lab measurement. You can also change the face shape yourself on your results.",
   },
   {
     q: "Is the preview a guarantee of how I'll look?",
@@ -46,7 +46,7 @@ const FAQS = [
   },
   {
     q: "What is Early Bird pricing?",
-    a: "₹199 (Starter Pack) and ₹399 (Style Pack) are limited launch prices, available until 31 October 2026. From 1 November 2026, new purchases are charged the regular price — ₹249 and ₹499. If you've already bought a pack at the Early Bird price, your purchase keeps its original price and photo count — the change only affects new purchases made after the cutoff.",
+    a: "₹199 (Starter Pack) and ₹399 (Style Pack) are limited launch prices, available until 31 December 2026. From 1 January 2027, new purchases are charged the regular price — ₹249 and ₹499. If you've already bought a pack at the Early Bird price, your purchase keeps its original price and photo count — the change only affects new purchases made after the cutoff.",
   },
   {
     q: "What's your refund policy?",

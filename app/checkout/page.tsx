@@ -3,7 +3,7 @@
 // actually buy a pack. Reads ?tier=STARTER|STYLE, shows the exact price
 // breakdown from lib/pricing.ts (the same module the server uses to price
 // the order — see api/payment/create-order/route.ts), and drives payment
-// through Razorpay (mock-mode aware, per lib/integrations/razorpay.ts).
+// through the payment gateway (now PayU — see lib/integrations/payu.ts).
 //
 // In mock mode there's no real Razorpay widget to open (no real key), so
 // "Pay" completes the order immediately against /api/payment/verify, which
@@ -19,10 +19,17 @@
 // them straight back here), requests carry their login token, and if the
 // server reports that payments aren't switched on yet the page says so
 // instead of showing a raw error.
+//
+// 12.10.2026 (PayU): the Razorpay pop-up is gone. "Pay" asks the server for
+// the order and a ready-made form, then posts that form to PayU, so the
+// customer pays on PayU's own page and PayU brings them back to
+// /api/payment/payu-return. PayU requires a mobile number, so the page asks
+// for one (passed to PayU, not stored by Tressform). Coming back with
+// ?payment=failed shows a short "didn't go through" note above the button.
 
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GST_REGISTERED,
@@ -36,32 +43,53 @@ import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } 
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+/** Send the browser to PayU by posting the form the server prepared. */
+function postToPayu(action: string, fields: Record<string, string>) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = action;
+  for (const [name, value] of Object.entries(fields)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
   }
+  document.body.appendChild(form);
+  form.submit();
 }
 
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
+const PHONE_KEY = "tressform_phone";
+const phoneOk = (v: string) => {
+  let d = v.replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return /^[6-9]\d{9}$/.test(d);
+};
 
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tierParam = (searchParams.get("tier") || "").toUpperCase() as PackTier;
+  const cameBackFailed = searchParams.get("payment") === "failed";
 
   const [status, setStatus] = useState<"idle" | "paying" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const { session, loading: sessionLoading } = useSession();
   const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
+  const askPhone = !SUPABASE_MOCK_MODE;
+  const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState(false);
+
+  // Remember the number on this device only, so a second purchase is one tap.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(PHONE_KEY);
+      if (saved) setPhone(saved);
+    } catch {
+      /* private window: nothing remembered */
+    }
+  }, []);
 
   const validTier = SELLABLE_TIERS.includes(tierParam) ? tierParam : null;
 
@@ -70,6 +98,16 @@ function CheckoutContent() {
 
   async function handlePay() {
     if (!validTier) return;
+    if (askPhone && !phoneOk(phone)) {
+      setPhoneError(true);
+      return;
+    }
+    setPhoneError(false);
+    try {
+      if (askPhone) window.localStorage.setItem(PHONE_KEY, phone.trim());
+    } catch {
+      /* not remembered — fine */
+    }
     setStatus("paying");
     setError(null);
 
@@ -78,16 +116,19 @@ function CheckoutContent() {
       const createRes = await fetch("/api/payment/create-order", {
         method: "POST",
         headers,
-        body: JSON.stringify(SUPABASE_MOCK_MODE ? { userId: getMockUserId(), tier: validTier } : { tier: validTier }),
+        body: JSON.stringify(SUPABASE_MOCK_MODE ? { userId: getMockUserId(), tier: validTier } : { tier: validTier, phone }),
       });
       const createData = await createRes.json();
       if (createRes.status === 401) {
         window.location.assign(loginUrl(`/checkout?tier=${validTier}`));
         return;
       }
-      if (!createRes.ok) throw new Error(createData.error || "Could not start checkout.");
+      if (!createRes.ok) {
+        if (createData.field === "phone") setPhoneError(true);
+        throw new Error(createData.error || "Could not start checkout.");
+      }
 
-      const { orderId, razorpayOrderId, amountPaise, keyId, mockMode } = createData;
+      const { orderId, razorpayOrderId, mockMode, payu } = createData;
 
       if (mockMode) {
         const verifyRes = await fetch("/api/payment/verify", {
@@ -106,47 +147,9 @@ function CheckoutContent() {
         return;
       }
 
-      const loaded = await loadRazorpayScript();
-      if (!loaded || !window.Razorpay) throw new Error("Could not load the payment widget. Check your connection and try again.");
-
-      const rzp = new window.Razorpay({
-        key: keyId,
-        amount: amountPaise,
-        currency: "INR",
-        name: "Tressform",
-        description: pack?.label,
-        order_id: razorpayOrderId,
-        handler: async (response: {
-          razorpay_order_id: string;
-          razorpay_payment_id: string;
-          razorpay_signature: string;
-        }) => {
-          try {
-            const verifyRes = await fetch("/api/payment/verify", {
-              method: "POST",
-              // Fresh token: the customer may have spent a while in the widget.
-              headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-              body: JSON.stringify({
-                orderId,
-                razorpayOrderId: response.razorpay_order_id,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature,
-              }),
-            });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) throw new Error(verifyData.error || "Payment verification failed.");
-            router.push(`/results/${orderId}`);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Something went wrong confirming your payment.");
-            setStatus("error");
-          }
-        },
-        modal: {
-          ondismiss: () => setStatus("idle"),
-        },
-        theme: { color: "#1f5a45" },
-      });
-      rzp.open();
+      if (!payu?.action || !payu?.fields) throw new Error("Could not start the payment. Please try again.");
+      // Leaves this page for PayU's payment page; PayU brings the customer back.
+      postToPayu(payu.action, payu.fields);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong starting checkout.");
       setStatus("error");
@@ -206,6 +209,38 @@ function CheckoutContent() {
           </div>
         </div>
 
+        {cameBackFailed && !error && status === "idle" && (
+          <div className="mb-5 rounded-sm2 bg-lilac/10 px-4 py-3 text-[13.5px] text-ink">
+            Your payment didn&apos;t go through, and no money was taken. If money did leave your account, it is
+            returned automatically by your bank. You can try again below.
+          </div>
+        )}
+
+        {askPhone && !needsLogin && (
+          <label className="mb-5 block">
+            <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Mobile number</span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              placeholder="10-digit mobile number"
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                if (phoneError) setPhoneError(!phoneOk(e.target.value));
+              }}
+              className={`w-full rounded-sm2 border bg-surface px-4 py-3 text-[15px] outline-none focus:border-mint-deep ${
+                phoneError ? "border-danger" : "border-line"
+              }`}
+            />
+            <span className={`mt-1.5 block text-[12px] ${phoneError ? "text-danger" : "text-ink-muted"}`}>
+              {phoneError
+                ? "Please enter a valid 10-digit mobile number."
+                : "Our payment partner PayU needs it for the payment. We don't use it for anything else."}
+            </span>
+          </label>
+        )}
+
         {error && (
           <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
         )}
@@ -216,12 +251,12 @@ function CheckoutContent() {
           </a>
         ) : (
           <button className="btn-primary w-full" disabled={status === "paying" || sessionLoading} onClick={handlePay}>
-            {status === "paying" ? "Processing…" : `Pay ₹${paiseToRupees(pnl.pricePaise).split(".")[0]}`}
+            {status === "paying" ? "Opening PayU…" : `Pay ₹${paiseToRupees(pnl.pricePaise).split(".")[0]}`}
           </button>
         )}
 
         <p className="mt-4 text-center text-[12px] text-ink-muted">
-          Payments are processed securely by our payment partner. See our{" "}
+          You&apos;ll pay on PayU&apos;s secure page (UPI, cards, net banking), then come straight back here. See our{" "}
           <a href="/refund" className="font-semibold text-mint-deep">
             Refund and Cancellation Policy
           </a>{" "}

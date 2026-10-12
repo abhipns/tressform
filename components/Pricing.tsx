@@ -33,7 +33,7 @@
 // column. Nothing about the plans, prices or links changed, except:
 //   - the Free plan's "Browse purpose & style options" line is gone (those
 //     option buttons were removed from the upload step);
-//   - its button says "Try it free", the one name used for that action
+//   - its button says "See my hairstyles", the one name used for that action
 //     everywhere on the site now.
 
 import {
@@ -75,7 +75,7 @@ const FREE_FEATURES = [
   "Why each style suits you",
 ];
 
-const EARLY_BIRD_CUTOFF_LABEL = "31 Oct 2026";
+const EARLY_BIRD_CUTOFF_LABEL = "31 Dec 2026";
 
 function Features({ items, dark = false }: { items: string[]; dark?: boolean }) {
   return (
@@ -117,7 +117,7 @@ export default function Pricing() {
             <p className="font-heading text-[44px] font-semibold leading-none text-ink-heading">₹0</p>
             <Features items={FREE_FEATURES} />
             <a href="#upload" className="btn-secondary w-full">
-              Try it free
+              See my hairstyles
             </a>
           </div>
 

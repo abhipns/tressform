@@ -1,5 +1,10 @@
 "use client";
 
+// 12.10.2026: ONE selfie now (owner's decision). Only the front photo was
+// ever read — face shape, hair and previews all come from it — so the left
+// and right photos only made the upload longer. The Slot type and the
+// camera still allow more photos, should side views ever be used again.
+//
 // 3-photo upload flow — Front/Left/Right, consent checkbox, AWS Rekognition
 // on all 3 together, then style-preview generation. Wired to the real
 // (mock-mode-aware) /api/analyze and /api/generate routes so this is a
@@ -184,7 +189,7 @@ const GENDER_OPTIONS: { value: HairGender; label: string }[] = [
 ];
 
 const SLOT_LABEL: Record<Slot, string> = { front: "Front", left: "Left", right: "Right" };
-const SLOTS: Slot[] = ["front", "left", "right"];
+const SLOTS: Slot[] = ["front"];
 
 const STAGES = ["Uploading your photos", "Reading your face shape", "Choosing hairstyles for you"];
 // The least time a step stays on screen, so a fast one can still be read.
@@ -358,7 +363,7 @@ export default function UploadFlow() {
     };
   }, [owner]);
 
-  const allUploaded = photos.front && photos.left && photos.right;
+  const allUploaded = Boolean(photos.front);
   const canSubmit = allUploaded && consent && gender;
 
   async function handleFile(slot: Slot, file: Blob) {
@@ -376,21 +381,21 @@ export default function UploadFlow() {
     }
   }
 
-  /** Open the camera for the photos still missing, or for all three to redo them. */
+  /** Open the camera for the selfie (or to retake it). */
   function openCamera() {
     setError(null);
     const empty = SLOTS.filter((slot) => !photos[slot]);
     setCameraSlots(empty.length > 0 ? empty : SLOTS);
   }
 
-  /** Real mode: put the three photos in the customer's private storage folder. */
+  /** Real mode: put the selfie in the customer's private storage folder. */
   async function uploadToStorage(userId: string): Promise<Record<Slot, string>> {
     const batch = crypto.randomUUID();
-    const slots = ["front", "left", "right"] as Slot[];
+    const slots = SLOTS;
     const uploaded = await Promise.all(
       slots.map(async (slot) => {
         const blob = blobs.current[slot];
-        if (!blob) throw new Error("Please add all three photos first.");
+        if (!blob) throw new Error("Please add your selfie first.");
         const path = `${userId}/${batch}/${slot}.jpg`;
         const { error: uploadError } = await supabase.storage
           .from("photos")
@@ -428,7 +433,7 @@ export default function UploadFlow() {
           return;
         }
         const paths = await uploadToStorage(session.user.id);
-        analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [paths.left, paths.right], gender };
+        analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [], gender };
       }
 
       await nextStage(1);
@@ -518,7 +523,7 @@ export default function UploadFlow() {
   const missing = !gender
     ? "Choose men's or women's hairstyles to continue."
     : !allUploaded
-      ? "Add all three photos to continue."
+      ? "Add your selfie to continue."
       : !consent
         ? "Tick the box above to continue."
         : "";
@@ -530,7 +535,7 @@ export default function UploadFlow() {
           <div className="lg:sticky lg:top-28 lg:self-start">
             <h2 className="h-display">Try it on your own face.</h2>
             <p className="lead mt-5 max-w-[44ch]">
-              Three photos: front, left and right. Take them now with your camera, or upload ones you already have.
+              One selfie, looking straight at the camera. Take it now, or upload one you already have.
               Your list of matched hairstyles is free.
             </p>
             <div className="mt-8 max-w-[44ch]">
@@ -602,16 +607,16 @@ export default function UploadFlow() {
                 <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mb-6">
                   <button type="button" className="btn-secondary gap-2.5 !px-6 !py-3" onClick={openCamera}>
                     <CameraIcon />
-                    {allUploaded ? "Retake selfies" : "Take selfies now"}
+                    {allUploaded ? "Retake selfie" : "Take a selfie now"}
                   </button>
-                  <span className="text-[14.5px] text-ink-muted">or tap a frame to upload a photo</span>
+                  <span className="text-[14.5px] text-ink-muted">or tap the frame to upload a photo</span>
                 </div>
 
                 {/* The whole column (frame + caption) is one <label>, so a tap
                     anywhere on it opens the file picker (on a phone: gallery
                     or camera, the customer's choice). */}
-                <div className="grid grid-cols-3 gap-3 sm:gap-5">
-                  {(["front", "left", "right"] as Slot[]).map((slot) => (
+                <div className="grid max-w-[220px] grid-cols-1 gap-3 sm:max-w-[240px]">
+                  {SLOTS.map((slot) => (
                     <label key={slot} className="group flex cursor-pointer flex-col gap-2.5 text-center">
                       <div
                         className={`relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border-[1.5px] bg-bg-soft transition group-hover:border-mint group-focus-within:border-mint ${
@@ -636,7 +641,7 @@ export default function UploadFlow() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[15px] font-semibold leading-tight text-ink-heading">{SLOT_LABEL[slot]}</span>
+                      <span className="text-[15px] font-semibold leading-tight text-ink-heading">Your selfie</span>
                       <span className="-mt-1.5 text-[13.5px] font-medium text-mint-deep underline decoration-mint/40 underline-offset-4">
                         {photos[slot] ? "Change photo" : "Upload photo"}
                       </span>

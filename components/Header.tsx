@@ -7,7 +7,7 @@
 //    the note above DIRECT_LINKS for how these changed)
 //    (Master Section Plan row 1, trimmed 23.09.2026 — few competing choices);
 //  - Refer & Earn, Blog and Hair Care are secondary, under "More";
-//  - one primary button, "Try it free" (Quick Checkout is gone everywhere);
+//  - one primary button, "See my hairstyles" (Quick Checkout is gone everywhere);
 //  - the Android app link sat beside the account link (24.09.2026). It
 //    went nowhere (there is no app yet), so on 11.10.2026 it was taken out;
 //    the menu says both apps are coming soon instead;
@@ -45,7 +45,7 @@ import { useSession } from "@/lib/authClient";
 // sections. "Hairstyles" pointed at the cartoon-head carousel and "Hair
 // Care" at a "coming soon" notice — both are off the page until there is
 // real content — so "Hairstyles" became "What you get" and "Hair Care" left
-// the More menu. The button is "Try it free", the one name this action has
+// the More menu. The button is "See my hairstyles", the one name this action has
 // everywhere on the site now (it was "Get Started" here only).
 const DIRECT_LINKS = [
   { href: "/#how", label: "How it works" },
@@ -204,9 +204,11 @@ export default function Header() {
 
           <a
             href="/#upload"
-            className="btn-primary group rounded-full !px-5 !py-2.5 text-[14.5px] lg:!px-6 lg:!py-3 lg:text-[15.5px]"
+            className="btn-primary group whitespace-nowrap rounded-full !px-4 !py-2.5 text-[14px] sm:!px-5 sm:text-[14.5px] lg:!px-6 lg:!py-3 lg:text-[15.5px]"
           >
-            Try it free
+            {/* Phones: the short label, so the menu button still fits beside it. */}
+            <span className="sm:hidden">My hairstyles</span>
+            <span className="hidden sm:inline">See my hairstyles</span>
             <svg
               viewBox="0 0 14 14"
               className="ml-2 hidden h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 sm:block"

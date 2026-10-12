@@ -18,8 +18,8 @@ import { Band, Rail } from "./Section";
 
 const STEPS = [
   {
-    title: "Take three selfies",
-    body: "Front, left and right, on any phone. Tressform reads your face shape and your hair from them.",
+    title: "Take one selfie",
+    body: "Looking straight at the camera, on any phone. Tressform reads your face shape and your hair from it.",
     image: "/images/step-analyse-selfie.jpg",
     alt: "A man taking a selfie on his phone by a window.",
   },
@@ -43,11 +43,11 @@ export default function HowItWorks() {
   return (
     <Band id="how" tone="cream">
       <Rail
-        heading="From three selfies to a haircut your barber can follow."
+        heading="From one selfie to a haircut your barber can follow."
         lead="No appointment, no app to install. It takes about a minute."
         aside={
           <a href="#upload" className="btn-primary mt-8 hidden lg:inline-flex">
-            Try it free
+            See my hairstyles
           </a>
         }
       >

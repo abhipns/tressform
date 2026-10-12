@@ -19,7 +19,7 @@
 // The headline keeps the agreed words ("Find your perfect cut before you
 // cut"), set large and left-aligned. The two older supporting lines are one
 // plain sentence now. One primary button (same name as everywhere else:
-// "Try it free"), one quiet link to "How it works".
+// "See my hairstyles"), one quiet link to "How it works".
 //
 // The button is the brand's amber on this dark band — the green button used
 // elsewhere would sink into a green background.
@@ -38,7 +38,7 @@ export default function Hero() {
             Find your perfect cut before you cut.
           </h1>
           <p className="mt-6 max-w-[520px] text-[17px] leading-[1.6] text-white/75 lg:text-[18.5px]">
-            Upload three selfies and see new hairstyles on your own face. Then hand your barber exact instructions, so
+            Upload one selfie and see new hairstyles on your own face. Then hand your barber exact instructions, so
             nothing is left to guesswork.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4">
@@ -46,7 +46,7 @@ export default function Hero() {
               href="#upload"
               className="inline-flex items-center justify-center rounded-full bg-lilac px-8 py-4 font-heading text-[17px] font-semibold text-header-dark shadow-[0_14px_30px_-12px_rgba(199,154,61,0.7)] transition hover:bg-[#D6AB52] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
             >
-              Try it free
+              See my hairstyles
             </a>
             <a
               href="#how"

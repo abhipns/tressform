@@ -33,7 +33,7 @@ export default function HairProfile() {
         <p className="eyebrow">Your Personal Hair Profile &amp; Guided Haircut</p>
         <h2>We analyse before we ever recommend a style</h2>
         <p>
-          Three selfies is all it takes — Tressform builds a profile of your face and hair, then turns your chosen
+          One selfie is all it takes — Tressform builds a profile of your face and hair, then turns your chosen
           style into a precise, barber-ready instruction card.
         </p>
       </div>

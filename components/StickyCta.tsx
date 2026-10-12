@@ -48,7 +48,7 @@ export default function StickyCta() {
     <div className="fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4">
       <div className="flex items-center gap-3 rounded-full border border-line bg-surface py-2 pl-5 pr-2.5 shadow-card">
         <a href="#upload" className="btn-primary rounded-full !py-2 !px-4 text-[14px]">
-          Try it free
+          See my hairstyles
         </a>
         <button
           type="button"

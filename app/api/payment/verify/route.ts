@@ -27,7 +27,10 @@
 // nothing is confirmed while Razorpay itself is still in mock mode.
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPaymentSignature, RAZORPAY_MOCK_MODE } from "@/lib/integrations/razorpay";
+// 12.10.2026 (PayU): with a real database this route no longer confirms
+// anything — real payments are confirmed only from PayU's own answer
+// (lib/payments.ts, via payu-return / payu-webhook). It stays for the demo
+// mode, where "Pay" completes instantly.
 import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/pricing";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
@@ -51,12 +54,7 @@ export async function POST(req: NextRequest) {
 
   let callerId: string | null = null;
   if (!SUPABASE_MOCK_MODE) {
-    if (RAZORPAY_MOCK_MODE) {
-      return NextResponse.json({ error: "Payments aren't switched on yet — please check back soon.", paymentsOff: true }, { status: 503 });
-    }
-    const auth = await requireUser(req);
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-    callerId = auth.userId;
+    return NextResponse.json({ error: "Payments are confirmed by PayU, not by this address." }, { status: 410 });
   }
 
   if (!orderId || !razorpayOrderId || !razorpayPaymentId) {
@@ -66,14 +64,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const signatureOk = verifyPaymentSignature({
-    razorpayOrderId,
-    razorpayPaymentId,
-    razorpaySignature: razorpaySignature ?? "",
-  });
-  if (!signatureOk) {
-    return NextResponse.json({ error: "Payment signature verification failed." }, { status: 400 });
-  }
 
   if (SUPABASE_MOCK_MODE) {
     const order = mockStore.getOrder(orderId);
@@ -101,73 +91,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ mockMode: true, success: true, orderId: paid.id, status: paid.status });
   }
 
-  const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
-  const admin = getSupabaseAdmin();
-
-  const { data: order, error: fetchError } = await admin.from("orders").select("*").eq("id", orderId).single();
-  if (fetchError || !order || order.user_id !== callerId) {
-    return NextResponse.json({ error: "Order not found." }, { status: 404 });
-  }
-  if (order.razorpay_order_id !== razorpayOrderId) {
-    return NextResponse.json({ error: "Order/payment mismatch." }, { status: 400 });
-  }
-  if (order.status === "PAID") {
-    // Already confirmed (double click, page refresh) — don't settle twice.
-    return NextResponse.json({ mockMode: false, success: true, orderId, status: "PAID" });
-  }
-
-  const { error: updateError } = await admin
-    .from("orders")
-    .update({
-      status: "PAID",
-      razorpay_payment_id: razorpayPaymentId,
-      razorpay_signature: razorpaySignature ?? null,
-      paid_at: new Date().toISOString(),
-    })
-    .eq("id", orderId);
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
-
-  if (order.is_referred_first_purchase && order.tier) {
-    const { data: referral } = await admin
-      .from("referrals")
-      .select("id, referrer_id")
-      .eq("referred_id", order.user_id)
-      .maybeSingle();
-
-    if (referral?.referrer_id) {
-      const fyStart = new Date();
-      fyStart.setUTCMonth(fyStart.getUTCMonth() >= 3 ? 3 : -9, 1);
-      fyStart.setUTCHours(0, 0, 0, 0);
-
-      const { data: priorCredits } = await admin
-        .from("referrals")
-        .select("credits_paise")
-        .eq("referrer_id", referral.referrer_id)
-        .gte("created_at", fyStart.toISOString());
-
-      const cumulative = (priorCredits ?? []).reduce((sum, r) => sum + (r.credits_paise ?? 0), 0);
-      const creditsPaise = calculateReferralCreditsPaiseWithCap(order.tier as PackTier, true, cumulative);
-
-      await admin
-        .from("referrals")
-        .update({
-          first_purchase_order_id: orderId,
-          first_purchase_qualified: true,
-          credits_paise: creditsPaise,
-          payout_status: creditsPaise > 0 ? "PAID" : "INELIGIBLE",
-          paid_at: creditsPaise > 0 ? new Date().toISOString() : null,
-        })
-        .eq("id", referral.id);
-
-      if (creditsPaise > 0) {
-        await admin.rpc("increment_credit_balance", { profile_id: referral.referrer_id, amount_paise: creditsPaise }).then(
-          () => {},
-          () => {} // rpc may not exist yet — best-effort, same spirit as the mock-mode branch
-        );
-      }
-      await admin.from("orders").update({ referral_credits_paise: creditsPaise }).eq("id", orderId);
-    }
-  }
-
-  return NextResponse.json({ mockMode: false, success: true, orderId, status: "PAID" });
+  void callerId;
+  void razorpaySignature;
+  return NextResponse.json({ error: "Payments are confirmed by PayU, not by this address." }, { status: 410 });
 }

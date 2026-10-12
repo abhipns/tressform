@@ -235,7 +235,7 @@ export default function SelfieCamera({
       <div className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 pb-5 pt-3 sm:px-6 sm:pb-7 sm:pt-5">
         <div className="flex items-center justify-between gap-4">
           <p className="text-[14.5px] font-semibold text-white/70">
-            {blocked ? "Camera" : `Photo ${index + 1} of ${slots.length}: ${step.label}`}
+            {blocked ? "Camera" : slots.length === 1 ? "Your selfie" : `Photo ${index + 1} of ${slots.length}: ${step.label}`}
           </p>
           <button
             type="button"

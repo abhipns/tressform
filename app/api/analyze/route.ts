@@ -114,6 +114,40 @@ function photoProblem(d: DetectFaceResult): string | null {
   return null;
 }
 
+/**
+ * 12.10.2026: the customer's approximate city, for matching with salons
+ * later. Vercel works it out from the internet connection (no pop-up, not
+ * exact — a mobile network may show a nearby city). Never fails the reading.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function saveApproxLocation(admin: any, userId: string, req: NextRequest): Promise<void> {
+  const read = (h: string) => {
+    const v = req.headers.get(h);
+    if (!v) return null;
+    try {
+      return decodeURIComponent(v).slice(0, 80);
+    } catch {
+      return v.slice(0, 80);
+    }
+  };
+  const city = read("x-vercel-ip-city");
+  const country = read("x-vercel-ip-country");
+  if (!city && !country) return;
+  try {
+    await admin
+      .from("profiles")
+      .update({
+        approx_city: city,
+        approx_region: read("x-vercel-ip-country-region"),
+        approx_country: country,
+        approx_location_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+  } catch (err) {
+    console.warn("[Tressform] could not save approximate location:", err);
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: AnalyzeBody;
   try {
@@ -297,6 +331,7 @@ export async function POST(req: NextRequest) {
       .select()
       .single(),
     countPreviewsLeft(admin, userId),
+    saveApproxLocation(admin, userId, req),
   ]);
 
   if (error || !photo) {

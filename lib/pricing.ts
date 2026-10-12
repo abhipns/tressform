@@ -122,7 +122,7 @@ export function calculateReferralCreditsPaiseWithCap(
 // are affected by the cutoff. `getCurrentPackPrice` below is the one place
 // that logic should be called from on both the client and the server, so
 // display and checkout can never drift apart.
-export const EARLY_BIRD_CUTOFF_ISO = "2026-10-31T23:59:00+05:30"; // 31 Oct 2026, 23:59 IST
+export const EARLY_BIRD_CUTOFF_ISO = "2026-12-31T23:59:00+05:30"; // 31 Dec 2026, 23:59 IST (moved from 31 Oct on 12.10.2026)
 
 export function isEarlyBirdActive(now: Date = new Date()): boolean {
   return now.getTime() <= new Date(EARLY_BIRD_CUTOFF_ISO).getTime();
