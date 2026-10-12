@@ -43,6 +43,7 @@
 // everyday styles come first.
 
 import type { FaceShape } from "@/lib/faceShape";
+import { BARBER_POINTS } from "./barberPoints";
 
 export type HairGender = "men" | "women";
 export type HairTexture = "straight" | "wavy" | "curly";
@@ -1117,6 +1118,19 @@ export function frontDescription(style: Hairstyle): string {
 /** The sentence a customer can read out or show to a barber or stylist. */
 export function barberLine(style: Hairstyle): string {
   return `Ask for ${style.barber ?? style.prompt}.`;
+}
+
+// 12.10.2026: the barber wording as short points (owner's request), written
+// by hand in barberPoints.ts. `barberName` is the cut itself ("a short
+// textured quiff"), shown above the points.
+export function barberName(style: Hairstyle): string {
+  const text = style.barber ?? style.prompt;
+  const colon = text.indexOf(":");
+  return colon > 0 ? text.slice(0, colon) : style.name;
+}
+
+export function barberPoints(style: Hairstyle): string[] {
+  return BARBER_POINTS[style.id] ?? [barberLine(style)];
 }
 
 export function hairstylesFor(gender: HairGender): Hairstyle[] {

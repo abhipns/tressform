@@ -40,7 +40,15 @@ type Shot = {
   error?: string;
   /** The automatic check against the photo: same person, head not turned. */
   check?: { ok: boolean; checked: boolean; summary: string } | null;
+  /** 12.10.2026: for the side and back views of this picture. */
+  resultPath?: string | null;
+  photoId?: string | null;
+  full?: string;
+  modelId?: string;
+  views?: { state: "loading" | "done"; seconds?: number; items: { view: string; url: string | null; error: string | null; costPaise: number }[] };
 };
+
+const VIEW_LABEL: Record<string, string> = { left: "Left side", right: "Right side", back: "Back" };
 
 const MODELS = [
   { id: "fal-ai/nano-banana/edit", label: "Nano Banana", note: "what customers get, men and women, about ₹3.50 an image", paise: 350 },
@@ -171,7 +179,16 @@ export default function StudioPage() {
   async function makeOne(style: StudioStyle) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     setShots((prev) => [
-      { id, label: style.label, modelLabel: `${model.label}${polish ? "" : ", hair only"}`, photoName, state: "loading" },
+      {
+        id,
+        label: style.label,
+        modelLabel: `${model.label}${polish ? "" : ", hair only"}`,
+        photoName,
+        state: "loading",
+        photoId,
+        full: style.full ?? style.prompt,
+        modelId: model.id,
+      },
       ...prev,
     ]);
     const patch = (p: Partial<Shot>) => setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
@@ -190,9 +207,40 @@ export default function StudioPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "The image couldn't be made.");
-      patch({ state: "done", url: data.resultImageUrl, seconds: data.seconds, costPaise: data.costPaise, check: data.check ?? null });
+      patch({
+        state: "done",
+        url: data.resultImageUrl,
+        seconds: data.seconds,
+        costPaise: data.costPaise,
+        check: data.check ?? null,
+        resultPath: data.resultPath ?? null,
+      });
     } catch (err) {
       patch({ state: "failed", error: err instanceof Error ? err.message : "The image couldn't be made." });
+    }
+  }
+
+  /** 12.10.2026: the left, right and back views of one front picture (about ₹10.50). */
+  async function makeViews(shot: Shot) {
+    const patch = (p: Partial<Shot>) => setShots((prev) => prev.map((s) => (s.id === shot.id ? { ...s, ...p } : s)));
+    patch({ views: { state: "loading", items: [] } });
+    try {
+      const res = await fetch("/api/admin/studio/views", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({
+          ...(SUPABASE_MOCK_MODE ? { userId: mockUserId.current, frontImageUrl: shot.url } : { resultPath: shot.resultPath, photoId: shot.photoId }),
+          styleLabel: shot.label,
+          styleText: shot.full,
+          model: shot.modelId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "The views couldn't be made.");
+      patch({ views: { state: "done", seconds: data.seconds, items: data.views } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "The views couldn't be made.";
+      patch({ views: { state: "done", items: [{ view: "left", url: null, error: message, costPaise: 0 }] } });
     }
   }
 
@@ -553,6 +601,51 @@ export default function StudioPage() {
                   >
                     Download
                   </button>
+                )}
+                {shot.state === "done" && shot.url && (SUPABASE_MOCK_MODE || shot.resultPath) && !shot.views && (
+                  <button
+                    type="button"
+                    onClick={() => makeViews(shot)}
+                    className="btn-secondary mt-3 w-full !px-4 !py-2 !text-[14px]"
+                  >
+                    Make side and back views (about ₹10.50)
+                  </button>
+                )}
+                {shot.views?.state === "loading" && (
+                  <p className="mt-3 text-[14px] font-medium text-ink-muted">Making the left, right and back views… about 20 seconds.</p>
+                )}
+                {shot.views?.state === "done" && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {shot.views.items.map((item) => (
+                        <div key={item.view} className="text-center">
+                          {item.url ? (
+                            <a href={item.url} target="_blank" rel="noreferrer" title="Open full size">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={item.url} alt={`${shot.label}, ${VIEW_LABEL[item.view]}`} className="w-full rounded-[10px] bg-bg-soft" />
+                            </a>
+                          ) : (
+                            <p className="flex aspect-[3/4] items-center justify-center rounded-[10px] bg-surface p-1 text-[11.5px] text-danger">
+                              {item.error}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[12.5px] font-semibold text-ink-heading">{VIEW_LABEL[item.view] ?? item.view}</p>
+                          {item.url && (
+                            <button
+                              type="button"
+                              onClick={() => saveImage(item.url!, `${shot.photoName}-${slug(shot.label)}-${item.view}.jpg`)}
+                              className="text-[12.5px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4"
+                            >
+                              Download
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {shot.views.seconds !== undefined && (
+                      <p className="mt-1.5 text-[12.5px] text-ink-muted">{shot.views.seconds} seconds for all three</p>
+                    )}
+                  </div>
                 )}
               </li>
             ))}

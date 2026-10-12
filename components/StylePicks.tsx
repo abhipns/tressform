@@ -42,7 +42,8 @@ import {
   HAIRSTYLES,
   MEN_LENGTHS,
   WOMEN_LENGTHS,
-  barberLine,
+  barberName,
+  barberPoints,
   type HairGender,
   type HairLength,
   type HairTexture,
@@ -349,8 +350,19 @@ export default function StylePicks({
             {preview?.state === "done" ? (
               <div className="mt-4 border-t border-line pt-3">
                 <p className="text-[14.5px] font-semibold text-ink-heading">What to tell your barber</p>
-                <p className="mt-1.5 text-[14.5px] leading-[1.55]">{barberLine(pick.style)}</p>
-                <p className="mt-1.5 text-[13.5px] text-ink-muted">Showing them the picture as well works best.</p>
+                {/* 12.10.2026: as points, not a paragraph (owner's request). */}
+                <p className="mt-1.5 text-[14.5px]">
+                  Ask for <strong className="font-semibold text-ink-heading">{barberName(pick.style)}</strong>:
+                </p>
+                <ul className="mt-1.5 flex flex-col gap-1 text-[14.5px] leading-[1.45]">
+                  {barberPoints(pick.style).map((point) => (
+                    <li key={point} className="flex gap-2.5">
+                      <span className="mt-[8px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[13.5px] text-ink-muted">Showing them the picture as well works best.</p>
               </div>
             ) : (
               <p className="mt-4 border-t border-line pt-3 text-[13.5px] text-ink-muted">

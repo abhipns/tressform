@@ -197,6 +197,8 @@ export async function POST(req: NextRequest) {
     mockMode: false,
     samplePreview: result.mock,
     resultImageUrl: link,
+    // 12.10.2026: where the picture is kept, so the Studio can ask for side and back views of it.
+    resultPath: result.mock ? null : storedPath,
     model: result.model,
     seconds: Math.round((Date.now() - started) / 100) / 10,
     costPaise: result.mock ? 0 : result.costPaise,

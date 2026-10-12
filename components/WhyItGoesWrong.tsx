@@ -15,10 +15,16 @@
 // 12.10.2026: a sideways row on computers too (owner's choice), all five
 // the same size. The photos are all 4:3, so nothing is cropped differently.
 // On a computer, arrow buttons scroll the row, since a mouse can't swipe.
+//
+// 12.10.2026 (later): the row also moves by itself, one photo every few
+// seconds, left to right and then back again. It stops while the visitor
+// is touching, hovering or using the arrows (and starts again a little
+// later), only runs while the row is on screen, and never runs for
+// visitors whose phone asks for less motion.
 
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 
 const MOMENTS = [
@@ -83,13 +89,60 @@ function Arrow({ dir, onClick }: { dir: -1 | 1; onClick: () => void }) {
 
 export default function WhyItGoesWrong() {
   const row = useRef<HTMLUListElement>(null);
+  const pausedUntil = useRef(0);
+  const direction = useRef<1 | -1>(1);
+
+  const step = (el: HTMLElement) => {
+    const card = el.querySelector("li");
+    return card ? card.getBoundingClientRect().width + (window.innerWidth >= 1024 ? 24 : 16) : el.clientWidth * 0.8;
+  };
+  const pause = (ms = 8000) => {
+    pausedUntil.current = Date.now() + ms;
+  };
   const scrollBy = (dir: -1 | 1) => {
     const el = row.current;
     if (!el) return;
-    const card = el.querySelector("li");
-    const step = card ? card.getBoundingClientRect().width + 24 : el.clientWidth * 0.8;
-    el.scrollBy({ left: dir * step, behavior: "smooth" });
+    pause();
+    el.scrollBy({ left: dir * step(el), behavior: "smooth" });
   };
+
+  // Moves by itself: one photo every 3.5 seconds, to the end and back.
+  useEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let visible = false;
+    const seen = new IntersectionObserver(([entry]) => (visible = entry.isIntersecting), { threshold: 0.4 });
+    seen.observe(el);
+
+    const hold = () => pause();
+    const holdShort = () => pause(4000);
+    el.addEventListener("pointerdown", hold);
+    el.addEventListener("touchstart", hold, { passive: true });
+    el.addEventListener("wheel", hold, { passive: true });
+    el.addEventListener("mouseenter", hold);
+    el.addEventListener("mouseleave", holdShort);
+
+    const timer = window.setInterval(() => {
+      if (!visible || Date.now() < pausedUntil.current || document.hidden) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 4) return;
+      if (direction.current === 1 && el.scrollLeft >= max - 4) direction.current = -1;
+      else if (direction.current === -1 && el.scrollLeft <= 4) direction.current = 1;
+      el.scrollBy({ left: direction.current * step(el), behavior: "smooth" });
+    }, 3500);
+
+    return () => {
+      window.clearInterval(timer);
+      seen.disconnect();
+      el.removeEventListener("pointerdown", hold);
+      el.removeEventListener("touchstart", hold);
+      el.removeEventListener("wheel", hold);
+      el.removeEventListener("mouseenter", hold);
+      el.removeEventListener("mouseleave", holdShort);
+    };
+  }, []);
 
   return (
     <section id="problem" className="bg-[#16261C] text-white/75">

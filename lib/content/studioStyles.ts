@@ -16,6 +16,11 @@ export interface StudioStyle {
   prompt: string;
   /** A style for naturally curly or wavy hair: it needs a photo of someone with curls. */
   curlyOnly?: boolean;
+  /**
+   * 12.10.2026: the full description, back and neckline included — what
+   * the side and back views are made from (the front picture uses `prompt`).
+   */
+  full?: string;
 }
 
 export interface StudioGroup {
@@ -39,7 +44,7 @@ const GROUPS: Record<HairGender, { title: string; hint: string; needs: StyleNeed
 
 function toStudioStyle(style: Hairstyle): StudioStyle {
   // The Studio makes front pictures, so it uses the front-view description.
-  return { label: style.name, prompt: frontDescription(style), curlyOnly: style.texture[0] === 0 };
+  return { label: style.name, prompt: frontDescription(style), curlyOnly: style.texture[0] === 0, full: style.prompt };
 }
 
 function groupsFor(gender: HairGender): StudioGroup[] {

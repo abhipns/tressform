@@ -406,3 +406,99 @@ export async function generateHairstyle(params: GenerateHairstyleParams): Promis
     mock: false,
   };
 }
+
+// ---------------------------------------------------------------------------
+// SIDE AND BACK VIEWS. 12.10.2026, owner's plan: a paid preview shows the
+// style from four sides. Only the front selfie exists, so the left, right
+// and back pictures are made FROM THE FRONT PREVIEW (which already has the
+// new haircut): the model is shown that picture and asked for the same
+// person and haircut from another angle. They are estimates, and are
+// labelled so to customers. First tried in the owner's Studio before any
+// customer sees them.
+
+export type HairView = "left" | "right" | "back";
+export const HAIR_VIEWS: HairView[] = ["left", "right", "back"];
+
+// "Their left side" means the camera stands at the person's left, so their
+// nose points to the left edge of the picture; said both ways, because a
+// model told only one of them may turn the head the wrong way.
+const VIEW_ANGLE: Record<HairView, string> = {
+  left:
+    "from their left side: a true side profile, the head turned a full 90 degrees, so the camera sees their left ear " +
+    "and the whole left side of the haircut, and their face points to the left edge of the picture",
+  right:
+    "from their right side: a true side profile, the head turned a full 90 degrees, so the camera sees their right ear " +
+    "and the whole right side of the haircut, and their face points to the right edge of the picture",
+  back:
+    "from directly behind: the back of the head, the crown, the nape and the neckline fill the picture, " +
+    "showing how the back of the haircut is cut and blended; their face is not visible",
+};
+
+export function buildViewPrompt(view: HairView, styleDescription: string): string {
+  return (
+    "The picture shows a person with a freshly cut hairstyle. Make a new, realistic photograph of the same person " +
+    `with exactly the same haircut, seen ${VIEW_ANGLE[view]}. ` +
+    `The haircut is ${styleDescription.trim()}. ` +
+    "Keep the haircut identical to the picture: the same hair colour, including any grey, the same length on top, " +
+    "the same texture, parting, fade or taper and the same volume. " +
+    "Keep the same person: the same age, skin tone, build, ears, facial hair and clothing. " +
+    "Head and shoulders in the frame, the same plain background and soft even light as the picture, sharp focus on the hair. " +
+    "Do not add text, logos, watermarks, borders or other people."
+  );
+}
+
+export interface GenerateViewParams {
+  /** A link FAL can open to the FRONT preview (the picture with the new haircut). */
+  frontImageUrl: string;
+  view: HairView;
+  /** The full style description, including the back and the neckline. */
+  styleDescription: string;
+  model?: FalaiModel | null;
+}
+
+export async function generateView(params: GenerateViewParams): Promise<GenerateHairstyleResult> {
+  if (FALAI_MOCK_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return {
+      status: "SUCCEEDED",
+      resultImageUrl: mockPlaceholderImage(`${params.view} view`),
+      contentType: "image/png",
+      costPaise: FALAI_COST_PER_IMAGE_PAISE,
+      providerRequestId: `mock_view_${Date.now()}`,
+      model: "mock",
+      mock: true,
+    };
+  }
+  // Views only use the editing models that take an image list; others fall back to the default.
+  const model: FalaiModel =
+    params.model && FALAI_MODELS[params.model] === "edit-multi" ? params.model : "fal-ai/nano-banana/edit";
+  const { createFalClient } = await import("@fal-ai/client");
+  const fal = createFalClient({ credentials: FAL_AI_API_KEY });
+  let response: { data: unknown; requestId: string };
+  try {
+    response = (await fal.subscribe(model as string, {
+      input: {
+        prompt: buildViewPrompt(params.view, params.styleDescription),
+        image_urls: [params.frontImageUrl],
+        num_images: 1,
+        output_format: "jpeg",
+      },
+      logs: false,
+    })) as { data: unknown; requestId: string };
+  } catch (err) {
+    return failure(model, describeFalError(err));
+  }
+  const data = (response.data ?? {}) as { images?: { url?: string; content_type?: string }[]; has_nsfw_concepts?: boolean[] };
+  if (data.has_nsfw_concepts?.some(Boolean)) return failure(model, "The model refused this picture.", response.requestId);
+  const image = data.images?.[0];
+  if (!image?.url) return failure(model, "No picture came back — please try again.", response.requestId);
+  return {
+    status: "SUCCEEDED",
+    resultImageUrl: image.url,
+    contentType: image.content_type ?? null,
+    costPaise: FALAI_COST_BY_MODEL_PAISE[model] ?? FALAI_COST_PER_IMAGE_PAISE,
+    providerRequestId: response.requestId,
+    model,
+    mock: false,
+  };
+}
