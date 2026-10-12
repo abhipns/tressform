@@ -19,7 +19,8 @@ export const BUSINESS = {
   supportEmail: "support@tressform.co.in",
   phoneDisplay: "+91 78270 76770",
   phoneHref: "+917827076770",
-  address: "Plot no. 38-39, Pocket-10, Sector 21\nRohini, Delhi - 110086",
+  // 12.10.2026: worded exactly as on the PayU agreement (registered office).
+  address: "H No. 38-39, Ground Floor, Pocket-10, Sector-21\nRohini, Sultanpuri C Block, North West Delhi\nDelhi - 110086, India",
   gstin: "",
   /** Shown as "Last updated" on the legal pages. Change it whenever their wording changes. */
   legalLastUpdated: "10 October 2026",
