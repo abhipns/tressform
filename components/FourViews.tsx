@@ -54,7 +54,7 @@ export default function FourViews() {
           <li key={v.id}>
             <div className="relative aspect-[3/4] overflow-hidden rounded-[16px] bg-line">
               <Image
-                src={`/four-views/${person.id}-${v.id}.jpg`}
+                src={`/four-views/${person.id}-${v.id}-v2.jpg`}
                 alt={`${person.tab} haircut, ${v.label.toLowerCase()}`}
                 width={480}
                 height={640}
