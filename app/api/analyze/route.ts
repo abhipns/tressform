@@ -148,6 +148,23 @@ async function saveApproxLocation(admin: any, userId: string, req: NextRequest):
   }
 }
 
+/**
+ * Facial hair, as the image model will be told it (12.10.2026).
+ * The face service only says "beard: yes/no", and counts a few days'
+ * stubble as a beard; told "beard", the image model grew one. The photo
+ * reading can tell stubble from a beard, so its answer comes first. When the
+ * reading sees no hair but the face service sees a beard, it is called
+ * stubble: neither shaved off nor grown.
+ */
+function settleFacialHair(
+  service: "beard" | "moustache" | "clean" | null,
+  reading: "none" | "stubble" | "beard" | "moustache" | null
+): "beard" | "moustache" | "clean" | "stubble" | null {
+  if (reading === "stubble" || reading === "beard" || reading === "moustache") return reading;
+  if (reading === "none") return service === "beard" ? "stubble" : "clean";
+  return service;
+}
+
 export async function POST(req: NextRequest) {
   let body: AnalyzeBody;
   try {
@@ -290,7 +307,8 @@ export async function POST(req: NextRequest) {
       gender,
       // Read back by /api/generate so the image model is told, as a fact,
       // whether to keep the customer clean-shaven or keep their beard.
-      facialHair: detection.facialHair,
+      facialHair: settleFacialHair(detection.facialHair, gender === "men" ? (read?.facialHair ?? null) : null),
+      faceServiceFacialHair: detection.facialHair,
     },
   };
 

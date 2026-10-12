@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
   // the browser sends.
   const analysed = (photo.rekognition_raw as { tressform?: { facialHair?: unknown } } | null)?.tressform;
   const facialHair =
-    analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean"
+    analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean" || analysed?.facialHair === "stubble"
       ? analysed.facialHair
       : null;
   // The customer's own correction comes first: it is their face.

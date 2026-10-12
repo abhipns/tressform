@@ -66,6 +66,10 @@ const RUPEES_PER_DOLLAR = 88;
 
 export type Sureness = "high" | "medium" | "low";
 
+/** 12.10.2026: what the face service can't tell apart — stubble from a beard. */
+export type FacialHairRead = "none" | "stubble" | "beard" | "moustache";
+const FACIAL_HAIR: FacialHairRead[] = ["none", "stubble", "beard", "moustache"];
+
 export interface PhotoReading {
   /** True when a usable face shape came back. */
   ok: boolean;
@@ -75,6 +79,8 @@ export interface PhotoReading {
   /** null = could not be told from the photo (tied back, covered, cropped). */
   hairLength: HairLength | null;
   hairTexture: HairTexture | null;
+  /** Men only; null = not asked or not answered. */
+  facialHair: FacialHairRead | null;
   /** What the model said it saw, kept for tuning. */
   observations: Record<string, string> | null;
   model: string;
@@ -107,7 +113,10 @@ function lengthGuide(gender: HairGender): string {
       '  "medium" = about 5 to 10 cm, enough to comb over, sweep back or stand up; ends at or above the ears\n' +
       '  "long" = hangs down over the ears to the jaw, the collar or lower\n' +
       "  null = cannot be judged (covered by a cap or turban, tied back, or cut off by the frame)\n" +
-      CURLS_NOTE
+      CURLS_NOTE +
+      // 12.10.2026: a man with about 4 cm on top, pushed up a little, was
+      // read as "medium"; his previews then grew his hair to 7–9 cm.
+      "\n  Judge the length of the hair itself, not how high it is pushed up. If it is between two, choose the shorter one."
     );
   }
   return (
@@ -158,7 +167,16 @@ export function buildReadingPrompt(gender: HairGender, variant: 0 | 1 = 0): stri
   const hair =
     "The hair:\n" +
     `${lengthGuide(gender)}\n` +
-    '"hair_type": the natural texture: "straight", "wavy" or "curly"; null if it cannot be judged';
+    '"hair_type": the natural texture: "straight", "wavy" or "curly"; null if it cannot be judged' +
+    (gender === "men"
+      ? "\n" +
+        '"facial_hair": one of\n' +
+        '  "none" = clean-shaven, no visible hair growth\n' +
+        '  "stubble" = short stubble only, a few days\' growth, skin clearly visible through it\n' +
+        '  "beard" = a grown beard covering the jaw or chin, skin not visible through it\n' +
+        '  "moustache" = a moustache with the cheeks and chin clean-shaven or only stubbled\n' +
+        "  If it is between stubble and beard, choose stubble."
+      : "");
   return (
     "Look at the person in this photo and fill in this JSON object, in this order.\n\n" +
     `${variant === 0 ? `${face}\n\n${hair}` : `${hair}\n\n${face}`}\n\n` +
@@ -194,6 +212,7 @@ export function parseReading(output: string, gender: HairGender): Omit<PhotoRead
     sure: null,
     hairLength: null,
     hairTexture: null,
+    facialHair: null,
     observations: null,
     note,
   });
@@ -223,9 +242,24 @@ export function parseReading(output: string, gender: HairGender): Omit<PhotoRead
     sure: pickFrom(data.sure, ["high", "medium", "low"] as const),
     hairLength: pickFrom(data.hair_length, lengths),
     hairTexture: pickFrom(data.hair_type, TEXTURES),
+    facialHair: gender === "men" ? pickFrom(data.facial_hair, FACIAL_HAIR) : null,
     observations,
     note: faceShape ? "" : "no usable face shape in the answer",
   };
+}
+
+// 12.10.2026: when the two readings differ, the smaller answer is used. A
+// preview that grows hair or a beard the customer doesn't have is the
+// mistake customers notice most; one that keeps things a little short is not.
+const LENGTH_ORDER: readonly string[] = [...MEN_LENGTHS, ...WOMEN_LENGTHS];
+export function shorterLength(a: HairLength | null, b: HairLength | null): HairLength | null {
+  if (!a || !b) return a ?? b;
+  return LENGTH_ORDER.indexOf(a) <= LENGTH_ORDER.indexOf(b) ? a : b;
+}
+const FACIAL_ORDER: FacialHairRead[] = ["none", "moustache", "stubble", "beard"];
+export function lessFacialHair(a: FacialHairRead | null, b: FacialHairRead | null): FacialHairRead | null {
+  if (!a || !b) return a ?? b;
+  return FACIAL_ORDER.indexOf(a) <= FACIAL_ORDER.indexOf(b) ? a : b;
 }
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
@@ -261,6 +295,7 @@ export async function readPhoto(imageUrl: string, gender: HairGender, variant: 0
         sure: null,
         hairLength: null,
         hairTexture: null,
+        facialHair: null,
         observations: null,
         model: "mock",
         costPaise: 0,
@@ -275,6 +310,7 @@ export async function readPhoto(imageUrl: string, gender: HairGender, variant: 0
       sure: "medium",
       hairLength: gender === "men" ? "medium" : "below-shoulder",
       hairTexture: gender === "men" ? "straight" : "wavy",
+      facialHair: gender === "men" ? "stubble" : null,
       observations: { widest_part: "all similar", jaw: gender === "men" ? "angular" : "rounded", length_vs_width: "about equal" },
       model: "mock",
       costPaise: 0,
@@ -290,6 +326,7 @@ export async function readPhoto(imageUrl: string, gender: HairGender, variant: 0
     sure: null,
     hairLength: null,
     hairTexture: null,
+    facialHair: null,
     observations: null,
     model: VISION_MODEL,
     costPaise: null,
@@ -428,7 +465,11 @@ export function settleReadings(a: PhotoReading, b: PhotoReading): CheckedReading
   if (!a.ok && !b.ok) return { ...a, costPaise, agreed: null, other: brief(b) };
 
   if (a.ok && b.ok) {
-    const hair = { hairLength: a.hairLength ?? b.hairLength, hairTexture: a.hairTexture ?? b.hairTexture };
+    const hair = {
+      hairLength: shorterLength(a.hairLength, b.hairLength),
+      hairTexture: a.hairTexture ?? b.hairTexture,
+      facialHair: lessFacialHair(a.facialHair, b.facialHair),
+    };
     if (a.faceShape === b.faceShape) return { ...a, ...hair, costPaise, agreed: true, other: brief(b) };
     // Two different shapes. What each reading saw may settle it: the two
     // sets of observations must not point to different shapes, and the

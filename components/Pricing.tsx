@@ -46,12 +46,12 @@ import {
 const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: boolean; features: string[] }> = {
   STARTER: {
     tagline: "Try your first matches",
-    features: ["4 hairstyle previews on your own photo", "Each from the front, both sides and the back", "Barber instructions with every preview"],
+    features: ["See any 4 of your matched hairstyles on your own photo", "Each from the front, both sides and the back", "Barber instructions with every preview"],
   },
   STYLE: {
     tagline: "Our most-picked plan",
     popular: true,
-    features: ["10 hairstyle previews on your own photo", "Each from the front, both sides and the back", "Barber instructions with every preview"],
+    features: ["See any 10 of your matched hairstyles on your own photo", "Each from the front, both sides and the back", "Barber instructions with every preview"],
   },
   FULL_EXPLORE: {
     tagline: "The complete look, styled",

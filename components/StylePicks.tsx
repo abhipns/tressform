@@ -548,6 +548,21 @@ export default function StylePicks({
             <ShareIcon />
             {busy === `barber-${style.id}` ? "Getting it ready…" : "Send to my barber"}
           </button>
+          {/* 12.10.2026: the owner looked for a social share button on the
+              card itself; "Share my styles" sits above the list and was
+              missed. This one shares just this style: the photo of the
+              customer now beside this preview, with the message for friends. */}
+          {frontPhoto && (
+            <button
+              type="button"
+              className="btn-amber gap-2 !px-5 !py-2.5 !text-[15px] !shadow-none"
+              disabled={busy === `share-${style.id}`}
+              onClick={() => shareStyles([style.id], `share-${style.id}`, style.id)}
+            >
+              <ShareIcon />
+              {busy === `share-${style.id}` ? "Making it…" : "Share"}
+            </button>
+          )}
         </div>
         {notice?.styleId === style.id && <p className="mt-2 text-[13.5px] text-ink-muted">{notice.text}</p>}
 
@@ -593,10 +608,15 @@ export default function StylePicks({
   const shareList = chosen.length > 0 ? chosen : madeStyles.slice(0, 4).map((p) => p.style.id);
 
   async function shareMyStyles() {
-    if (!frontPhoto || shareList.length === 0) return;
-    setBusy("share");
+    await shareStyles(shareList, "share", "share");
+  }
+
+  /** One picture for friends: the customer now, then the chosen styles numbered. */
+  async function shareStyles(ids: string[], busyKey: string, noticeKey: string) {
+    if (!frontPhoto || ids.length === 0) return;
+    setBusy(busyKey);
     try {
-      const styles = shareList.map((id) => ({ name: previews[id].style.name, url: previews[id].imageUrl! }));
+      const styles = ids.map((id) => ({ name: previews[id].style.name, url: previews[id].imageUrl! }));
       const file = await makeSharePicture(frontPhoto, styles);
       const text = friendsMessage(styles.length);
       const result = await shareFiles([file], text, "My hairstyles");
@@ -607,10 +627,10 @@ export default function StylePicks({
         } catch {
           /* fine */
         }
-        setNotice({ styleId: "share", text: "Your picture is saved and the message is copied — paste both wherever you like." });
+        setNotice({ styleId: noticeKey, text: "Your picture is saved and the message is copied — paste both wherever you like." });
       }
     } catch {
-      setNotice({ styleId: "share", text: "The picture couldn't be made. Please try again." });
+      setNotice({ styleId: noticeKey, text: "The picture couldn't be made. Please try again." });
     } finally {
       setBusy(null);
     }
@@ -945,10 +965,14 @@ export default function StylePicks({
                   ? "No cuts match today"
                   : picks.top.length === 1
                     ? "Your best haircut"
-                    : `Your top ${picks.top.length} haircuts`}
+                    : "Your best-matched haircuts"}
               </h4>
               {picks.top.length > 0 && (
-                <p className="mt-1 text-[15px] text-ink-muted">Cuts you can get today, best match first.</p>
+                <p className="mt-1 text-[15px] text-ink-muted">
+                  {/* 12.10.2026: the list is free and can be longer than a pack (5 here, 4 in the
+                      Starter Pack); the heading no longer puts a number on it. */}
+                  {picks.top.length} cuts you can get today, best match first. Choose which ones to see on you.
+                </p>
               )}
             </div>
             {left !== null && left > 0 && (

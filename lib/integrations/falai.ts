@@ -112,7 +112,7 @@ export interface GenerateHairstyleParams {
   styleName: string; // e.g. "Textured Quiff — Low Taper"
   faceShape?: string | null;
   /** From face analysis: tells the model what to do about facial hair instead of leaving it to guess. */
-  facialHair?: "beard" | "moustache" | "clean" | null;
+  facialHair?: "beard" | "moustache" | "clean" | "stubble" | null;
   addonKind?: "BACKGROUND" | "OUTFIT" | null;
   /**
    * The owner's Studio page only (10.10.2026): the hairstyle in the owner's
@@ -188,9 +188,18 @@ function facialHairLine(facialHair: GenerateHairstyleParams["facialHair"]): stri
   switch (facialHair) {
     case "clean":
       return "They are clean-shaven: keep the face clean-shaven, with no beard, moustache or stubble added.";
+    case "stubble":
+      // 12.10.2026: a man with a few days' stubble came back with a full,
+      // dark beard in his paid preview (and so in all four views).
+      return (
+        "They have only short stubble, a few days' growth with the skin showing through it. " +
+        "Keep exactly that: the same short, light stubble, no longer, no darker and no thicker, with the skin still showing through. " +
+        "Do not turn it into a beard."
+      );
     case "beard":
       return (
         "Leave their facial hair exactly as it is in the photo: the same shape, the same edges, the same length and the same colour, grey included. " +
+        "It must not come out longer, darker or fuller than in the photo. " +
         "Skin that is bare or only stubbled in the photo, on the cheeks, jaw or neck, stays that way: do not grow, thicken, extend or join up the facial hair."
       );
     case "moustache":

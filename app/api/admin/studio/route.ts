@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       : null;
   const facialHair =
     body.gender !== "women" &&
-    (analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean")
+    (analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean" || analysed?.facialHair === "stubble")
       ? analysed.facialHair
       : null;
 

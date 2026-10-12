@@ -99,6 +99,7 @@ describe("settling two readings of one photo", () => {
     sure: "high",
     hairLength: "short",
     hairTexture: "straight",
+    facialHair: null,
     observations: null,
     model: "test",
     costPaise: 5,
@@ -178,5 +179,22 @@ describe("the shape that follows from what was seen", () => {
     expect(shapeFromObservations({ length_vs_width: "a little longer", widest_part: "all similar", jaw: "angular" })).toBeNull();
     expect(shapeFromObservations({})).toBeNull();
     expect(shapeFromObservations(null)).toBeNull();
+  });
+});
+
+describe("readings that differ on hair (12.10.2026)", () => {
+  it("keeps the shorter hair and the lighter facial hair", async () => {
+    const { shorterLength, lessFacialHair } = await import("../lib/integrations/vision");
+    expect(shorterLength("medium", "short")).toBe("short");
+    expect(shorterLength(null, "medium")).toBe("medium");
+    expect(lessFacialHair("beard", "stubble")).toBe("stubble");
+    expect(lessFacialHair("stubble", null)).toBe("stubble");
+  });
+  it("asks men about stubble, and women not at all", async () => {
+    const { buildReadingPrompt, parseReading } = await import("../lib/integrations/vision");
+    expect(buildReadingPrompt("men")).toContain('"stubble"');
+    expect(buildReadingPrompt("women")).not.toContain("facial_hair");
+    expect(parseReading('{"face_shape":"Oval","facial_hair":"Stubble","hair_length":"short"}', "men").facialHair).toBe("stubble");
+    expect(parseReading('{"face_shape":"Oval","facial_hair":"stubble"}', "women").facialHair).toBeNull();
   });
 });
