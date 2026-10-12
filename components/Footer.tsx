@@ -120,6 +120,9 @@ export default function Footer() {
             <a href="/#faq" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Questions
             </a>
+            <a href="/haircare" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+              Hair care
+            </a>
             <a href="/blog" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Blog
             </a>

@@ -56,6 +56,7 @@ const DIRECT_LINKS = [
 
 const MENU_LINKS = [
   { href: "/refer", label: "Refer & Earn", note: "Credits for every friend who buys" },
+  { href: "/haircare", label: "Hair care", note: "Wash and styling tips, and products that suit your cut" },
   { href: "/blog", label: "Blog", note: "Hair advice, plainly written" },
 ];
 

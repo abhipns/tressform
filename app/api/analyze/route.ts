@@ -335,7 +335,9 @@ export async function POST(req: NextRequest) {
   ]);
 
   if (error || !photo) {
-    return NextResponse.json({ error: error?.message ?? "Failed to save photo analysis." }, { status: 500 });
+    // Never show the database's own wording to a customer (12.10.2026).
+    console.error("[Tressform] Photo analysis not saved:", error?.message);
+    return NextResponse.json({ error: "Something went wrong saving your photo. Please press the button again." }, { status: 500 });
   }
 
   // null = "not being counted right now" (placeholder images while the image

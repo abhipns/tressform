@@ -51,6 +51,10 @@ const SECTIONS = [
     body: "Payments for paid plans are handled by our payment partner, PayU (PayU Payments Private Limited). You pay on PayU's own page: your card, UPI and bank details go directly to PayU — we do not see or store them. To start a payment we pass PayU your name, your email address and the mobile number you enter at checkout; we do not keep that mobile number ourselves. We keep a record of your order (the plan, the amount and the payment reference).",
   },
   {
+    heading: "Product links",
+    body: "When you tap a product link, we record which product was tapped and on which page, but not who tapped it, so we can see which suggestions are useful. You then go to the shop's own website, where the shop's privacy policy applies.",
+  },
+  {
     heading: "How long we keep it",
     body: "Uploaded photos are automatically deleted 90 days after upload, unless your account is still active and using them. Previews you have paid for are kept in your account until you ask us to delete them. You can ask us to delete your photos, your previews or your whole account at any time, and we will do so without waiting for the 90-day period.",
   },

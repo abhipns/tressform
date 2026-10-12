@@ -54,6 +54,24 @@ export const supabase: SupabaseClient<any> = createClient(
 );
 
 /**
+ * The server's database calls, fresh every time (see below), with one retry
+ * for a passing Supabase hiccup: on 12.10.2026 a photo save failed once
+ * with "JWT issued at future" — Supabase's own servers disagreeing about the
+ * time by a moment (the same request a second later works). The owner saw
+ * that raw message on the upload page. Only that answer is retried, once,
+ * after a short wait; a request body that can't be sent twice (a stream) is
+ * never retried.
+ */
+export async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, { ...init, cache: "no-store" });
+  if (res.status !== 401 || (init?.body && typeof init.body !== "string")) return res;
+  const text = await res.clone().text().catch(() => "");
+  if (!/issued at future/i.test(text)) return res;
+  await new Promise((r) => setTimeout(r, 1500));
+  return fetch(input, { ...init, cache: "no-store" });
+}
+
+/**
  * Service-role client — bypasses RLS. Server-only: import this ONLY from
  * app/api/* route handlers or other server code, never from a client
  * component. Falls back to the same mock-safe placeholder when unset.
@@ -67,7 +85,7 @@ export function getSupabaseAdmin(): SupabaseClient<any> {
     // testing the daily clean-up, which was being handed yesterday's list of
     // files (and would equally have replayed a stale order or carousel).
     // `cache: "no-store"` switches that off for this client.
-    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
+    global: { fetch: serverFetch },
   });
 }
 

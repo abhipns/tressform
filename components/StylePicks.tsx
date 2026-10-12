@@ -47,6 +47,7 @@
 // function the upload flow passes in.
 
 import { useEffect, useMemo, useState } from "react";
+import CareBox, { useCareProducts } from "@/components/CareBox";
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
@@ -254,6 +255,7 @@ export default function StylePicks({
     initial.hair.length && lengths.includes(initial.hair.length) ? initial.hair.length : null
   );
   const [texture, setTexture] = useState<HairTexture | null>(initial.hair.texture);
+  const careProducts = useCareProducts();
 
   // The face shape needs a look from the customer when the reading was not
   // sure of it, or failed and the old measurement stood in.
@@ -578,6 +580,7 @@ export default function StylePicks({
             {single ? "Showing them the picture as well works best." : "Show them all four pictures as well — it works best."}
           </p>
         </div>
+        {texture && <CareBox style={style} texture={texture} products={careProducts} open from="preview" />}
       </li>
     );
   }
@@ -750,6 +753,7 @@ export default function StylePicks({
                 What to tell your barber comes with the preview.
               </p>
             )}
+            {texture && <CareBox style={pick.style} texture={texture} products={careProducts} from="list" />}
           </div>
         </div>
       </li>

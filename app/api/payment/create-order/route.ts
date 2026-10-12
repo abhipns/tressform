@@ -187,7 +187,8 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error || !order) {
-    return NextResponse.json({ error: error?.message ?? "Failed to create order." }, { status: 500 });
+    console.error("[Tressform] Order not created:", error?.message);
+    return NextResponse.json({ error: "We couldn't start your payment. Please try again." }, { status: 500 });
   }
 
   const returnUrl = `${req.nextUrl.origin}/api/payment/payu-return`;

@@ -54,6 +54,10 @@ const SECTIONS = [
     body: "Please don't misuse the service: no photos of other people without their consent, no unlawful or offensive content, no attempts to obtain previews without paying for them, and no automated use of the site. We may suspend accounts that do.",
   },
   {
+    heading: "Product links",
+    body: "Some product links on Tressform are affiliate links: if you buy through them, we may earn a small commission from the shop, at no extra cost to you. Those products are sold by the shops, not by Tressform, so their price, delivery, returns and quality are the shop's responsibility. Our hair-care tips are general advice, not medical advice; check a product's label before use, especially if you have a sensitive scalp or allergies.",
+  },
+  {
     heading: "Governing law",
     body: "These terms are governed by the laws of India.",
   },

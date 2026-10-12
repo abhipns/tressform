@@ -15,7 +15,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ProductRecommendations from "@/components/results/ProductRecommendations";
 import { paiseToRupees } from "@/lib/pricing";
 import { authHeaders, loginUrl } from "@/lib/authClient";
 
@@ -170,7 +169,20 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
         </div>
       </section>
 
-      <ProductRecommendations />
+      {/* 12.10.2026: the made-up "Tressform" products that stood here are gone.
+          Care tips and real product picks are on each hairstyle card now. */}
+      <section className="wrap pb-16">
+        <div className="mx-auto max-w-[720px] rounded-[16px] bg-bg-soft p-5 text-center">
+          <p className="text-[15.5px] font-semibold text-ink-heading">Looking after your new cut</p>
+          <p className="mt-1.5 text-[14.5px] leading-[1.55]">
+            Each hairstyle card has wash and styling tips for that cut. See the{" "}
+            <a href="/haircare" className="font-semibold text-mint-deep">
+              Hair care
+            </a>{" "}
+            page for more.
+          </p>
+        </div>
+      </section>
     </>
   );
 }
