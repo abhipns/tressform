@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     if (!photo || photo.userId !== userId) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
     const previews = [...mockStore.styleResults.values()]
       .filter((r) => r.userId === userId && r.photoId === photo.id && r.status === "SUCCEEDED" && r.resultImageUrl)
-      .map((r) => ({ styleName: r.styleName, url: r.resultImageUrl as string }));
+      .map((r) => ({ styleName: r.styleName, url: r.resultImageUrl as string, views: r.viewUrls ?? null }));
     return NextResponse.json({ previewsLeft: mockPreviewsLeft(userId).total, previews });
   }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   const [{ data: rows }, left] = await Promise.all([
     admin
       .from("style_results")
-      .select("style_name, result_storage_path, created_at")
+      .select("style_name, result_storage_path, view_paths, created_at")
       .eq("user_id", userId)
       .eq("photo_id", photo.id)
       .eq("status", "SUCCEEDED")
@@ -62,18 +62,32 @@ export async function POST(req: NextRequest) {
   // One picture per style: the latest. Placeholder pictures (stored as a
   // plain web link while the image generator is in mock mode) are passed on
   // as they are; real ones get a private, short-lived link.
-  const latest = new Map<string, string>();
-  for (const row of rows ?? []) latest.set(row.style_name, row.result_storage_path as string);
+  // 12.10.2026: with its side and back views, when they were made.
+  const latest = new Map<string, { path: string; views: Record<string, unknown> | null }>();
+  for (const row of rows ?? []) {
+    latest.set(row.style_name, { path: row.result_storage_path as string, views: (row.view_paths as Record<string, unknown> | null) ?? null });
+  }
+  const sign = async (path: string) => {
+    if (path.startsWith("http")) return path;
+    const { data: link } = await admin.storage.from("results").createSignedUrl(path, LINK_SECONDS);
+    return link?.signedUrl ?? null;
+  };
 
   const previews = (
     await Promise.all(
-      [...latest].map(async ([styleName, path]) => {
-        if (path.startsWith("http")) return { styleName, url: path };
-        const { data: link } = await admin.storage.from("results").createSignedUrl(path, LINK_SECONDS);
-        return link?.signedUrl ? { styleName, url: link.signedUrl } : null;
+      [...latest].map(async ([styleName, { path, views }]) => {
+        const url = await sign(path);
+        if (!url) return null;
+        let viewLinks: { left: string | null; right: string | null; back: string | null } | null = null;
+        if (views) {
+          const side = async (v: string) => (typeof views[v] === "string" ? sign(views[v] as string) : null);
+          const [left, right, back] = await Promise.all([side("left"), side("right"), side("back")]);
+          viewLinks = { left, right, back };
+        }
+        return { styleName, url, views: viewLinks };
       })
     )
-  ).filter((p): p is { styleName: string; url: string } => p !== null);
+  ).filter((p): p is { styleName: string; url: string; views: { left: string | null; right: string | null; back: string | null } | null } => p !== null);
 
   return NextResponse.json({ previewsLeft: FALAI_MOCK_MODE ? null : left.total, previews });
 }

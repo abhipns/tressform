@@ -20,8 +20,8 @@ const PAIRS = [
     reality: "Real hair has its own texture and growth pattern, so the finished look softens slightly in person",
   },
   {
-    shows: "How the style looks on you from the front",
-    reality: "Your barber's hand and technique add small, natural differences the preview can't capture",
+    shows: "How the style looks on you from the front, both sides and the back",
+    reality: "The side and back views are the AI's best estimate from your front selfie, and your barber's hand adds small, natural differences",
   },
   {
     shows: "A confident, realistic guide to help you and your barber agree on direction",

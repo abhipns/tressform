@@ -102,6 +102,8 @@ export interface MockStyleResult {
   provider: string;
   costPaise: number | null;
   createdAt: string;
+  /** 12.10.2026: left/right/back pictures of a paid preview. */
+  viewUrls?: { left: string | null; right: string | null; back: string | null } | null;
 }
 
 // A module-level singleton keeps state across requests within one running

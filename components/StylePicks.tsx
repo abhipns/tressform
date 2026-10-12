@@ -32,6 +32,16 @@
 // checkout; the customer comes back to this same screen after paying. Each
 // style's button points up at that offer.
 //
+// 12.10.2026 (four views): a preview from a pack is shown from four sides.
+// The front picture arrives first; the page then asks for the left side,
+// right side and back (makeViews), which take about 20 seconds more. A
+// finished card shows all four pictures large (two by two on a computer, a
+// row to swipe on a phone), a save button on every picture, "Download all
+// 4" and "Send to my barber" (the four pictures plus the cutting points).
+// One "Share my styles" button above the list makes a single picture for
+// friends: the customer's photo and up to four styles, numbered for votes —
+// see lib/shareTools.ts.
+//
 // This component only shows things and asks for previews. Which styles are
 // picked is decided in lib/recommend.ts; making a preview is done by the
 // function the upload flow passes in.
@@ -52,6 +62,16 @@ import {
 import { pickStyles, type CustomerHair, type StylePick } from "@/lib/recommend";
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
 import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
+import {
+  barberMessage,
+  friendsMessage,
+  makeSharePicture,
+  pictureFile,
+  saveFile,
+  savePicture,
+  shareFiles,
+  slug,
+} from "@/lib/shareTools";
 
 // The two packs on sale, offered right on the result screen.
 const PACKS_ON_SALE: PackTier[] = ["STARTER", "STYLE"];
@@ -72,10 +92,52 @@ export interface ConfirmedDetails {
 }
 
 export type PreviewOutcome =
-  | { ok: true; imageUrl: string; sample: boolean; previewsLeft: number | null }
+  | { ok: true; imageUrl: string; sample: boolean; previewsLeft: number | null; paid: boolean }
   | { ok: false; noAllowance: boolean; rejected: boolean; message: string };
 
-type PreviewState = { state: "loading" | "done" | "failed"; imageUrl?: string; message?: string; style: Hairstyle };
+/** The left side, right side and back of a paid preview. */
+export type Views = { left: string | null; right: string | null; back: string | null };
+export type ViewsOutcome =
+  | { ok: true; state: "making" | "done"; views: Views; message: string | null }
+  | { ok: false; message: string };
+export type EarlierPreview = { styleName: string; url: string; views?: Views | null };
+
+type PreviewState = {
+  state: "loading" | "done" | "failed";
+  imageUrl?: string;
+  message?: string;
+  style: Hairstyle;
+  /** Side and back views: none asked for yet (undefined), being made, made, or failed. */
+  viewsState?: "loading" | "done" | "failed";
+  views?: Views;
+  viewsMessage?: string | null;
+};
+
+const VIEW_ORDER: { key: "front" | keyof Views; label: string }[] = [
+  { key: "front", label: "Front" },
+  { key: "left", label: "Left side" },
+  { key: "right", label: "Right side" },
+  { key: "back", label: "Back" },
+];
+
+function DownloadIcon({ className = "h-[18px] w-[18px]" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="15" cy="4.5" r="2.2" />
+      <circle cx="5" cy="10" r="2.2" />
+      <circle cx="15" cy="15.5" r="2.2" />
+      <path d="m7 9 6-3.3M7 11l6 3.3" />
+    </svg>
+  );
+}
 
 const FACE_SHAPES: { shape: FaceShape; hint: string }[] = [
   { shape: "Oval", hint: "A little longer than wide, soft jaw" },
@@ -166,6 +228,7 @@ export default function StylePicks({
   initial,
   previewsLeft: previewsLeftAtStart,
   makePreview,
+  makeViews,
   onStartOver,
   earlier,
   onDetails,
@@ -176,9 +239,11 @@ export default function StylePicks({
   /** null = previews are not being counted (placeholder images). */
   previewsLeft: number | null;
   makePreview: (styleId: string, details: ConfirmedDetails) => Promise<PreviewOutcome>;
+  /** Asks for the side and back views of a paid preview. */
+  makeViews?: (styleId: string) => Promise<ViewsOutcome>;
   onStartOver: () => void;
   /** Previews already made from this photo, by style name. */
-  earlier?: { styleName: string; url: string }[];
+  earlier?: EarlierPreview[];
   /** Told each time the customer's details are complete or change. */
   onDetails?: (details: ConfirmedDetails) => void;
 }) {
@@ -200,7 +265,11 @@ export default function StylePicks({
     const made: Record<string, PreviewState> = {};
     for (const item of earlier ?? []) {
       const style = HAIRSTYLES.find((h) => h.gender === gender && h.name === item.styleName);
-      if (style) made[style.id] = { state: "done", imageUrl: item.url, style };
+      if (style) {
+        made[style.id] = item.views
+          ? { state: "done", imageUrl: item.url, style, viewsState: "done", views: item.views }
+          : { state: "done", imageUrl: item.url, style };
+      }
     }
     return made;
   });
@@ -236,6 +305,37 @@ export default function StylePicks({
   const canStart = left === null || left - loadingCount > 0;
   const allowanceSpent = left !== null && left <= 0 && loadingCount === 0;
 
+  /** Ask for the side and back views; while another request is making them, check again shortly. */
+  async function requestViews(style: Hairstyle, tries = 0) {
+    if (!makeViews) return;
+    setPreviews((prev) => (prev[style.id] ? { ...prev, [style.id]: { ...prev[style.id], viewsState: "loading", viewsMessage: null } } : prev));
+    let outcome: ViewsOutcome;
+    try {
+      outcome = await makeViews(style.id);
+    } catch {
+      outcome = { ok: false, message: "The side and back views couldn't be made. Please check your connection." };
+    }
+    if (outcome.ok && outcome.state === "making" && tries < 12) {
+      window.setTimeout(() => requestViews(style, tries + 1), 5000);
+      return;
+    }
+    setPreviews((prev) => {
+      const current = prev[style.id];
+      if (!current) return prev;
+      if (!outcome.ok) return { ...prev, [style.id]: { ...current, viewsState: "failed", viewsMessage: outcome.message } };
+      const missing = !outcome.views.left || !outcome.views.right || !outcome.views.back;
+      return {
+        ...prev,
+        [style.id]: {
+          ...current,
+          viewsState: missing ? "failed" : "done",
+          views: outcome.views,
+          viewsMessage: missing ? outcome.message ?? "Some views couldn't be made." : null,
+        },
+      };
+    });
+  }
+
   async function seeItOnMe(style: Hairstyle) {
     if (!customer || !canStart || previews[style.id]?.state === "loading") return;
     setPreviews((prev) => ({ ...prev, [style.id]: { state: "loading", style } }));
@@ -261,6 +361,8 @@ export default function StylePicks({
       setPreviews((prev) => ({ ...prev, [style.id]: { state: "done", imageUrl: done.imageUrl, style } }));
       if (done.sample) setSamples(true);
       else if (done.previewsLeft !== null) setLeft(done.previewsLeft);
+      // A preview from a pack comes with its side and back views.
+      if (done.paid) void requestViews(style);
       return;
     }
     if (outcome.noAllowance) {
@@ -284,8 +386,287 @@ export default function StylePicks({
   // Plain functions, not components: a component declared in here would be
   // a new one on every render, which would reload every picture each time
   // anything changed.
+  /** The four pictures of a finished preview, with what is still on its way. */
+  function pictures(preview: PreviewState): { key: string; label: string; url: string | null; waiting: boolean }[] {
+    const hasViews = preview.viewsState !== undefined;
+    return VIEW_ORDER.filter((v) => v.key === "front" || hasViews).map((v) => ({
+      key: v.key,
+      label: v.label,
+      url: v.key === "front" ? preview.imageUrl ?? null : preview.views?.[v.key] ?? null,
+      waiting: v.key !== "front" && preview.viewsState === "loading",
+    }));
+  }
+
+  async function downloadAll(preview: PreviewState) {
+    for (const pic of pictures(preview)) {
+      if (!pic.url) continue;
+      await savePicture(pic.url, `${slug(preview.style.name)}-${slug(pic.label)}.jpg`);
+      await new Promise((r) => window.setTimeout(r, 350)); // browsers block a burst of downloads
+    }
+  }
+
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ styleId: string; text: string } | null>(null);
+
+  async function sendToBarber(preview: PreviewState) {
+    const style = preview.style;
+    const text = barberMessage(style.name, barberName(style), barberPoints(style));
+    setBusy(`barber-${style.id}`);
+    try {
+      const pics = pictures(preview).filter((p) => p.url);
+      const files = await Promise.all(pics.map((p) => pictureFile(p.url!, `${slug(style.name)}-${slug(p.label)}.jpg`)));
+      const result = await shareFiles(files, text, style.name);
+      if (result === "unsupported") {
+        // Computers: save the pictures, copy the words, open WhatsApp with them.
+        for (const f of files) {
+          saveFile(f, f.name);
+          await new Promise((r) => window.setTimeout(r, 350));
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          /* not allowed here — WhatsApp still gets the words below */
+        }
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+        setNotice({ styleId: style.id, text: "The 4 pictures are saved and the words are in WhatsApp. Attach the pictures there." });
+      }
+    } catch {
+      setNotice({ styleId: style.id, text: "That didn't work. Try “Download all 4” and send them yourself." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function renderDone(pick: StylePick | null, preview: PreviewState, rank: number | null) {
+    const style = preview.style;
+    const reasons = pick && customer ? reasonsFor(pick, customer) : [];
+    const pics = pictures(preview);
+    const single = pics.length === 1;
+    return (
+      <li key={style.id} id={`pick-${style.id}`} className="scroll-mt-24 rounded-[20px] bg-bg-soft p-4 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <h4 className="text-[20px] font-semibold leading-snug">
+            {rank !== null && <span className="mr-2 text-mint">{rank}.</span>}
+            {style.name}
+          </h4>
+          {pick && (
+            <p className="shrink-0 text-right leading-none">
+              <span className="font-heading text-[22px] font-semibold text-ink-heading">{pick.score}%</span>
+              <span className="mt-1 block text-[12.5px] font-medium text-ink-muted">match</span>
+            </p>
+          )}
+        </div>
+        <p className="mt-1.5 text-[15.5px] leading-[1.5]">{style.line}</p>
+
+        {/* Phones: one picture at a time, swipe for the others. Computers: two by two. */}
+        <div
+          className={`mt-4 ${
+            single
+              ? "max-w-[380px]"
+              : "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
+          }`}
+        >
+          {pics.map((pic) => (
+            <figure key={pic.key} className={single ? "" : "w-[84%] shrink-0 snap-center sm:w-auto"}>
+              <div className="relative aspect-[3/4] overflow-hidden rounded-[16px] bg-line">
+                {pic.url ? (
+                  <a href={pic.url} target="_blank" rel="noreferrer" title="Open the full picture">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={pic.url} alt={`${style.name}, ${pic.label.toLowerCase()}`} className="absolute inset-0 h-full w-full object-cover" />
+                  </a>
+                ) : pic.waiting ? (
+                  <>
+                    {preview.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={preview.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25 blur-[2px]" />
+                    )}
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-x-0 top-0 h-[24%] animate-[scan-down_2.2s_ease-in-out_infinite] border-b-2 border-white/90 bg-gradient-to-b from-transparent to-mint/45 motion-reduce:hidden"
+                    />
+                    <p className="absolute inset-x-0 bottom-0 bg-header-dark/75 px-3 py-2.5 text-center text-[13px] font-medium text-white">
+                      Making the {pic.label.toLowerCase()}…
+                    </p>
+                  </>
+                ) : (
+                  <p className="absolute inset-0 flex items-center justify-center p-4 text-center text-[13.5px] text-ink-muted">
+                    Not made yet
+                  </p>
+                )}
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-white/90 px-2.5 py-1 text-[12px] font-semibold text-ink-heading">
+                  {pic.label}
+                  {pic.key !== "front" && <span className="font-medium text-ink-muted"> · AI estimate</span>}
+                </span>
+                {pic.url && (
+                  <button
+                    type="button"
+                    onClick={() => savePicture(pic.url!, `${slug(style.name)}-${slug(pic.label)}.jpg`)}
+                    aria-label={`Save the ${pic.label.toLowerCase()} picture`}
+                    title="Save this picture"
+                    className="absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-ink-heading shadow-card"
+                  >
+                    <DownloadIcon />
+                  </button>
+                )}
+              </div>
+            </figure>
+          ))}
+        </div>
+        {!single && <p className="mt-2 text-center text-[12.5px] text-ink-muted sm:hidden">Swipe for the sides and back · tap a picture to open it</p>}
+        {preview.viewsState === "loading" && (
+          <p className="mt-2 text-[13.5px] text-ink-muted" role="status">
+            Your side and back views are on their way, about 20 seconds.
+          </p>
+        )}
+        {preview.viewsState === "failed" && (
+          <p className="mt-2 text-[13.5px] text-danger" role="status">
+            {preview.viewsMessage ?? "The side and back views couldn't be made."}{" "}
+            <button type="button" className="font-semibold underline" onClick={() => requestViews(style)}>
+              Try again
+            </button>
+          </p>
+        )}
+        {preview.viewsState === undefined && makeViews && !samples && (
+          <button type="button" className="mt-2 text-[14px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4" onClick={() => requestViews(style)}>
+            See the sides and back
+          </button>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" className="btn-primary gap-2 !px-5 !py-2.5 !text-[15px]" onClick={() => downloadAll(preview)}>
+            <DownloadIcon />
+            {single ? "Download" : `Download all ${pics.filter((p) => p.url).length}`}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary gap-2 !px-5 !py-2.5 !text-[15px]"
+            disabled={busy === `barber-${style.id}`}
+            onClick={() => sendToBarber(preview)}
+          >
+            <ShareIcon />
+            {busy === `barber-${style.id}` ? "Getting it ready…" : "Send to my barber"}
+          </button>
+        </div>
+        {notice?.styleId === style.id && <p className="mt-2 text-[13.5px] text-ink-muted">{notice.text}</p>}
+
+        {reasons.length > 0 && (
+          <ul className="mt-5 flex flex-col gap-1.5 text-[14.5px] leading-[1.45]">
+            {reasons.map((reason) => (
+              <li key={reason} className="flex gap-2">
+                <Tick />
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-3 text-[13.5px] font-medium text-ink-muted">{UPKEEP_LABEL[style.upkeep]}</p>
+
+        <div className="mt-4 rounded-[14px] bg-surface p-4">
+          <p className="text-[15px] font-semibold text-ink-heading">What to tell your barber</p>
+          <p className="mt-1.5 text-[14.5px]">
+            Ask for <strong className="font-semibold text-ink-heading">{barberName(style)}</strong>:
+          </p>
+          <ul className="mt-2 flex flex-col gap-1.5 text-[14.5px] leading-[1.45]">
+            {barberPoints(style).map((point) => (
+              <li key={point} className="flex gap-2.5">
+                <span className="mt-[8px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[13.5px] text-ink-muted">
+            {single ? "Showing them the picture as well works best." : "Show them all four pictures as well — it works best."}
+          </p>
+        </div>
+      </li>
+    );
+  }
+
+  // ------------------------------------------------------- share my styles
+  const madeStyles = Object.values(previews).filter((p) => p.state === "done" && p.imageUrl);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareIds, setShareIds] = useState<string[]>([]);
+  const chosen = shareIds.filter((id) => previews[id]?.state === "done");
+  const shareList = chosen.length > 0 ? chosen : madeStyles.slice(0, 4).map((p) => p.style.id);
+
+  async function shareMyStyles() {
+    if (!frontPhoto || shareList.length === 0) return;
+    setBusy("share");
+    try {
+      const styles = shareList.map((id) => ({ name: previews[id].style.name, url: previews[id].imageUrl! }));
+      const file = await makeSharePicture(frontPhoto, styles);
+      const text = friendsMessage(styles.length);
+      const result = await shareFiles([file], text, "My hairstyles");
+      if (result === "unsupported") {
+        saveFile(file, file.name);
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          /* fine */
+        }
+        setNotice({ styleId: "share", text: "Your picture is saved and the message is copied — paste both wherever you like." });
+      }
+    } catch {
+      setNotice({ styleId: "share", text: "The picture couldn't be made. Please try again." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function renderShare() {
+    if (madeStyles.length === 0 || !frontPhoto) return null;
+    const many = madeStyles.length > 4;
+    return (
+      <div className="mt-5 rounded-[20px] border border-line p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[16px] font-semibold text-ink-heading">Can&apos;t decide? Ask your friends.</p>
+            <p className="mt-0.5 text-[13.5px] text-ink-muted">
+              One picture of you now and {Math.min(4, madeStyles.length) === 1 ? "your style" : `your styles, numbered 1–${Math.min(4, madeStyles.length)}`}, ready for WhatsApp. Includes your photo.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {many && (
+              <button type="button" className="btn-secondary !px-4 !py-2.5 !text-[14.5px]" onClick={() => setShareOpen((o) => !o)}>
+                Choose 4
+              </button>
+            )}
+            <button type="button" className="btn-amber gap-2 !px-5 !py-2.5 !text-[15px] !shadow-none" disabled={busy === "share"} onClick={shareMyStyles}>
+              <ShareIcon />
+              {busy === "share" ? "Making it…" : "Share my styles"}
+            </button>
+          </div>
+        </div>
+        {many && shareOpen && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {madeStyles.map((p) => {
+              const on = shareList.includes(p.style.id);
+              return (
+                <button
+                  key={p.style.id}
+                  type="button"
+                  onClick={() =>
+                    setShareIds(() => {
+                      const base = shareList.filter((id) => id !== p.style.id);
+                      return on ? base : [...base, p.style.id].slice(-4);
+                    })
+                  }
+                  className={`rounded-full border px-3.5 py-1.5 text-[14px] font-semibold ${on ? "border-mint bg-mint text-white" : "border-line bg-surface text-ink-heading"}`}
+                >
+                  {p.style.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {notice?.styleId === "share" && <p className="mt-2 text-[13.5px] text-ink-muted">{notice.text}</p>}
+      </div>
+    );
+  }
+
   function renderPick(pick: StylePick, rank: number | null) {
     const preview = previews[pick.style.id];
+    if (preview?.state === "done" && preview.imageUrl) return renderDone(pick, preview, rank);
     const reasons = customer ? reasonsFor(pick, customer) : [];
     return (
       <li key={pick.style.id} id={`pick-${pick.style.id}`} className="scroll-mt-24 rounded-[20px] bg-bg-soft p-4 sm:p-5">
@@ -587,7 +968,8 @@ export default function StylePicks({
               <h4 className="text-[20px] font-semibold leading-tight text-white">See them on your own photo</h4>
               <p className="mt-2 max-w-[56ch] text-[15px] leading-[1.5] text-white/75">
                 Your list is free. To see a style on your own photo, pick a pack and then choose which styles to use it
-                on. Each preview comes with the words to give your barber.
+                on. Each preview shows the style from the front, both sides and the back, with the words to give your
+                barber.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {PACKS_ON_SALE.map((tier, i) => (
@@ -603,6 +985,8 @@ export default function StylePicks({
               <p className="mt-3 text-[13.5px] text-white/55">One-time payment. You come back to this list afterwards.</p>
             </div>
           )}
+
+          {renderShare()}
 
           <ol className="mt-5 flex flex-col gap-4">
             {picks.top.map((pick, i) => renderPick(pick, i + 1))}
@@ -633,13 +1017,17 @@ export default function StylePicks({
       {offList.length > 0 && (
         <div className="mt-8">
           <h4 className="text-[19px] font-semibold leading-tight">Previews you made earlier</h4>
-          <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-            {offList.map((preview) => (
-              <li key={preview.style.id}>
-                {renderFrame(preview)}
-                <p className="mt-2 text-[15px] font-semibold text-ink-heading">{preview.style.name}</p>
-              </li>
-            ))}
+          <ul className="mt-4 flex flex-col gap-4">
+            {offList.map((preview) =>
+              preview.state === "done" && preview.imageUrl ? (
+                renderDone(null, preview, null)
+              ) : (
+                <li key={preview.style.id}>
+                  {renderFrame(preview)}
+                  <p className="mt-2 text-[15px] font-semibold text-ink-heading">{preview.style.name}</p>
+                </li>
+              )
+            )}
           </ul>
         </div>
       )}

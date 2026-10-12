@@ -441,6 +441,9 @@ export function buildViewPrompt(view: HairView, styleDescription: string): strin
     `The haircut is ${styleDescription.trim()}. ` +
     "Keep the haircut identical to the picture: the same hair colour, including any grey, the same length on top, " +
     "the same texture, parting, fade or taper and the same volume. " +
+    // 12.10.2026: the owner's first back view showed a pale, thin-looking
+    // patch at the crown that the front picture gives no reason for.
+    "The hair at the crown and the back is as thick and full as on the rest of the head, unless the picture clearly shows thinning. " +
     "Keep the same person: the same age, skin tone, build, ears, facial hair and clothing. " +
     "Head and shoulders in the frame, the same plain background and soft even light as the picture, sharp focus on the hair. " +
     "Do not add text, logos, watermarks, borders or other people."

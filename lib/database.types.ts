@@ -72,6 +72,7 @@ export interface StyleResultRow {
   error_message: string | null;
   /** The automatic check of the picture against the customer's photo (lib/previewCheck.ts). */
   check_result: Record<string, unknown> | null;
+  view_paths: Record<string, unknown> | null;
   created_at: string;
   completed_at: string | null;
 }

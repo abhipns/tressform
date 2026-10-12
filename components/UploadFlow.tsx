@@ -115,7 +115,13 @@ import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import SelfieCamera from "./SelfieCamera";
 import { readLight } from "@/lib/photoLight";
-import StylePicks, { type ConfirmedDetails, type PhotoDetails, type PreviewOutcome } from "./StylePicks";
+import StylePicks, {
+  type ConfirmedDetails,
+  type EarlierPreview,
+  type PhotoDetails,
+  type PreviewOutcome,
+  type ViewsOutcome,
+} from "./StylePicks";
 import type { HairGender } from "@/lib/content/hairstyles";
 
 type Slot = "front" | "left" | "right";
@@ -270,7 +276,7 @@ export default function UploadFlow() {
   const [gender, setGender] = useState<HairGender | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   // Previews made earlier from the photo on screen, when the screen was brought back.
-  const [earlier, setEarlier] = useState<{ styleName: string; url: string }[]>([]);
+  const [earlier, setEarlier] = useState<EarlierPreview[]>([]);
   // True while a remembered result screen is being filled in again.
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -505,7 +511,22 @@ export default function UploadFlow() {
       };
     }
     const left = typeof data.previewsLeft === "number" && !data.samplePreview ? data.previewsLeft : null;
-    return { ok: true, imageUrl: data.resultImageUrl, sample: Boolean(data.samplePreview), previewsLeft: left };
+    return { ok: true, imageUrl: data.resultImageUrl, sample: Boolean(data.samplePreview), previewsLeft: left, paid: Boolean(data.paid) };
+  }
+
+  /** 12.10.2026: the left side, right side and back of a paid preview. */
+  async function makeViews(styleId: string): Promise<ViewsOutcome> {
+    if (!analysis) throw new Error("no analysis");
+    const res = await fetch("/api/generate/views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(
+        SUPABASE_MOCK_MODE ? { userId: mockUserId, photoId: analysis.photoId, styleId } : { photoId: analysis.photoId, styleId }
+      ),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, message: data.error || "The side and back views couldn't be made." };
+    return { ok: true, state: data.state === "making" ? "making" : "done", views: data.views, message: data.error ?? null };
   }
 
   function startOver() {
@@ -745,6 +766,7 @@ export default function UploadFlow() {
                 makePreview={makePreview}
                 onStartOver={startOver}
                 earlier={earlier}
+                makeViews={makeViews}
                 onDetails={(confirmed) => {
                   const saved = recall();
                   if (saved && saved.photoId === analysis.photoId) remember({ ...saved, confirmed });

@@ -29,7 +29,7 @@ const SECTIONS = [
   },
   {
     heading: "What is free and what is paid",
-    body: "Creating an account, having your photo read and seeing your list of matched hairstyles are free. Hairstyle previews on your own photo are sold in packs; each preview you make uses one preview from your pack.",
+    body: "Creating an account, having your photo read and seeing your list of matched hairstyles are free. Hairstyle previews on your own photo are sold in packs; each preview you make uses one preview from your pack and shows that style from the front, both sides and the back. The side and back views are estimated by AI from your front photo.",
   },
   {
     heading: "Paid plans and pricing",

@@ -16,7 +16,8 @@
 // Both slips are EXAMPLES and are labelled so.
 
 import { Band, Rail } from "./Section";
-import { barberLine, hairstyleById } from "@/lib/content/hairstyles";
+import { barberName, barberPoints, hairstyleById } from "@/lib/content/hairstyles";
+import FourViews from "./FourViews";
 
 const PROFILE = [
   { label: "Face shape", value: "Round" },
@@ -33,7 +34,7 @@ const INCLUDED = [
     title: "Hairstyles matched to you",
     body: "Chosen for your face shape, your hair type and the length you have now, not from a list of what is trending.",
   },
-  { title: "A preview on your own photo", body: "Each hairstyle you choose is shown on your own front photo, not on a model." },
+  { title: "A preview on your own photo", body: "Each hairstyle you choose is shown on your own photo, not on a model: from the front, both sides and the back." },
   {
     title: "Barber-ready instructions",
     body: "The cut written out in a barber's words, with lengths, so your barber can recreate the look.",
@@ -80,12 +81,26 @@ export default function WhatYouGet() {
             <p className="mt-4 font-heading text-[17px] font-semibold leading-snug text-ink-heading">
               {EXAMPLE_STYLE?.name}
             </p>
-            <p className="mt-2 text-[15.5px] leading-[1.6] text-ink-heading">{EXAMPLE_STYLE ? barberLine(EXAMPLE_STYLE) : ""}</p>
+            {EXAMPLE_STYLE && (
+              <>
+                <p className="mt-2 text-[15px] text-ink-heading">Ask for {barberName(EXAMPLE_STYLE)}:</p>
+                <ul className="mt-2 flex flex-col gap-1.5 text-[15px] leading-[1.45] text-ink-heading">
+                  {barberPoints(EXAMPLE_STYLE).map((point) => (
+                    <li key={point} className="flex gap-2.5">
+                      <span className="mt-[8px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             <p className="mt-3 text-[13.5px] leading-[1.5] text-ink-muted">
               Every style on your list comes with its own.
             </p>
           </Slip>
         </div>
+
+        <FourViews />
 
         <dl className="mt-14 border-t border-line">
           {INCLUDED.map((item) => (

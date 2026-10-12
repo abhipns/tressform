@@ -50,6 +50,8 @@ export type AddonKind = "BACKGROUND" | "OUTFIT";
 export const GST_REGISTERED: boolean = false;
 export const GST_RATE = 18 / 118; // extraction rate for GST-inclusive pricing
 export const GENERATION_COST_PER_IMAGE_PAISE = 350; // ₹3.50, see Part H
+/** 12.10.2026: a paid preview is four pictures — front, left side, right side, back. */
+export const PICTURES_PER_PREVIEW = 4;
 export const GENERATION_BUFFER_MULTIPLIER = 1.2; // 20% buffer, see comment on Part H
 export const GATEWAY_FEE_RATE = 0.0236; // ≈2.36% of price
 
@@ -167,9 +169,11 @@ export interface OrderPnl {
 }
 
 /** Core P&L calc shared by both pack purchases and My Assets add-on purchases. */
-export function calculateOrderPnl(pricePaise: number, imageCount: number): OrderPnl {
+export function calculateOrderPnl(pricePaise: number, imageCount: number, picturesEach = 1): OrderPnl {
   const gstPaise = GST_REGISTERED ? roundPaise(pricePaise * GST_RATE) : 0;
-  const generationCostPaise = roundPaise(imageCount * GENERATION_COST_PER_IMAGE_PAISE * GENERATION_BUFFER_MULTIPLIER);
+  const generationCostPaise = roundPaise(
+    imageCount * picturesEach * GENERATION_COST_PER_IMAGE_PAISE * GENERATION_BUFFER_MULTIPLIER
+  );
   const gatewayFeePaise = roundPaise(pricePaise * GATEWAY_FEE_RATE);
   const profitBeforeReferralPaise = pricePaise - gstPaise - generationCostPaise - gatewayFeePaise;
 
@@ -179,7 +183,7 @@ export function calculateOrderPnl(pricePaise: number, imageCount: number): Order
 /** P&L for a pack purchase (Starter / Style / Full Explore), at whatever price is currently in effect (Early Bird or regular). */
 export function calculatePackPnl(tier: PackTier, now: Date = new Date()): OrderPnl {
   const pack = PACK_TIERS[tier];
-  return calculateOrderPnl(getCurrentPackPricePaise(tier, now), pack.imageCount);
+  return calculateOrderPnl(getCurrentPackPricePaise(tier, now), pack.imageCount, PICTURES_PER_PREVIEW);
 }
 
 /** P&L for a My Assets add-on purchase (Background or Outfit), per photo. */
@@ -215,7 +219,7 @@ export function calculateFullOrder(
   tier: PackTier | null,
   isReferredFirstPurchase: boolean
 ): FullOrderCalculation {
-  const pnl = calculateOrderPnl(pricePaise, imageCount);
+  const pnl = calculateOrderPnl(pricePaise, imageCount, tier ? PICTURES_PER_PREVIEW : 1);
   const referralCreditsPaise = calculateReferralCreditsPaise(tier, isReferredFirstPurchase);
   return {
     ...pnl,

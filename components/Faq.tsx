@@ -13,7 +13,7 @@ const FAQS = [
   },
   {
     q: "Will my barber understand what I want?",
-    a: "That's what the barber instructions are for. Every style on your list comes with the cut written out in words a barber uses: the lengths in centimetres and how the sides and back are cut. Show that on your phone together with your preview picture, and there is very little left to guess.",
+    a: "That's what the barber instructions are for. Every style on your list comes with the cut written out in words a barber uses: the lengths in centimetres and how the sides and back are cut. Show that on your phone together with your preview pictures (front, both sides and the back), and there is very little left to guess.",
   },
   {
     q: "What if I don't like any of the styles?",
@@ -35,7 +35,7 @@ const FAQS = [
   },
   {
     q: "What is free, and what do I pay for?",
-    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack gives you 4 previews and the Style Pack 10, and you pick which styles to use them on. Each preview comes with the words to give your barber.",
+    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack gives you 4 previews and the Style Pack 10, and you pick which styles to use them on. Each preview shows the style from the front, both sides and the back, and comes with the words to give your barber.",
   },
   {
     // 10.10.2026: was "Are the prices GST-inclusive?". Tressform isn't
