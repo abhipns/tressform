@@ -840,11 +840,21 @@ export default function StylePicks({
           <div className="mt-4 flex flex-col gap-5 border-t border-line pt-4">
             {(faceUnsure || hairMissing) && (
               <p className="rounded-sm2 bg-mint-pale px-4 py-3 text-[14.5px] font-medium leading-[1.5] text-ink-heading">
+                {/* 12.10.2026 (owner): say what we read, confidently, and ask for a quick check. */}
+                {faceUnsure && (
+                  <>
+                    Your face reads as <strong>{initial.faceShape}</strong>
+                    {initial.secondFaceShape && initial.secondFaceShape !== initial.faceShape ? (
+                      <>, close to {initial.secondFaceShape}</>
+                    ) : null}
+                    .{" "}
+                  </>
+                )}
                 {hairMissing && faceUnsure
-                  ? "We couldn't read everything from your photo. Please check your face shape and tell us about your hair."
+                  ? "Take a quick look below, then add your hair length and type so we can match your cuts."
                   : hairMissing
-                    ? "We couldn't tell everything about your hair from the photo. Please fill in what is missing."
-                    : "We weren't sure of your face shape from the photo. Please check it."}
+                    ? "Add your hair length and type below so we can match your cuts."
+                    : "Take a quick look below and tap another shape if it fits you better."}
               </p>
             )}
 
