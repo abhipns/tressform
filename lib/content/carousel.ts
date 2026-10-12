@@ -28,6 +28,9 @@
 // lib/content/hairstyles.ts the same night, and the two pictures can be
 // remade and swapped.
 //
+// 12.10.2026: a ninth person, the owner's new hero model (an AI-made man
+// with shoulder-length hair; the owner's own Studio pictures), put first.
+//
 // TO ADD A PERSON: put six pictures in public/carousel/ (4:5 portrait, the
 // face in the middle; 560×700 is plenty) and add an entry below. With four
 // or more people the section turns into a moving strip by itself.
@@ -52,6 +55,18 @@ export interface CarouselPerson {
 }
 
 export const CAROUSEL_PEOPLE: CarouselPerson[] = [
+  {
+    id: "man-5",
+    who: "a man with shoulder-length wavy black hair and stubble",
+    original: "/carousel/man-5-original.jpg",
+    previews: [
+      { src: "/carousel/man-5-slick-back.jpg", style: "Slick back, undercut" },
+      { src: "/carousel/man-5-top-knot.jpg", style: "Top knot, undercut" },
+      { src: "/carousel/man-5-side-swept-fringe.jpg", style: "Side-swept fringe, taper" },
+      { src: "/carousel/man-5-mullet.jpg", style: "Modern mullet, taper" },
+      { src: "/carousel/man-5-comb-over.jpg", style: "Comb over, mid fade" },
+    ],
+  },
   {
     id: "woman-4",
     who: "a woman with very long straight black hair",
