@@ -22,7 +22,8 @@ export default function StickyCta() {
     // screen. It used to float over that section's own button — on a phone
     // it sat right on top of "See my preview" — and there is no point
     // inviting someone to "try it" while they are in the middle of trying it.
-    const targets = ["hero", "upload"]
+    // 12.10.2026: and over the price table, where it covered the pack buttons.
+    const targets = ["hero", "upload", "pricing"]
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null);
     if (targets.length === 0) return;

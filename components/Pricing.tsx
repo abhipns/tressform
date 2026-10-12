@@ -79,7 +79,7 @@ const EARLY_BIRD_CUTOFF_LABEL = "31 Dec 2026";
 
 function Features({ items, dark = false }: { items: string[]; dark?: boolean }) {
   return (
-    <ul className={`flex flex-1 flex-col gap-3 text-[15px] leading-[1.45] ${dark ? "text-white/85" : "text-ink-body"}`}>
+    <ul className={`flex flex-1 flex-col gap-3 text-[15px] leading-[1.45] lg:gap-2 lg:text-[14.5px] ${dark ? "text-white/85" : "text-ink-body"}`}>
       {items.map((f) => (
         <li key={f} className="flex gap-2.5">
           <span className={`mt-[1px] font-semibold ${dark ? "text-lilac" : "text-mint"}`} aria-hidden="true">
@@ -96,11 +96,14 @@ export default function Pricing() {
   const tiers = Object.values(PACK_TIERS);
 
   return (
-    <section id="pricing" className="bg-bg text-ink-body">
-      <div className="frame py-16 sm:py-20 lg:py-28">
+    // 12.10.2026: on a computer the whole price table fits on one screen
+    // when "Pricing" is clicked in the header (owner's request): less space
+    // above, a smaller heading and tighter cards from 1024px up.
+    <section id="pricing" className="scroll-mt-16 bg-bg text-ink-body">
+      <div className="frame py-16 sm:py-20 lg:pb-20 lg:pt-10">
         <div className="grid items-end gap-x-16 gap-y-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
-          <h2 className="h-display">Pay only for the styles you love.</h2>
-          <p className="lead max-w-[52ch]">
+          <h2 className="h-display lg:!text-[clamp(30px,2.8vw,44px)]">Pay only for the styles you love.</h2>
+          <p className="lead max-w-[52ch] lg:!text-[16.5px]">
             {GST_REGISTERED ? "All prices are GST-inclusive. " : "The price you see is the price you pay. "}
             Your hairstyle list is free. A pack lets you see the styles on your own photo.
           </p>
@@ -108,13 +111,13 @@ export default function Pricing() {
 
         {/* One panel; the 1px gaps between cells show the panel's line colour
             through, which draws the dividers at any number of columns. */}
-        <div className="mt-10 grid gap-px overflow-hidden rounded-[28px] bg-line ring-1 ring-line sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
-          <div className="flex flex-col gap-5 bg-surface p-6 lg:p-8">
+        <div className="mt-10 grid gap-px overflow-hidden rounded-[28px] bg-line ring-1 ring-line sm:grid-cols-2 lg:mt-7 lg:grid-cols-4">
+          <div className="flex flex-col gap-5 bg-surface p-6 lg:gap-4 lg:px-7 lg:py-6">
             <div>
               <h3 className="text-[22px] font-semibold">Free</h3>
               <p className="mt-1 text-[15px] text-ink-muted">Your hairstyle list, no commitment</p>
             </div>
-            <p className="font-heading text-[44px] font-semibold leading-none text-ink-heading">₹0</p>
+            <p className="font-heading text-[44px] font-semibold leading-none text-ink-heading lg:text-[40px]">₹0</p>
             <Features items={FREE_FEATURES} />
             <a href="#upload" className="btn-secondary w-full">
               See my hairstyles
@@ -128,7 +131,7 @@ export default function Pricing() {
             return (
               <div
                 key={tier.tier}
-                className={`flex flex-col gap-5 p-6 lg:p-8 ${dark ? "bg-[#16261C] text-white" : "bg-surface"}`}
+                className={`flex flex-col gap-5 p-6 lg:gap-4 lg:px-7 lg:py-6 ${dark ? "bg-[#16261C] text-white" : "bg-surface"}`}
               >
                 <div>
                   <h3 className={`text-[22px] font-semibold ${dark ? "text-white" : ""}`}>{tier.label}</h3>
@@ -139,7 +142,7 @@ export default function Pricing() {
 
                 <div>
                   <p className="flex items-baseline gap-3">
-                    <span className={`font-heading text-[44px] font-semibold leading-none ${dark ? "text-white" : "text-ink-heading"}`}>
+                    <span className={`font-heading text-[44px] font-semibold leading-none lg:text-[40px] ${dark ? "text-white" : "text-ink-heading"}`}>
                       ₹{paiseToRupees(tier.earlyBirdPricePaise).split(".")[0]}
                     </span>
                     {tier.regularPricePaise !== null && (
@@ -159,7 +162,7 @@ export default function Pricing() {
                 {isLocked ? (
                   <p className="py-3.5 text-center text-[15px] font-medium text-ink-muted">Not available yet</p>
                 ) : dark ? (
-                  <a href={`/checkout?tier=${tier.tier}`} className="btn-amber w-full !px-6 !py-3.5 !text-[16px]">
+                  <a href={`/checkout?tier=${tier.tier}`} className="btn-amber w-full !px-6 !py-3 !text-[16px]">
                     Choose {tier.label}
                   </a>
                 ) : (
