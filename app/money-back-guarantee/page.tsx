@@ -7,7 +7,7 @@
 export default function MoneyBackGuaranteePage() {
   return (
     <section className="wrap py-16">
-      <div className="mx-auto max-w-[680px] text-center">
+      <div className="mx-auto max-w-[680px] text-justify hyphens-auto [&_h1]:text-left">
         <p className="eyebrow">Legal</p>
         <h1 className="mb-4 text-[clamp(26px,4vw,36px)]">Money-Back Guarantee</h1>
         <p className="mb-6 text-[15px] leading-[1.6] text-ink-body">

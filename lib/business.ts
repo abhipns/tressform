@@ -26,8 +26,8 @@ export const BUSINESS = {
   legalLastUpdated: "12 October 2026",
 } as const;
 
-/** "Tressform is operated by Abhishek Sharma." */
-export const OPERATOR_LINE = `${BUSINESS.brand} is operated by ${BUSINESS.operator}.`;
+/** "Tressform is owned by Abhishek Sharma (sole proprietor)." 12.10.2026: owner's wording. */
+export const OPERATOR_LINE = `${BUSINESS.brand} is owned by ${BUSINESS.operator} (sole proprietor).`;
 
 /** The postal address split into display lines; an empty list while no address is set. */
 export function addressLines(): string[] {

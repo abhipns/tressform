@@ -28,7 +28,7 @@ export const metadata = { title: "Privacy Policy — Tressform" };
 const SECTIONS = [
   {
     heading: "Who we are",
-    body: `${BUSINESS.brand} (www.tressform.co.in) is operated by ${BUSINESS.operator}, who is responsible for the personal data described on this page. Contact details are at the end of this page.`,
+    body: `${BUSINESS.brand} (www.tressform.co.in) is an online hairstyle preview service owned by ${BUSINESS.operator} (sole proprietor), who is responsible for the personal data described on this page. Contact details are at the end of this page.`,
   },
   {
     heading: "What we collect",
@@ -68,14 +68,14 @@ const SECTIONS = [
   },
   {
     heading: "Changes to this policy",
-    body: "If we change how we handle your data, we will update this page and the date below.",
+    body: "We may change this policy at any time, without prior notice. The updated policy applies from the date shown at the top of this page, so please check it from time to time.",
   },
 ];
 
 export default function PrivacyPolicyPage() {
   return (
     <section className="wrap py-16">
-      <div className="mx-auto max-w-[720px]">
+      <div className="mx-auto max-w-[720px] text-justify hyphens-auto [&_h1]:text-left [&_h3]:text-left [&_dd]:text-left">
         <p className="eyebrow">Legal</p>
         <h1 className="mb-2 text-[clamp(26px,4vw,36px)]">Privacy Policy</h1>
         <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: {BUSINESS.legalLastUpdated}</p>

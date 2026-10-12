@@ -17,7 +17,7 @@ export const metadata = { title: "Terms of Service — Tressform" };
 const SECTIONS = [
   {
     heading: "Who we are",
-    body: `${BUSINESS.brand} (www.tressform.co.in) is operated by ${BUSINESS.operator}. By using the site you agree to these terms.`,
+    body: `${BUSINESS.brand} (www.tressform.co.in) is an online hairstyle preview service owned by ${BUSINESS.operator} (sole proprietor). By using the site you agree to these terms.`,
   },
   {
     heading: "The service",
@@ -59,14 +59,14 @@ const SECTIONS = [
   },
   {
     heading: "Changes to these terms",
-    body: "We may update these terms as the product evolves. Changes will be shown on this page with a new date below.",
+    body: "We may change these terms at any time, without prior notice. The updated terms apply from the date shown at the top of this page, so please check it from time to time. If you keep using Tressform after a change, you accept the updated terms.",
   },
 ];
 
 export default function TermsOfServicePage() {
   return (
     <section className="wrap py-16">
-      <div className="mx-auto max-w-[720px]">
+      <div className="mx-auto max-w-[720px] text-justify hyphens-auto [&_h1]:text-left [&_h3]:text-left [&_dd]:text-left">
         <p className="eyebrow">Legal</p>
         <h1 className="mb-2 text-[clamp(26px,4vw,36px)]">Terms of Service</h1>
         <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: {BUSINESS.legalLastUpdated}</p>

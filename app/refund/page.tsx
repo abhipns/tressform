@@ -22,21 +22,21 @@ export const metadata = { title: "Refund and Cancellation Policy — Tressform" 
 export default function RefundPolicyPage() {
   return (
     <section className="wrap py-16">
-      <div className="mx-auto max-w-[720px]">
+      <div className="mx-auto max-w-[720px] text-justify hyphens-auto [&_h1]:text-left [&_h3]:text-left [&_dd]:text-left">
         <p className="eyebrow">Legal</p>
         <h1 className="mb-2 text-[clamp(26px,4vw,36px)]">Refund and Cancellation Policy</h1>
-        <p className="mb-6 text-[12.5px] text-ink-muted">Last updated: {BUSINESS.legalLastUpdated}</p>
+        <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: {BUSINESS.legalLastUpdated}</p>
 
-        <div className="mb-6 rounded-lg2 border border-line bg-surface p-6">
-          <h3 className="mb-2 text-[16px] text-mint-deep">100% refund</h3>
+        <div className="mb-7">
+          <h3 className="mb-2 text-[16px]">100% refund</h3>
           <p className="text-[14.5px] leading-[1.6] text-ink-body">
             If a technical glitch prevents the app from generating your images at all, even after multiple retries,
             you get a full refund — no questions asked.
           </p>
         </div>
 
-        <div className="mb-6 rounded-lg2 border border-line bg-surface p-6">
-          <h3 className="mb-2 text-[16px] text-ink-heading">No refund</h3>
+        <div className="mb-7">
+          <h3 className="mb-2 text-[16px]">No refund</h3>
           <p className="text-[14.5px] leading-[1.6] text-ink-body">
             Once the app successfully generates your images, there is no refund — including if you simply don&apos;t
             download them, or decide you don&apos;t like the result. Previews are a close, realistic guide based on
@@ -48,8 +48,8 @@ export default function RefundPolicyPage() {
           </p>
         </div>
 
-        <div className="mb-6 rounded-lg2 border border-line bg-surface p-6">
-          <h3 className="mb-2 text-[16px] text-ink-heading">How to ask for a refund</h3>
+        <div className="mb-7">
+          <h3 className="mb-2 text-[16px]">How to ask for a refund</h3>
           <p className="text-[14.5px] leading-[1.6] text-ink-body">
             Email{" "}
             <a href={`mailto:${BUSINESS.supportEmail}`} className="font-semibold text-mint-deep">
@@ -61,8 +61,8 @@ export default function RefundPolicyPage() {
           </p>
         </div>
 
-        <div className="mb-6 rounded-lg2 border border-line bg-surface p-6">
-          <h3 className="mb-2 text-[16px] text-ink-heading">Cancellations</h3>
+        <div className="mb-7">
+          <h3 className="mb-2 text-[16px]">Cancellations</h3>
           <p className="text-[14.5px] leading-[1.6] text-ink-body">
             Every pack is a one-time purchase of a digital service, delivered in your account on this website — there
             is no subscription to cancel and nothing is shipped. A purchase can&apos;t be cancelled once your images

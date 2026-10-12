@@ -52,12 +52,12 @@ export default function FourViews() {
       <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {VIEWS.map((v) => (
           <li key={v.id}>
-            <div className="relative aspect-[3/4] overflow-hidden rounded-[16px] bg-line">
+            <div className="relative aspect-square overflow-hidden rounded-[16px] bg-line">
               <Image
-                src={`/four-views/${person.id}-${v.id}-v4.jpg`}
+                src={`/four-views/${person.id}-${v.id}-v5.jpg`}
                 alt={`${person.tab} haircut, ${v.label.toLowerCase()}`}
-                width={480}
-                height={640}
+                width={560}
+                height={560}
                 className="h-full w-full object-cover"
               />
               <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2.5 py-1 text-[12px] font-semibold text-ink-heading">
