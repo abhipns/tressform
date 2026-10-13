@@ -19,7 +19,7 @@ export const REVIEW_SECTIONS: Record<ReviewSection, { label: string; question: s
   },
   hairstyles: {
     label: "AI hairstyles on my photo",
-    question: "How true to you were your AI hairstyles?",
+    question: "How did you like the hairstyles?",
   },
 };
 
