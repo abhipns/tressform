@@ -61,7 +61,7 @@ import {
   type HairTexture,
   type Hairstyle,
 } from "@/lib/content/hairstyles";
-import { pickStyles, type CustomerHair, type StylePick } from "@/lib/recommend";
+import { LENGTH_BANDS, LENGTH_BAND_LABELS, pickStyles, type CustomerHair, type LengthBand, type StylePick } from "@/lib/recommend";
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
 import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
 import {
@@ -281,6 +281,8 @@ export default function StylePicks({
   useEffect(() => setLeft(previewsLeftAtStart), [previewsLeftAtStart]);
   const [samples, setSamples] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  // 13.10.2026 (owner): Short / Medium / Long filter on the list; null = all lengths.
+  const [band, setBand] = useState<LengthBand | null>(null);
 
   const customer: CustomerHair | null = useMemo(
     () =>
@@ -296,7 +298,7 @@ export default function StylePicks({
         : null,
     [gender, faceShape, faceChanged, initial.sure, initial.secondFaceShape, length, texture]
   );
-  const picks = useMemo(() => (customer ? pickStyles(customer) : null), [customer]);
+  const picks = useMemo(() => (customer ? pickStyles(customer, band) : null), [customer, band]);
 
   useEffect(() => {
     if (length && texture) onDetails?.({ faceShape, length, texture });
@@ -712,6 +714,16 @@ export default function StylePicks({
                 <span className="mt-1 block text-[12.5px] font-medium text-ink-muted">match</span>
               </p>
             </div>
+            {/* 13.10.2026: say plainly whether the cut can be had today. */}
+            <p
+              className={`mt-1.5 inline-flex rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold ${
+                pick.cutToday ? "bg-mint-pale text-mint-deep" : "bg-lilac/20 text-header-dark"
+              }`}
+            >
+              {pick.cutToday
+                ? "Ready now"
+                : `Grow first · about ${pick.monthsToGrow ?? 1} ${(pick.monthsToGrow ?? 1) === 1 ? "month" : "months"}`}
+            </p>
             <p className="mt-1.5 text-[15.5px] leading-[1.5]">{pick.style.line}</p>
             <ul className="mt-3 flex flex-col gap-1.5 text-[14.5px] leading-[1.45]">
               {reasons.map((reason) => (
@@ -968,7 +980,9 @@ export default function StylePicks({
             <div>
               <h4 className="text-[21px] font-semibold leading-tight">
                 {picks.top.length === 0
-                  ? "No cuts match today"
+                  ? band
+                    ? `No ${band} cuts match today`
+                    : "No cuts match today"
                   : picks.top.length === 1
                     ? "Your best haircut"
                     : "Your best-matched haircuts"}
@@ -977,7 +991,7 @@ export default function StylePicks({
                 <p className="mt-1 text-[15px] text-ink-muted">
                   {/* 12.10.2026: the list is free and can be longer than a pack (5 here, 4 in the
                       Starter Pack); the heading no longer puts a number on it. */}
-                  {picks.top.length} cuts you can get today, best match first. Choose which ones to see on you.
+                  {picks.top.length} {band ? `${band} ` : ""}cuts you can get today, best match first. Choose which ones to see on you.
                 </p>
               )}
             </div>
@@ -988,15 +1002,49 @@ export default function StylePicks({
             )}
           </div>
 
+          <div className="mt-4" role="radiogroup" aria-label="Hair length">
+            <p className="mb-2 text-[14px] font-semibold text-ink-heading">Length you want</p>
+            <div className="flex flex-wrap gap-2">
+              {([null, ...LENGTH_BANDS] as (LengthBand | null)[]).map((b) => {
+                const selected = band === b;
+                const info = b ? LENGTH_BAND_LABELS[customer.gender][b] : null;
+                return (
+                  <button
+                    key={b ?? "all"}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      setBand(b);
+                      setShowMore(false);
+                    }}
+                    className={`rounded-full border-[1.5px] px-4 py-2 text-left text-[14.5px] font-semibold leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint-deep ${
+                      selected ? "border-mint bg-mint text-white" : "border-line bg-surface text-ink-heading hover:border-ink-heading"
+                    }`}
+                  >
+                    {info ? info.label : "All"}
+                    {info && <span className={`ml-1.5 text-[12.5px] font-medium ${selected ? "text-white/85" : "text-ink-muted"}`}>{info.hint}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {picks.top.length > 0 && picks.top.length < 5 && (
             <p className="mt-3 text-[14.5px] leading-[1.5] text-ink-muted">
               With your hair as it is now, {picks.top.length === 1 ? "this is the one cut" : `these are the ${picks.top.length} cuts`} that
               suit you without growing it first.
             </p>
           )}
-          {picks.top.length === 0 && (
+          {picks.top.length === 0 && picks.more.length > 0 && (
             <p className="mt-3 text-[15px] leading-[1.5]">
-              With your hair as it is now, the styles that suit you all need some growing first. They are listed below.
+              With your hair as it is now, the {band ? `${band} ` : ""}styles that suit you all need some growing first. They are
+              listed below.
+            </p>
+          )}
+          {picks.top.length === 0 && picks.more.length === 0 && (
+            <p className="mt-3 text-[15px] leading-[1.5]">
+              None of our {band ?? ""} styles suit your face shape and hair type. Try another length.
             </p>
           )}
 

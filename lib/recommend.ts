@@ -27,6 +27,10 @@
 // Rules 6 and 7 give way before the top 5 is left short: five suitable
 // cuts beat three varied ones.
 //
+// 13.10.2026 (owner): the customer can narrow the list to short, medium or
+// long cuts (LengthBand). The same rules then choose from that length only,
+// so someone who wants to stay short never sees only longer cuts.
+//
 // Nothing here talks to a database or an image model; it is a plain
 // function so it can be tested against every kind of customer.
 
@@ -73,6 +77,40 @@ export interface StylePicks {
   more: StylePick[];
   /** How many suitable cuts were possible today, before choosing 5. */
   cutsPossibleToday: number;
+}
+
+/** How long a cut is once finished, for the customer's Short / Medium / Long filter. */
+export type LengthBand = "short" | "medium" | "long";
+export const LENGTH_BANDS: LengthBand[] = ["short", "medium", "long"];
+
+/** Labels for the filter: what each band means for men and for women. */
+export const LENGTH_BAND_LABELS: Record<HairGender, Record<LengthBand, { label: string; hint: string }>> = {
+  men: {
+    short: { label: "Short", hint: "up to 5 cm on top" },
+    medium: { label: "Medium", hint: "5 to 10 cm" },
+    long: { label: "Long", hint: "over 10 cm" },
+  },
+  women: {
+    short: { label: "Short", hint: "ear to chin" },
+    medium: { label: "Medium", hint: "shoulder" },
+    long: { label: "Long", hint: "below the shoulder" },
+  },
+};
+
+/** The length a style ends at: its `needs` is the length the cut is made at. */
+export function lengthBand(style: Hairstyle): LengthBand {
+  switch (style.needs) {
+    case "very-short":
+    case "short":
+    case "ear":
+    case "chin":
+      return "short";
+    case "medium":
+    case "shoulder":
+      return "medium";
+    default:
+      return "long";
+  }
 }
 
 export const TOP_COUNT = 5;
@@ -146,10 +184,10 @@ function rate(style: Hairstyle, customer: CustomerHair): StylePick | null {
   };
 }
 
-export function pickStyles(customer: CustomerHair): StylePicks {
+export function pickStyles(customer: CustomerHair, band: LengthBand | null = null): StylePicks {
   // HAIRSTYLES is in tie-break order and Array.sort is stable, so equal
   // scores keep the list's order.
-  const rated = HAIRSTYLES.filter((style) => style.gender === customer.gender)
+  const rated = HAIRSTYLES.filter((style) => style.gender === customer.gender && (!band || lengthBand(style) === band))
     .map((style) => rate(style, customer))
     .filter((pick): pick is StylePick => pick !== null)
     // Equal scores: the cut closer to the hair they have now goes first.

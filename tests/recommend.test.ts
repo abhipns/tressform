@@ -109,3 +109,29 @@ describe("pickStyles", () => {
     expect(() => pickStyles({ gender: "men", faceShape: "Oval", texture: "straight", length: "waist" })).toThrow();
   });
 });
+
+// 13.10.2026: the Short / Medium / Long filter.
+import { lengthBand as bandOf } from "../lib/recommend";
+describe("length filter", () => {
+  it("shows only cuts of the chosen length", () => {
+    for (const band of ["short", "medium", "long"] as const) {
+      const { top, more } = pickStyles({ gender: "men", faceShape: "Oval", texture: "straight", length: "long" }, band);
+      for (const p of [...top, ...more]) expect(bandOf(p.style)).toBe(band);
+      expect(top.length + more.length).toBeGreaterThan(0);
+    }
+  });
+  it("a short-haired man asking for long cuts gets cuts to grow into, not today's cuts", () => {
+    const { top, more } = pickStyles({ gender: "men", faceShape: "Oval", texture: "straight", length: "short" }, "long");
+    expect(top).toHaveLength(0);
+    expect(more.every((p) => !p.cutToday)).toBe(true);
+  });
+  it("works for women's lengths", () => {
+    const { top } = pickStyles({ gender: "women", faceShape: "Oval", texture: "straight", length: "mid-back" }, "short");
+    expect(top.length).toBeGreaterThan(0);
+    for (const p of top) expect(["ear", "chin"]).toContain(p.style.needs);
+  });
+  it("leaves the list unchanged with no filter", () => {
+    const c = { gender: "men" as const, faceShape: "Oval" as const, texture: "straight" as const, length: "medium" as const };
+    expect(pickStyles(c, null)).toEqual(pickStyles(c));
+  });
+});
