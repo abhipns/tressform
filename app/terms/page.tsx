@@ -17,11 +17,11 @@ export const metadata = { title: "Terms of Service — Tressform" };
 const SECTIONS = [
   {
     heading: "Who we are",
-    body: `${BUSINESS.brand} (www.tressform.co.in) is an online hairstyle preview service owned by ${BUSINESS.operator} (sole proprietor). By using the site you agree to these terms.`,
+    body: `${BUSINESS.brand} (www.tressform.co.in) is an online hairstyle service owned by ${BUSINESS.operator} (sole proprietor). By using the site you agree to these terms.`,
   },
   {
     heading: "The service",
-    body: "Tressform generates AI hairstyle previews from photos you upload, plus barber-ready cutting instructions. Previews are a close, realistic guide based on your photos — not a guarantee of your final result, since real hair texture, growth pattern, and your barber's technique will always add small differences.",
+    body: "Tressform generates AI hairstyles from photos you upload, plus barber-ready cutting instructions. AI hairstyles are a close, realistic guide based on your photos — not a guarantee of your final result, since real hair texture, growth pattern, and your barber's technique will always add small differences.",
   },
   {
     heading: "Your account and your photos",
@@ -29,7 +29,7 @@ const SECTIONS = [
   },
   {
     heading: "What is free and what is paid",
-    body: "Creating an account, having your photo read and seeing your list of matched hairstyles are free. Hairstyle previews on your own photo are sold in packs; each preview you make uses one preview from your pack and shows that style from the front, both sides and the back. The side and back views are estimated by AI from your front photo.",
+    body: "Creating an account, having your photo read and seeing your list of matched hairstyles are free. Hairstyles on your own photo are sold in packs; each hairstyle you make uses one hairstyle from your pack and shows that style from the front, both sides and the back. The side and back views are estimated by AI from your front photo.",
   },
   {
     heading: "Paid plans and pricing",
@@ -51,11 +51,11 @@ const SECTIONS = [
   },
   {
     heading: "Fair use",
-    body: "Please don't misuse the service: no photos of other people without their consent, no unlawful or offensive content, no attempts to obtain previews without paying for them, and no automated use of the site. We may suspend accounts that do.",
+    body: "Please don't misuse the service: no photos of other people without their consent, no unlawful or offensive content, no attempts to obtain hairstyles without paying for them, and no automated use of the site. We may suspend accounts that do.",
   },
   {
     heading: "Product links",
-    body: "Some product links on Tressform are affiliate links: if you buy through them, we may earn a small commission from the shop, at no extra cost to you. Those products are sold by the shops, not by Tressform, so their price, delivery, returns and quality are the shop's responsibility. Our hair-care tips are general advice, not medical advice; check a product's label before use, especially if you have a sensitive scalp or allergies.",
+    body: "Some product links on Tressform are affiliate links: if you buy through them, we may earn a small commission from the shop, at no extra cost to you. As an Amazon Associate, Tressform earns from qualifying purchases. Those products are sold by the shops, not by Tressform, so their price, delivery, returns and quality are the shop's responsibility. Our hair-care tips are general advice, not medical advice; check a product's label before use, especially if you have a sensitive scalp or allergies.",
   },
   {
     heading: "Governing law",

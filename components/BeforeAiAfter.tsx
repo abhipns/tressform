@@ -62,7 +62,7 @@ function buildFeaturedCard(f: (typeof FEATURED)[number], keyPrefix: string) {
     <div key={`${keyPrefix}-${f.name}`} className="card w-[560px] shrink-0">
       <div className="mb-4 flex gap-2">
         {placeholderTile("Before", "bg-ink-heading/70")}
-        {placeholderTile("AI Preview", "bg-mint-deep/80")}
+        {placeholderTile("AI hairstyle", "bg-mint-deep/80")}
         {placeholderTile("After (Salon)", "bg-lilac/80")}
       </div>
       <p className="text-[14px] font-semibold text-ink-heading">{f.name}</p>
@@ -84,7 +84,7 @@ export default function BeforeAiAfter() {
           <p className="eyebrow">Real Results</p>
           <h2>Before, AI, After</h2>
           <p>
-            See a real customer&apos;s original photo, the AI preview Tressform generated for them, and the haircut
+            See a real customer&apos;s original photo, the AI hairstyle Tressform generated for them, and the haircut
             their salon actually delivered — side by side.
           </p>
         </div>

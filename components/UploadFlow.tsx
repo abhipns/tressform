@@ -507,7 +507,7 @@ export default function UploadFlow() {
         rejected: Boolean(data.previewRejected),
         message: data.previewRejected
           ? "This one didn't come out true to you, so we haven't shown it or counted it."
-          : data.error || "This preview couldn't be created. Please try again.",
+          : data.error || "This hairstyle couldn't be created. Please try again.",
       };
     }
     const left = typeof data.previewsLeft === "number" && !data.samplePreview ? data.previewsLeft : null;

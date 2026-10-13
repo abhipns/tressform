@@ -12,7 +12,7 @@ const PAIRS = [
   },
   {
     shows: "How the style sits from multiple angles",
-    reality: "Your barber's hand and technique add small, natural differences the preview can't capture",
+    reality: "Your barber's hand and technique add small, natural differences the AI picture can't capture",
   },
   {
     shows: "A confident, realistic guide to help you and your barber agree on direction",
@@ -26,13 +26,13 @@ export default function HonestExpectations() {
       <div className="mx-auto max-w-[820px]">
         <div className="section-head">
           <p className="eyebrow">Honest Expectations</p>
-          <h2>A close, realistic preview — not a promise</h2>
+          <h2>A close, realistic look — not a promise</h2>
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="rounded-lg2 bg-bg-soft p-5">
             <div className="mb-4 aspect-[4/3] rounded-md2 bg-gradient-to-br from-mint-pale to-white" />
-            <p className="mb-2.5 text-[12px] font-bold uppercase tracking-[.03em] text-mint-deep">What the preview shows</p>
+            <p className="mb-2.5 text-[12px] font-bold uppercase tracking-[.03em] text-mint-deep">What the AI hairstyle shows</p>
             <ul className="flex flex-col gap-2">
               {PAIRS.map((p) => (
                 <li key={p.shows} className="flex items-start gap-2 text-[13.5px] leading-[1.5] text-ink-body">
@@ -58,7 +58,7 @@ export default function HonestExpectations() {
         </div>
 
         <p className="mt-6 text-center text-[13px] text-ink-muted">
-          Think of your preview as a very confident sneak peek, not a guarantee.
+          Think of your AI hairstyle as a very confident sneak peek, not a guarantee.
         </p>
       </div>
     </section>

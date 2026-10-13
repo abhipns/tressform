@@ -28,23 +28,23 @@ export const metadata = { title: "Privacy Policy — Tressform" };
 const SECTIONS = [
   {
     heading: "Who we are",
-    body: `${BUSINESS.brand} (www.tressform.co.in) is an online hairstyle preview service owned by ${BUSINESS.operator} (sole proprietor), who is responsible for the personal data described on this page. Contact details are at the end of this page.`,
+    body: `${BUSINESS.brand} (www.tressform.co.in) is an online hairstyle service owned by ${BUSINESS.operator} (sole proprietor), who is responsible for the personal data described on this page. Contact details are at the end of this page.`,
   },
   {
     heading: "What we collect",
-    body: "The photos you upload for face and hair analysis (one front-facing selfie), your account details (your email address, and your name if you sign in with Google), the hairstyle previews we create for you, basic usage data needed to run the service, such as how many previews you have used, and your approximate city, which our hosting provider works out from your internet connection (not your exact location) so that we can later suggest salons near you.",
+    body: "The photos you upload for face and hair analysis (one front-facing selfie), your account details (your email address, and your name if you sign in with Google), the hairstyles we create for you, basic usage data needed to run the service, such as how many hairstyles you have used, and your approximate city, which our hosting provider works out from your internet connection (not your exact location) so that we can later suggest salons near you.",
   },
   {
     heading: "How we use it",
-    body: "Your photos are used only to analyse your face shape and to generate your own AI hairstyle previews and barber instructions. They are never used to train our AI models, never sold, and never shared with anyone for marketing.",
+    body: "Your photos are used only to analyse your face shape and to generate your own AI hairstyles and barber instructions. They are never used to train our AI models, never sold, and never shared with anyone for marketing.",
   },
   {
     heading: "Face analysis and consent",
-    body: "Face analysis involves measurements of your face (its shape and proportions) taken from your photo. We do this only with your explicit consent, given through the photo-consent checkbox at upload, and use the result solely to produce your own previews. We do not ask the analysis service for, or keep, estimates of your age, gender or emotions.",
+    body: "Face analysis involves measurements of your face (its shape and proportions) taken from your photo. We do this only with your explicit consent, given through the photo-consent checkbox at upload, and use the result solely to produce your own hairstyles. We do not ask the analysis service for, or keep, estimates of your age, gender or emotions.",
   },
   {
     heading: "Who processes your data for us",
-    body: "We use a small number of service providers to run Tressform: a hosting and database provider that stores your account and photos, Amazon Web Services (Rekognition) for face analysis, and an AI image-generation provider that creates your previews. They process your data only on our instruction, to provide this service. Some of their servers are located outside India.",
+    body: "We use a small number of service providers to run Tressform: a hosting and database provider that stores your account and photos, Amazon Web Services (Rekognition) for face analysis, and an AI image-generation provider that creates your hairstyles. They process your data only on our instruction, to provide this service. Some of their servers are located outside India.",
   },
   {
     heading: "Payments",
@@ -56,11 +56,11 @@ const SECTIONS = [
   },
   {
     heading: "How long we keep it",
-    body: "Uploaded photos are automatically deleted 90 days after upload, unless your account is still active and using them. Previews you have paid for are kept in your account until you ask us to delete them. You can ask us to delete your photos, your previews or your whole account at any time, and we will do so without waiting for the 90-day period.",
+    body: "Uploaded photos are automatically deleted 90 days after upload, unless your account is still active and using them. Hairstyles you have paid for are kept in your account until you ask us to delete them. You can ask us to delete your photos, your hairstyles or your whole account at any time, and we will do so without waiting for the 90-day period.",
   },
   {
     heading: "Security",
-    body: "Your photos are encrypted in transit and at rest, and are kept in private storage that only your own account can open. Links to your photos and previews are temporary and expire.",
+    body: "Your photos are encrypted in transit and at rest, and are kept in private storage that only your own account can open. Links to your photos and hairstyles are temporary and expire.",
   },
   {
     heading: "Your rights",

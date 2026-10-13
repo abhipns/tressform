@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from "react";
 import type { Hairstyle, HairTexture } from "@/lib/content/hairstyles";
-import { KINDS, careFor, goLink, productsFor, type CareProduct } from "@/lib/content/haircare";
+import { AMAZON_DISCLOSURE, KINDS, careFor, goLink, productsFor, shopLabel, type CareProduct } from "@/lib/content/haircare";
 
 let cache: Promise<CareProduct[]> | null = null;
 
@@ -60,30 +60,56 @@ function GroupIcon({ group }: { group: string }) {
   );
 }
 
+// 13.10.2026: one row per product with a button for each shop it's sold at
+// (owner's choice: Amazon, Flipkart, Nykaa, Myntra, the brand's site). No
+// prices yet: Amazon only allows prices from its own data service, which
+// switches on once the owner's Associates account qualifies; EarnKaro gives
+// no prices at all. So each button says "See price".
 export function ProductLink({ product, from, styleId, compact = false }: { product: CareProduct; from: string; styleId?: string; compact?: boolean }) {
   const kind = KINDS[product.kind];
-  const shop = `View on ${product.store && product.store !== "Other" ? product.store : "shop"} ↗`;
   return (
-    <a
-      href={goLink(product.id, from, styleId)}
-      target="_blank"
-      rel="sponsored noopener"
-      className={`flex items-center gap-3 rounded-[12px] border border-line bg-surface ${compact ? "p-2.5" : "p-3"} transition hover:border-mint-deep`}
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mint-pale text-mint-deep">
-        <GroupIcon group={kind.group} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12px] font-semibold uppercase tracking-[.03em] text-ink-muted">{kind.label}</span>
-        <span className="block text-[14.5px] font-semibold leading-snug text-ink-heading">
-          {product.brand ? `${product.brand} ` : ""}
-          {product.title}
+    <div className={`rounded-[12px] border border-line bg-surface ${compact ? "p-2.5" : "p-3"}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mint-pale text-mint-deep">
+          <GroupIcon group={kind.group} />
         </span>
-        {product.note && <span className="block text-[12.5px] text-ink-muted">{product.note}</span>}
-        <span className="mt-0.5 block text-[13px] font-semibold text-mint-deep sm:hidden">{shop}</span>
-      </span>
-      <span className="hidden shrink-0 text-[13px] font-semibold text-mint-deep sm:block">{shop}</span>
-    </a>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12px] font-semibold uppercase tracking-[.03em] text-ink-muted">{kind.label}</span>
+          <span className="block text-[14.5px] font-semibold leading-snug text-ink-heading">
+            {product.brand ? `${product.brand} ` : ""}
+            {product.title}
+          </span>
+          {product.note && <span className="block text-[12.5px] text-ink-muted">{product.note}</span>}
+        </span>
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2">
+        <span className="text-[12.5px] text-ink-muted">See price on</span>
+        {product.shops.map((shop) => (
+          <a
+            key={shop}
+            href={goLink(product.id, from, styleId, shop)}
+            target="_blank"
+            rel="sponsored noopener"
+            className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-soft px-3 py-1.5 text-[13px] font-semibold text-ink-heading transition hover:border-mint-deep hover:text-mint-deep"
+            aria-label={`See price of ${product.brand ? product.brand + " " : ""}${product.title} on ${shopLabel(shop)}`}
+          >
+            {shopLabel(shop)}
+            <span aria-hidden="true" className="text-ink-muted">↗</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The small print under product suggestions. */
+export function AffiliateNote({ products, className = "" }: { products: CareProduct[]; className?: string }) {
+  const amazon = products.some((p) => p.shops.includes("amazon"));
+  return (
+    <p className={`text-[12px] text-ink-muted ${className}`}>
+      These are affiliate links: we may earn a small commission if you buy, at no extra cost to you.
+      {amazon ? ` ${AMAZON_DISCLOSURE}` : ""}
+    </p>
   );
 }
 
@@ -125,12 +151,10 @@ export default function CareBox({
               <ProductLink key={p.id} product={p} from={from} styleId={style.id} compact />
             ))}
           </div>
-          <p className="mt-2 text-[12px] text-ink-muted">
-            Affiliate links: we may earn a small commission if you buy, at no extra cost to you.{" "}
-            <a href="/haircare" className="font-semibold text-mint-deep">
-              More hair care
-            </a>
-          </p>
+          <AffiliateNote products={picks} className="mt-2" />
+          <a href="/haircare" className="mt-1 inline-block text-[12.5px] font-semibold text-mint-deep">
+            More hair care
+          </a>
         </>
       )}
     </details>

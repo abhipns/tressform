@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const row = [...mockStore.styleResults.values()]
       .filter((r) => r.userId === userId && r.photoId === body.photoId && r.styleName === style.name && r.status === "SUCCEEDED")
       .pop();
-    if (!row?.resultImageUrl) return NextResponse.json({ error: "Make the preview first." }, { status: 404 });
+    if (!row?.resultImageUrl) return NextResponse.json({ error: "Make the hairstyle first." }, { status: 404 });
     if (!row.viewUrls) {
       const made = await Promise.all(
         HAIR_VIEWS.map((view) => generateView({ frontImageUrl: row.resultImageUrl!, view, styleDescription: style.prompt }))
@@ -83,9 +83,9 @@ export async function POST(req: NextRequest) {
     admin.from("profiles").select("role").eq("id", userId).maybeSingle(),
   ]);
   const row = rows?.[0];
-  if (!row) return NextResponse.json({ error: "Make the preview first." }, { status: 404 });
+  if (!row) return NextResponse.json({ error: "Make the hairstyle first." }, { status: 404 });
   if (!row.order_id && profile?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Side and back views come with paid previews." }, { status: 402 });
+    return NextResponse.json({ error: "Side and back views come with paid hairstyles." }, { status: 402 });
   }
 
   const current = (row.view_paths ?? null) as ViewRecord | null;
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     const { data } = await admin.storage.from("results").createSignedUrl(front, 600);
     if (!data?.signedUrl) {
       await admin.from("style_results").update({ view_paths: current }).eq("id", row.id);
-      return NextResponse.json({ error: "We couldn't open your preview — please try again." }, { status: 502 });
+      return NextResponse.json({ error: "We couldn't open your hairstyle — please try again." }, { status: 502 });
     }
     frontUrl = data.signedUrl;
   }

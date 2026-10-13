@@ -35,7 +35,7 @@ describe("hair care on the cards", () => {
 
   it("picks matching products, one per kind, and respects gender and hair type", () => {
     const p = (id: string, kind: CareProduct["kind"], extra: Partial<CareProduct> = {}): CareProduct => ({
-      id, title: id, brand: null, kind, store: "Amazon", gender: "all", hairTypes: [], note: null, ...extra,
+      id, title: id, brand: null, kind, shops: ["amazon"], gender: "all", hairTypes: [], note: null, ...extra,
     });
     const products = [
       p("sf", "shampoo-sulphate-free", { hairTypes: ["curly"] }),
@@ -50,5 +50,24 @@ describe("hair care on the cards", () => {
     // wavy: no sulphate-free shampoo for wavy hair, so the mild one stands in
     expect(productsFor(products, crop, "wavy").map((x) => x.id)).toEqual(["mild", "clay", "cond"]);
     expect(productsFor(products, crop, "curly").map((x) => x.id)).toEqual(["sf", "curl", "cond"]);
+  });
+});
+
+describe("shop links (13.10.2026)", () => {
+  it("reads the product code from Amazon links and builds the tagged link", async () => {
+    const { asinFromLink, amazonLink } = await import("../lib/content/haircare");
+    expect(asinFromLink("https://www.amazon.in/Mamaearth-Onion-Shampoo/dp/B07W7CXKPN/ref=sr_1_3?keywords=x")).toBe("B07W7CXKPN");
+    expect(asinFromLink("https://www.amazon.in/gp/product/b07w7cxkpn?th=1")).toBe("B07W7CXKPN");
+    expect(asinFromLink("https://amzn.in/d/abc")).toBeNull();
+    expect(amazonLink("B07W7CXKPN")).toBe("https://www.amazon.in/dp/B07W7CXKPN?tag=tressform-21");
+  });
+  it("lists a product's shops in a fixed order, including an older single link", async () => {
+    const { rowToProduct } = await import("../lib/haircareProducts");
+    const base = { id: "x", title: "T", description: null, image_url: null, original_url: null, category: null, price_paise: null, brand: null, kind: "conditioner", gender: "all", hair_types: [], is_active: true, sort_order: 0, created_at: "", updated_at: "" } as const;
+    const p = rowToProduct({ ...base, store: null, earnkaro_tracked_url: null, amazon_asin: "B07W7CXKPN", shop_links: { nykaa: "https://nykaa.example/1", flipkart: "https://fk.example/2", myntra: "http://not-https" } } as never)!;
+    expect(p.shops).toEqual(["amazon", "flipkart", "nykaa"]);
+    const old = rowToProduct({ ...base, store: "Nykaa", earnkaro_tracked_url: "https://ek.example/3", amazon_asin: null, shop_links: {} } as never)!;
+    expect(old.shops).toEqual(["nykaa"]);
+    expect(rowToProduct({ ...base, store: null, earnkaro_tracked_url: null, amazon_asin: null, shop_links: {} } as never)).toBeNull();
   });
 });

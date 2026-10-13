@@ -27,7 +27,7 @@ export default function GoogleRating() {
         <p className="mb-1 text-[15px] font-semibold text-mint-deep">Real people. Real haircuts. No stock photos.</p>
         <h2>Real Results, Real Stories</h2>
         <p>
-          Each story here is a real before/AI-preview/after set from an actual early user, plus their own feedback on
+          Each story here is a real before/AI-hairstyle/after set from an actual early user, plus their own feedback on
           how the haircut turned out — no fabricated ratings or testimonials, ever.
         </p>
       </div>

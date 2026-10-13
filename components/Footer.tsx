@@ -160,7 +160,7 @@ export default function Footer() {
 
         <div className="pt-5 text-[12px] leading-[1.6] text-white/45">
           <p className="mb-3 max-w-[820px]">
-            <strong className="text-white/65">Disclaimer:</strong> AI-generated hairstyle previews are guidance to help
+            <strong className="text-white/65">Disclaimer:</strong> AI-generated hairstyles are guidance to help
             you and your barber, not a guarantee of the final result — see Honest Expectations above.{" "}
             <strong className="text-white/65">Money-Back Guarantee:</strong> you get a 100% refund if a technical
             glitch prevents image generation entirely, even after multiple attempts — see our Refund and Cancellation Policy for full

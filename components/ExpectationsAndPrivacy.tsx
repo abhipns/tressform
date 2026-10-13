@@ -81,7 +81,7 @@ const PRIVACY: { title: string; body: string; pic: "training" | "days" | "lock" 
   {
     pic: "days",
     title: "Deleted automatically after 90 days.",
-    body: "Uploaded photos are auto-deleted 90 days after upload, unless your account is still active and using them — then they're kept only as long as you keep using them. Previews you have paid for stay in your account.",
+    body: "Uploaded photos are auto-deleted 90 days after upload, unless your account is still active and using them — then they're kept only as long as you keep using them. Hairstyles you have paid for stay in your account.",
   },
   { pic: "lock", title: "Encrypted, always.", body: "Your photos are encrypted both in transit and at rest." },
   {
@@ -96,18 +96,18 @@ export default function ExpectationsAndPrivacy() {
     <div className="bg-bg-soft text-ink-body">
       <section id="expectations" className="frame pb-14 pt-16 sm:pt-20 lg:pb-20 lg:pt-28">
         <Rail
-          heading="A close, realistic preview. Not a promise."
-          lead="Think of your preview as a very confident sneak peek, not a guarantee."
+          heading="A close, realistic look. Not a promise."
+          lead="Think of your AI hairstyle as a very confident sneak peek, not a guarantee."
         >
           <div className="hidden grid-cols-2 gap-x-10 border-b border-line pb-3 sm:grid">
-            <p className="font-heading text-[18px] font-semibold text-ink-heading">What the preview shows</p>
+            <p className="font-heading text-[18px] font-semibold text-ink-heading">What the AI hairstyle shows</p>
             <p className="font-heading text-[18px] font-semibold text-ink-heading">What real hair does</p>
           </div>
           <ul>
             {PAIRS.map((p) => (
               <li key={p.shows} className="grid gap-x-10 gap-y-3 border-b border-line py-5 sm:grid-cols-2">
                 <p className="text-[16px] leading-[1.55] text-ink-heading">
-                  <span className="mb-1 block text-[13.5px] font-semibold text-mint-deep sm:hidden">The preview shows</span>
+                  <span className="mb-1 block text-[13.5px] font-semibold text-mint-deep sm:hidden">The AI hairstyle shows</span>
                   {p.shows}
                 </p>
                 <p className="text-[16px] leading-[1.55]">

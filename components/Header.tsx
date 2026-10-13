@@ -47,16 +47,18 @@ import { useSession } from "@/lib/authClient";
 // real content — so "Hairstyles" became "What you get" and "Hair Care" left
 // the More menu. The button is "See my hairstyles", the one name this action has
 // everywhere on the site now (it was "Get Started" here only).
+// 13.10.2026: "Hair care" is a main link (owner: it earns money through the
+// product links); "Salons" is still "coming soon", so it moved under More.
 const DIRECT_LINKS = [
   { href: "/#how", label: "How it works" },
   { href: "/#what", label: "What you get" },
   { href: "/#pricing", label: "Pricing" },
-  { href: "/#salons", label: "Salons" },
+  { href: "/haircare", label: "Hair care" },
 ];
 
 const MENU_LINKS = [
+  { href: "/#salons", label: "Salons", note: "Partner salons near you, coming soon" },
   { href: "/refer", label: "Refer & Earn", note: "Credits for every friend who buys" },
-  { href: "/haircare", label: "Hair care", note: "Wash and styling tips, and products that suit your cut" },
   { href: "/blog", label: "Blog", note: "Hair advice, plainly written" },
 ];
 

@@ -60,7 +60,7 @@ function Tile({ src, alt, caption, original = false }: { src: string; alt: strin
       <div className="relative aspect-[4/5] overflow-hidden rounded-[14px] bg-mint-pale sm:rounded-[16px]">
         {picture}
         <span className="absolute bottom-2 right-2 rounded-full bg-white/90 px-2 py-1 text-[10.5px] font-bold leading-none text-mint-deep sm:text-[11px]">
-          AI preview
+          AI hairstyle
         </span>
       </div>
       <figcaption className="mt-2 text-[13.5px] font-semibold leading-[1.3] text-ink-heading sm:text-[14.5px]">{caption}</figcaption>
@@ -75,7 +75,7 @@ function tilesFor(person: CarouselPerson) {
       <Tile
         key={preview.src}
         src={preview.src}
-        alt={`A Tressform preview of ${person.who} with this haircut: ${preview.style}.`}
+        alt={`A Tressform AI picture of ${person.who} with this haircut: ${preview.style}.`}
         caption={preview.style}
       />
     )),
@@ -127,7 +127,7 @@ export default function Carousel() {
           <h2 className="h-display max-w-[17ch]">One photo in. Five haircuts to compare.</h2>
           <p className="lead max-w-[54ch]">
             Each {moving ? "card" : "row"} is one person. The framed picture is the photo they uploaded. The other five are
-            Tressform previews of different cuts on that same photo. These are model photos, not customers.
+            Tressform AI pictures of different cuts on that same photo. These are model photos, not customers.
           </p>
         </div>
       </div>

@@ -12,8 +12,8 @@
 
 const VALUES = [
   {
-    title: "Honest previews, not hype",
-    body: "We'd rather show you a close, realistic guide and say so plainly than oversell an AI-perfect promise we can't back up. See our Honest Expectations section for exactly what a preview can and can't predict.",
+    title: "Honest results, not hype",
+    body: "We'd rather show you a close, realistic guide and say so plainly than oversell an AI-perfect promise we can't back up. See our Honest Expectations section for exactly what an AI hairstyle can and can't predict.",
   },
   {
     title: "Your photos stay yours",
@@ -21,7 +21,7 @@ const VALUES = [
   },
   {
     title: "Fair, simple pricing",
-    body: "No subscriptions, no hidden fees. You pay once for a pack of previews, and refunds apply cleanly if the technology fails you — not if you simply change your mind after it works.",
+    body: "No subscriptions, no hidden fees. You pay once for a pack of hairstyles, and refunds apply cleanly if the technology fails you — not if you simply change your mind after it works.",
   },
 ];
 
@@ -33,7 +33,7 @@ export default function AboutPage() {
         <h1 className="mb-4 text-[clamp(26px,4vw,36px)]">Why we built Tressform</h1>
         <p className="mb-8 text-[15px] leading-[1.6] text-ink-body">
           Too many haircuts start with a vague photo on a phone and a hopeful "something like this." Tressform gives
-          you and your barber a realistic, personalized preview of a style on your actual face first — so the
+          you and your barber a realistic, personalized look at a style on your actual face first — so the
           conversation in the chair starts from a shared picture, not a guess.
         </p>
 

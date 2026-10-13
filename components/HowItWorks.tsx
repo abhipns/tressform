@@ -27,7 +27,7 @@ const STEPS = [
     title: "See the styles on your own face",
     body: "You get hairstyles matched to your face shape and your hair, shown on your own photo and not on a model.",
     image: "/images/step-choose-hairstyles.jpg",
-    alt: "Hands holding a phone that shows a grid of hairstyle previews.",
+    alt: "Hands holding a phone that shows a grid of hairstyles.",
   },
   {
     title: "Take the instructions to your barber",

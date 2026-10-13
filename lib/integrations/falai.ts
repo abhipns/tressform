@@ -355,10 +355,10 @@ function describeFalError(err: unknown): string {
   console.error("[Tressform] FAL generation failed:", status ?? "", (err as Error)?.message ?? "", JSON.stringify(body ?? "").slice(0, 600));
   if (status === 422) {
     // Input the model wouldn't accept — most often its content filter.
-    return "We couldn't create a preview from that photo — please try a different, clearer photo.";
+    return "We couldn't create a hairstyle from that photo — please try a different, clearer photo.";
   }
   if (status === 429) return "We're a little busy right now — please try again in a moment.";
-  return "Preview generation isn't available right now — please try again shortly.";
+  return "Hairstyle generation isn't available right now — please try again shortly.";
 }
 
 export async function generateHairstyle(params: GenerateHairstyleParams): Promise<GenerateHairstyleResult> {
@@ -397,12 +397,12 @@ export async function generateHairstyle(params: GenerateHairstyleParams): Promis
     has_nsfw_concepts?: boolean[];
   };
   if (data.has_nsfw_concepts?.some(Boolean)) {
-    return failure(model, "We couldn't create a preview from that photo — please try a different one.", response.requestId);
+    return failure(model, "We couldn't create a hairstyle from that photo — please try a different one.", response.requestId);
   }
   const image = data.images?.[0];
   if (!image?.url) {
     console.error("[Tressform] FAL returned no image:", JSON.stringify(response.data ?? "").slice(0, 600));
-    return failure(model, "Preview generation didn't return an image — please try again.", response.requestId);
+    return failure(model, "Hairstyle generation didn't return an image — please try again.", response.requestId);
   }
 
   return {

@@ -16,7 +16,7 @@ export default function MoneyBackGuaranteePage() {
           simply don&apos;t download them.
         </p>
         <p className="text-[14px] text-ink-muted">
-          Our AI-generated previews are guidance to help you and your barber, not a guarantee of the final result —
+          Our AI-generated hairstyles are guidance to help you and your barber, not a guarantee of the final result —
           see{" "}
           <a href="/#expectations" className="font-semibold text-mint-deep">
             Honest Expectations

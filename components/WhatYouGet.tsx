@@ -34,7 +34,7 @@ const INCLUDED = [
     title: "Hairstyles matched to you",
     body: "Chosen for your face shape, your hair type and the length you have now, not from a list of what is trending.",
   },
-  { title: "A preview on your own photo", body: "Each hairstyle you choose is shown on your own photo, not on a model: from the front, both sides and the back." },
+  { title: "Each hairstyle on your own photo", body: "Each hairstyle you choose is shown on your own photo, not on a model: from the front, both sides and the back." },
   {
     title: "Barber-ready instructions",
     body: "The cut written out in a barber's words, with lengths, so your barber can recreate the look.",
@@ -58,7 +58,7 @@ export default function WhatYouGet() {
     <Band id="what" tone="cream">
       <Rail
         heading="You leave with more than a picture."
-        lead="A preview shows you the look. Your hair profile and the words for your barber are what get you the same cut in the chair."
+        lead="An AI hairstyle shows you the look. Your hair profile and the words for your barber are what get you the same cut in the chair."
         aside={
           <a href="#pricing" className="btn-secondary mt-8">
             See the packs

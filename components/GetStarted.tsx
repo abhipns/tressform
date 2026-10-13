@@ -24,12 +24,12 @@ const STEPS = [
   },
   {
     title: "Choose",
-    body: "Browse your AI-matched haircuts, previewed on your own face, and pick the one you want.",
+    body: "Browse your AI-matched haircuts, shown on your own face, and pick the one you want.",
     image: "/images/step-choose-hairstyles.jpg",
   },
   {
     title: "Show Your Barber",
-    body: "Bring the preview and barber instructions in, or book directly at a partner salon.",
+    body: "Bring your AI hairstyle pictures and barber instructions in, or book directly at a partner salon.",
     image: "/images/step-show-barber.jpg",
   },
 ];

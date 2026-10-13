@@ -182,7 +182,7 @@ function CheckoutContent() {
         <div className="mb-6 rounded-lg2 border border-line bg-surface p-6">
           <div className="mb-4 flex items-baseline justify-between">
             <span className="text-[14.5px] text-ink-muted">
-              {pack.imageCount} hairstyle previews on your own photo
+              {pack.imageCount} hairstyles on your own photo
             </span>
             <span className="font-heading text-[24px] font-bold text-ink-heading">
               ₹{paiseToRupees(pnl.pricePaise).split(".")[0]}

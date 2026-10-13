@@ -39,12 +39,12 @@ export default function RefundPolicyPage() {
           <h3 className="mb-2 text-[16px]">No refund</h3>
           <p className="text-[14.5px] leading-[1.6] text-ink-body">
             Once the app successfully generates your images, there is no refund — including if you simply don&apos;t
-            download them, or decide you don&apos;t like the result. Previews are a close, realistic guide based on
+            download them, or decide you don&apos;t like the result. AI hairstyles are a close, realistic guide based on
             your photos, not a guarantee of your final in-chair result — see our{" "}
             <a href="/#expectations" className="font-semibold text-mint-deep">
               Honest Expectations
             </a>{" "}
-            section on the homepage for what a preview can and can&apos;t predict.
+            section on the homepage for what an AI hairstyle can and can&apos;t predict.
           </p>
         </div>
 

@@ -49,7 +49,36 @@ export const GROUPS = [
   { id: "tools", label: "Tools" },
 ] as const;
 
-export const STORES = ["Amazon", "Nykaa", "Flipkart", "Myntra", "Other"] as const;
+/**
+ * 13.10.2026: each product can be bought at several shops; the card shows a
+ * button per shop the owner has a link for. Amazon links are built from the
+ * product's code (ASIN) and the owner's Associate ID; the others are the
+ * owner's affiliate links (EarnKaro).
+ */
+export const SHOPS = [
+  { id: "amazon", label: "Amazon" },
+  { id: "flipkart", label: "Flipkart" },
+  { id: "nykaa", label: "Nykaa" },
+  { id: "myntra", label: "Myntra" },
+  { id: "brand", label: "Brand website" },
+] as const;
+export type ShopId = (typeof SHOPS)[number]["id"];
+export const SHOP_IDS = SHOPS.map((s) => s.id) as ShopId[];
+export const shopLabel = (id: ShopId) => SHOPS.find((s) => s.id === id)?.label ?? "Shop";
+
+/** The owner's Amazon Associates ID (public: it is part of every Amazon link). */
+export const AMAZON_TAG = "tressform-21";
+/** Amazon asks for this sentence wherever its links appear. */
+export const AMAZON_DISCLOSURE = "As an Amazon Associate, Tressform earns from qualifying purchases.";
+
+/** The product code in an Amazon link (…/dp/B0ABC12345…), or null. */
+export function asinFromLink(link: string): string | null {
+  const m = link.match(/\/(?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
+  return m ? m[1].toUpperCase() : /^[A-Z0-9]{10}$/i.test(link.trim()) ? link.trim().toUpperCase() : null;
+}
+export function amazonLink(asin: string): string {
+  return `https://www.amazon.in/dp/${asin}?tag=${AMAZON_TAG}`;
+}
 
 /** A product as the site shows it (no admin-only fields). */
 export interface CareProduct {
@@ -57,7 +86,8 @@ export interface CareProduct {
   title: string;
   brand: string | null;
   kind: ProductKind;
-  store: string | null;
+  /** The shops this product can be bought at, in the order the buttons show. */
+  shops: ShopId[];
   gender: "all" | HairGender;
   hairTypes: HairTexture[];
   note: string | null;
@@ -201,8 +231,9 @@ export function productsFor(
 }
 
 /** The link that records the tap and then opens the shop. */
-export function goLink(productId: string, from: string, styleId?: string): string {
+export function goLink(productId: string, from: string, styleId?: string, shop?: ShopId): string {
   const q = new URLSearchParams({ from });
+  if (shop) q.set("shop", shop);
   if (styleId) q.set("style", styleId);
   return `/go/${productId}?${q.toString()}`;
 }

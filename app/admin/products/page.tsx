@@ -3,7 +3,8 @@
 // /admin/products — the owner's hair-care products. OWNER ONLY.
 //
 // 12.10.2026. The owner pastes in each product's name, brand, kind and the
-// affiliate buy link (from EarnKaro, Amazon Associates…), and ticks which
+// links for each shop (Amazon: the plain product page — the site adds the
+// owner's Associate ID; others: EarnKaro affiliate links), and ticks which
 // hair types it suits. The hairstyle cards and the Hair Care page pick from
 // this list straight away — no upload needed. Products can be switched off
 // without deleting them. The list shows how often each was tapped in the
@@ -12,7 +13,7 @@
 import { useEffect, useState } from "react";
 import { SUPABASE_MOCK_MODE, authHeaders, loginUrl, useSession } from "@/lib/authClient";
 import { supabase } from "@/lib/supabaseClient";
-import { GROUPS, KINDS, KIND_IDS, STORES, type ProductKind } from "@/lib/content/haircare";
+import { GROUPS, KINDS, KIND_IDS, SHOPS, amazonLink, shopLabel, type ProductKind, type ShopId } from "@/lib/content/haircare";
 
 interface Row {
   id: string;
@@ -20,8 +21,10 @@ interface Row {
   brand: string | null;
   kind: string | null;
   store: string | null;
+  amazon_asin: string | null;
+  shop_links: Record<string, string> | null;
   description: string | null;
-  earnkaro_tracked_url: string;
+  earnkaro_tracked_url: string | null;
   gender: "all" | "men" | "women";
   hair_types: string[];
   sort_order: number;
@@ -34,8 +37,7 @@ const EMPTY = {
   title: "",
   brand: "",
   kind: "" as ProductKind | "",
-  store: "Amazon",
-  link: "",
+  shops: { amazon: "", flipkart: "", nykaa: "", myntra: "", brand: "" } as Record<ShopId, string>,
   note: "",
   gender: "all",
   hairTypes: [] as string[],
@@ -109,8 +111,7 @@ export default function AdminProductsPage() {
       title: form.title,
       brand: form.brand,
       kind: form.kind,
-      store: form.store,
-      link: form.link,
+      shops: form.shops,
       note: form.note,
       gender: form.gender,
       hairTypes: form.hairTypes,
@@ -129,8 +130,13 @@ export default function AdminProductsPage() {
       title: r.title,
       brand: r.brand ?? "",
       kind: (r.kind ?? "") as ProductKind,
-      store: r.store ?? "Other",
-      link: r.earnkaro_tracked_url,
+      shops: {
+        amazon: r.amazon_asin ? amazonLink(r.amazon_asin) : "",
+        flipkart: r.shop_links?.flipkart ?? "",
+        nykaa: r.shop_links?.nykaa ?? "",
+        myntra: r.shop_links?.myntra ?? "",
+        brand: r.shop_links?.brand ?? (r.earnkaro_tracked_url ?? ""),
+      },
       note: r.description ?? "",
       gender: r.gender,
       hairTypes: r.hair_types ?? [],
@@ -167,6 +173,11 @@ export default function AdminProductsPage() {
     );
   }
 
+  const shopsOf = (r: Row) => {
+    const ids = SHOPS.map((x) => x.id).filter((id) => (id === "amazon" ? r.amazon_asin : r.shop_links?.[id]));
+    if (ids.length === 0 && r.earnkaro_tracked_url) return r.store ?? "one shop";
+    return ids.length ? ids.map((id) => shopLabel(id)).join(", ") : "No shop links";
+  };
   const kindLabel = (k: string | null) => (k && k in KINDS ? KINDS[k as ProductKind].label : "No kind set");
 
   return (
@@ -204,18 +215,20 @@ export default function AdminProductsPage() {
               ))}
             </select>
           </label>
-          <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Buy link (your affiliate link)</span>
-            <input className={input} value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://…" />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Shop</span>
-            <select className={input} value={form.store} onChange={(e) => setForm({ ...form, store: e.target.value })}>
-              {STORES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </label>
+          <fieldset className="grid gap-3 sm:col-span-2">
+            <legend className="mb-1.5 text-[13.5px] font-semibold text-ink-heading">Where to buy it (fill in at least one)</legend>
+            {SHOPS.map((shop) => (
+              <label key={shop.id} className="grid gap-1 sm:grid-cols-[120px_1fr] sm:items-center sm:gap-3">
+                <span className="text-[14px] text-ink-heading">{shop.label}</span>
+                <input
+                  className={input}
+                  value={form.shops[shop.id]}
+                  onChange={(e) => setForm({ ...form, shops: { ...form.shops, [shop.id]: e.target.value } })}
+                  placeholder={shop.id === "amazon" ? "The product's page on amazon.in (we add your tag)" : "Your affiliate link, https://…"}
+                />
+              </label>
+            ))}
+          </fieldset>
           <label className="block">
             <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">For</span>
             <select className={input} value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
@@ -284,7 +297,7 @@ export default function AdminProductsPage() {
                     {r.title}
                   </p>
                   <p className="mt-0.5 text-[13.5px] text-ink-muted">
-                    {kindLabel(r.kind)} · {r.store ?? "Shop not set"} ·{" "}
+                    {kindLabel(r.kind)} · {shopsOf(r)} ·{" "}
                     {r.gender === "all" ? "Everyone" : r.gender === "men" ? "Men" : "Women"} ·{" "}
                     {r.hair_types?.length ? r.hair_types.join(", ") : "all hair types"} · order {r.sort_order}
                   </p>

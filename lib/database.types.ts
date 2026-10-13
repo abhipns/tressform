@@ -121,8 +121,8 @@ export interface AffiliateProductRow {
   description: string | null;
   image_url: string | null;
   original_url: string | null;
-  /** The affiliate link the "buy" button opens (EarnKaro, Amazon Associates…). Must start with https://. */
-  earnkaro_tracked_url: string;
+  /** Before 13.10.2026: the one buy link (with `store`). Now optional; see shop_links. */
+  earnkaro_tracked_url: string | null;
   category: string | null;
   price_paise: number | null;
   /** 12.10.2026, hair-care suggestions: */
@@ -131,6 +131,10 @@ export interface AffiliateProductRow {
   store: string | null;
   hair_types: string[];
   gender: "all" | "men" | "women";
+  /** 13.10.2026: the Amazon product code; the link is built with the owner's tag. */
+  amazon_asin: string | null;
+  /** 13.10.2026: affiliate links for the other shops, e.g. { flipkart: "https://…", nykaa: "https://…" }. */
+  shop_links: Record<string, string>;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -195,7 +199,7 @@ export interface Database {
       };
       affiliate_products: {
         Row: AffiliateProductRow;
-        Insert: Partial<AffiliateProductRow> & { title: string; earnkaro_tracked_url: string };
+        Insert: Partial<AffiliateProductRow> & { title: string };
         Update: Partial<AffiliateProductRow>;
       };
       carousel_sessions: {

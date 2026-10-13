@@ -12,7 +12,7 @@ import Footer from "@/components/Footer";
 export const metadata: Metadata = {
   title: "Tressform",
   description:
-    "Find your perfect haircut before you cut, using AI face analysis and style previews.",
+    "Find your perfect haircut before you cut, using AI face analysis and AI hairstyles.",
 };
 
 // Header/Footer moved here from app/page.tsx so every route (the new

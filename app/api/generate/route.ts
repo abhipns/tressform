@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     if (!taken) {
       return NextResponse.json(
         {
-          error: "You have no previews left. Choose a pack to see more styles on your own photo.",
+          error: "You have no hairstyles left. Choose a pack to see more styles on your own photo.",
           previewsLeft: 0,
           freePreviewsUsed: profile.freePreviewsUsed,
           freePreviewsLimit: profile.freePreviewsLimit,
@@ -265,7 +265,7 @@ export async function POST(req: NextRequest) {
   const limitReached = () =>
     NextResponse.json(
       {
-        error: "You have no previews left. Choose a pack to see more styles on your own photo.",
+        error: "You have no hairstyles left. Choose a pack to see more styles on your own photo.",
         previewsLeft: 0,
         freePreviewsUsed: profile.free_previews_limit,
         freePreviewsLimit: profile.free_previews_limit,
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
       reservation = await reservePreview(admin, userId);
     } catch (err) {
       console.error("[Tressform] Could not take a preview:", (err as Error).message);
-      return NextResponse.json({ error: "We couldn't start your preview — please try again." }, { status: 500 });
+      return NextResponse.json({ error: "We couldn't start your hairstyle — please try again." }, { status: 500 });
     }
     if (!reservation) return limitReached();
   }
@@ -350,7 +350,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("[Tressform] Could not fetch generated preview:", (err as Error).message);
       await giveBack();
-      return NextResponse.json({ error: "We couldn't save your preview — please try again." }, { status: 502 });
+      return NextResponse.json({ error: "We couldn't save your hairstyle — please try again." }, { status: 502 });
     }
 
     verdict = await checkPreview(originalBytes, imageBytes, originalPose);
@@ -375,7 +375,7 @@ export async function POST(req: NextRequest) {
       status: "FAILED",
       provider: result.model,
       cost_paise: spentPaise,
-      error_message: `Preview check: ${describeVerdict(verdict)}`,
+      error_message: `Hairstyle check: ${describeVerdict(verdict)}`,
       check_result: checkRecord,
       completed_at: new Date().toISOString(),
     });
@@ -383,7 +383,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "We couldn't make a true-to-you preview of this style, so it hasn't been counted. Please try another style, or a clearer photo facing the camera.",
+          "We couldn't make a true-to-you picture of this style, so it hasn't been counted. Please try another style, or a clearer photo facing the camera.",
         previewRejected: true,
       },
       { status: 422 }
@@ -414,7 +414,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("[Tressform] Could not store generated preview:", (err as Error).message);
       await giveBack();
-      return NextResponse.json({ error: "We couldn't save your preview — please try again." }, { status: 502 });
+      return NextResponse.json({ error: "We couldn't save your hairstyle — please try again." }, { status: 502 });
     }
   }
 

@@ -95,7 +95,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
         <div className="mx-auto max-w-[480px] text-center">
           <h1 className="mb-3 text-[24px]">The payment didn&apos;t go through</h1>
           <p className="mb-6 text-[14.5px] text-ink-muted">
-            No previews were added and no money was taken. If money did leave your account, your bank returns it
+            No hairstyles were added and no money was taken. If money did leave your account, your bank returns it
             automatically within a few working days.
           </p>
           <a href={`/checkout?tier=${order.tier ?? ""}`} className="btn-primary">
@@ -118,7 +118,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           <p className="mb-6 text-[14.5px] text-ink-muted">
             {stillChecking
               ? "This usually takes a few seconds. Please keep this page open."
-              : "We haven't heard from the bank yet. If you paid, your previews are added automatically as soon as it confirms — come back to this page in a few minutes. If you didn't finish paying, you can try again."}
+              : "We haven't heard from the bank yet. If you paid, your hairstyles are added automatically as soon as it confirms — come back to this page in a few minutes. If you didn't finish paying, you can try again."}
           </p>
           {!stillChecking && (
             <div className="flex flex-col items-center gap-3">
@@ -144,7 +144,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           </span>
           <h1 className="mb-2 text-[clamp(24px,4vw,30px)]">Payment confirmed</h1>
           <p className="mb-6 text-[14.5px] text-ink-muted">
-            {order.tierLabel}: {order.imageCount} hairstyle previews have been added to your account. Use them on any
+            {order.tierLabel}: {order.imageCount} hairstyles have been added to your account. Use them on any
             style from your list.
           </p>
           <a href="/#upload" className="btn-primary mb-7">

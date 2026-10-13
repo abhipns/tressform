@@ -2,13 +2,15 @@
 //
 // 12.10.2026. GET lists every product (switched off ones too) with how many
 // times each was tapped in the last 30 days; POST adds one; PATCH changes
-// one; DELETE removes one. The buy link must be a full https:// link — it's
-// the affiliate link from EarnKaro, Amazon Associates or the like, pasted in
-// by the owner.
+// one; DELETE removes one. 13.10.2026: a link per shop. For Amazon the
+// owner pastes the product's normal page link and its product code is kept
+// (the site adds the owner's Associate ID); Flipkart, Nykaa, Myntra and the
+// brand's own site take the owner's affiliate links (EarnKaro). Every link
+// must be a full https:// link.
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
-import { KIND_IDS, STORES } from "@/lib/content/haircare";
+import { KIND_IDS, SHOP_IDS, asinFromLink } from "@/lib/content/haircare";
 import type { AffiliateProductRow } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +19,8 @@ type Input = {
   title?: unknown;
   brand?: unknown;
   kind?: unknown;
-  store?: unknown;
-  link?: unknown;
+  /** Shop name → link. Amazon: the product's page link (or its code); others: affiliate links. */
+  shops?: unknown;
   note?: unknown;
   gender?: unknown;
   hairTypes?: unknown;
@@ -36,16 +38,33 @@ function readInput(body: Input, partial: boolean): { ok: true; row: Partial<Affi
     if (title.length < 2) return { ok: false, error: "Give the product a name." };
     row.title = title;
   }
-  if (!partial || body.link !== undefined) {
-    const link = text(body.link, 2000);
-    let ok = false;
-    try {
-      ok = new URL(link).protocol === "https:";
-    } catch {
-      ok = false;
+  if (!partial || body.shops !== undefined) {
+    const given = (body.shops && typeof body.shops === "object" ? body.shops : {}) as Record<string, unknown>;
+    const links: Record<string, string> = {};
+    let asin: string | null = null;
+    for (const id of SHOP_IDS) {
+      const value = text(given[id], 2000);
+      if (!value) continue;
+      if (id === "amazon") {
+        asin = asinFromLink(value);
+        if (!asin) return { ok: false, error: "That Amazon link has no product code in it. Copy the link from the product's own page (it has /dp/ in it)." };
+        continue;
+      }
+      let ok = false;
+      try {
+        ok = new URL(value).protocol === "https:";
+      } catch {
+        ok = false;
+      }
+      if (!ok) return { ok: false, error: `Paste the full ${id} link, starting with https://` };
+      links[id] = value;
     }
-    if (!ok) return { ok: false, error: "Paste the full buy link, starting with https://" };
-    row.earnkaro_tracked_url = link;
+    if (!asin && Object.keys(links).length === 0) return { ok: false, error: "Add at least one shop link." };
+    row.amazon_asin = asin;
+    row.shop_links = links;
+    // The old single-link fields are no longer used for new saves.
+    row.earnkaro_tracked_url = null;
+    row.store = null;
   }
   if (!partial || body.kind !== undefined) {
     const kind = text(body.kind, 40);
@@ -53,10 +72,6 @@ function readInput(body: Input, partial: boolean): { ok: true; row: Partial<Affi
     row.kind = kind;
   }
   if (body.brand !== undefined) row.brand = text(body.brand, 60) || null;
-  if (body.store !== undefined) {
-    const store = text(body.store, 30);
-    row.store = (STORES as readonly string[]).includes(store) ? store : "Other";
-  }
   if (body.note !== undefined) row.description = text(body.note, 140) || null;
   if (body.gender !== undefined) {
     const g = text(body.gender, 10);
@@ -113,7 +128,7 @@ export async function POST(req: NextRequest) {
 
   if (SUPABASE_MOCK_MODE) {
     const now = new Date().toISOString();
-    const full = { id: crypto.randomUUID(), description: null, image_url: null, original_url: null, category: null, price_paise: null, brand: null, store: null, created_at: now, updated_at: now, ...row } as AffiliateProductRow;
+    const full = { id: crypto.randomUUID(), description: null, image_url: null, original_url: null, category: null, price_paise: null, brand: null, store: null, earnkaro_tracked_url: null, amazon_asin: null, shop_links: {}, created_at: now, updated_at: now, ...row } as AffiliateProductRow;
     demoRows.push(full);
     return NextResponse.json({ product: full });
   }

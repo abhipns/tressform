@@ -7,7 +7,7 @@
 // shop with the owner's affiliate link. Until products are added, the page
 // shows the tips and says product picks are coming.
 
-import { ProductLink } from "@/components/CareBox";
+import { AffiliateNote, ProductLink } from "@/components/CareBox";
 import { GROUPS, KINDS, WASH } from "@/lib/content/haircare";
 import { loadCareProducts } from "@/lib/haircareProducts";
 
@@ -70,9 +70,9 @@ export default async function HairCarePage() {
           <p className="mt-3 text-[15px] text-ink-muted">Our product picks are coming soon.</p>
         ) : (
           <>
-            <p className="mt-2 text-[13.5px] text-ink-muted">
-              These are affiliate links: if you buy, we may earn a small commission from the shop, at no extra cost to
-              you. The products are sold by those shops, not by Tressform; check the price there.
+            <AffiliateNote products={products} className="mt-2 !text-[13.5px]" />
+            <p className="mt-1 text-[13.5px] text-ink-muted">
+              The products are sold by those shops, not by Tressform; the price, delivery and returns are theirs.
             </p>
             {GROUPS.map((g) => {
               const list = products.filter((p) => KINDS[p.kind].group === g.id);

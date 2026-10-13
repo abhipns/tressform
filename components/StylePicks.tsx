@@ -355,7 +355,7 @@ export default function StylePicks({
         ok: false,
         noAllowance: false,
         rejected: false,
-        message: "This preview couldn't be created. Please check your connection and try again.",
+        message: "This hairstyle couldn't be created. Please check your connection and try again.",
       };
     }
     if (outcome.ok) {
@@ -749,7 +749,7 @@ export default function StylePicks({
               </p>
             )}
             {/* The barber wording comes with the preview (free or paid): the
-                packs are sold as "barber instructions with every preview",
+                packs are sold as "barber instructions with every hairstyle",
                 and the two belong together at the barber's anyway. */}
             {preview?.state === "done" ? (
               <div className="mt-4 border-t border-line pt-3">
@@ -770,7 +770,7 @@ export default function StylePicks({
               </div>
             ) : (
               <p className="mt-4 border-t border-line pt-3 text-[13.5px] text-ink-muted">
-                What to tell your barber comes with the preview.
+                What to tell your barber comes with the AI hairstyle.
               </p>
             )}
             {texture && <CareBox style={pick.style} texture={texture} products={careProducts} from="list" />}
@@ -809,7 +809,7 @@ export default function StylePicks({
           className="absolute inset-x-0 bottom-0 bg-header-dark/75 px-3 py-2.5 text-center text-[13.5px] font-medium leading-snug text-white"
           role="status"
         >
-          Creating your preview. About 20 seconds.
+          Creating your hairstyle. About 20 seconds.
         </p>
       </div>
     );
@@ -977,7 +977,7 @@ export default function StylePicks({
             </div>
             {left !== null && left > 0 && (
               <p className="rounded-full bg-mint-pale px-4 py-1.5 text-[14px] font-semibold text-ink-heading" role="status">
-                {left} {left === 1 ? "preview" : "previews"} left
+                {left} {left === 1 ? "hairstyle" : "hairstyles"} left
               </p>
             )}
           </div>
@@ -996,8 +996,8 @@ export default function StylePicks({
 
           {samples && (
             <p className="mt-4 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
-              These are placeholder images while live previews are being switched on. They don&apos;t use up your
-              previews.
+              These are placeholder images while the AI is being switched on. They don&apos;t use up your
+              hairstyles.
             </p>
           )}
 
@@ -1006,7 +1006,7 @@ export default function StylePicks({
               <h4 className="text-[20px] font-semibold leading-tight text-white">See them on your own photo</h4>
               <p className="mt-2 max-w-[56ch] text-[15px] leading-[1.5] text-white/75">
                 Your list is free. To see a style on your own photo, pick a pack and then choose which styles to use it
-                on. Each preview shows the style from the front, both sides and the back, with the words to give your
+                on. Each AI hairstyle shows the cut from the front, both sides and the back, with the words to give your
                 barber.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -1016,7 +1016,7 @@ export default function StylePicks({
                     href={`/checkout?tier=${tier}`}
                     className={`${i === 0 ? "btn-secondary" : "btn-amber"} w-full !px-5 !py-3 !text-[15.5px]`}
                   >
-                    {PACK_TIERS[tier].imageCount} previews · ₹{paiseToRupees(getCurrentPackPricePaise(tier)).split(".")[0]}
+                    {PACK_TIERS[tier].imageCount} hairstyles · ₹{paiseToRupees(getCurrentPackPricePaise(tier)).split(".")[0]}
                   </a>
                 ))}
               </div>
@@ -1054,7 +1054,7 @@ export default function StylePicks({
 
       {offList.length > 0 && (
         <div className="mt-8">
-          <h4 className="text-[19px] font-semibold leading-tight">Previews you made earlier</h4>
+          <h4 className="text-[19px] font-semibold leading-tight">Hairstyles you made earlier</h4>
           <ul className="mt-4 flex flex-col gap-4">
             {offList.map((preview) =>
               preview.state === "done" && preview.imageUrl ? (
@@ -1071,7 +1071,7 @@ export default function StylePicks({
       )}
 
       <p className="mt-8 text-[13.5px] leading-[1.5] text-ink-muted">
-        A preview shows how a cut is likely to look on you. Your own hair and your barber&apos;s hand will make the real
+        An AI hairstyle shows how a cut is likely to look on you. Your own hair and your barber&apos;s hand will make the real
         cut a little different.
       </p>
       <button type="button" className="btn-secondary mt-4 w-full" onClick={onStartOver}>

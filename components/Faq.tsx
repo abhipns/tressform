@@ -9,11 +9,11 @@ import { Band, Rail } from "./Section";
 const FAQS = [
   {
     q: "Will it actually look like me?",
-    a: "Yes — your preview is generated from your own photo, not a generic model. It reads your actual face shape, hair texture, and proportions, so the result is recognizably you wearing the new style. It's a very close, realistic guide — not a lab-exact promise, since real hair and your barber's hand always add small differences.",
+    a: "Yes — your AI hairstyle is generated from your own photo, not a generic model. It reads your actual face shape, hair texture, and proportions, so the result is recognizably you wearing the new style. It's a very close, realistic guide — not a lab-exact promise, since real hair and your barber's hand always add small differences.",
   },
   {
     q: "Will my barber understand what I want?",
-    a: "That's what the barber instructions are for. Every style on your list comes with the cut written out in words a barber uses: the lengths in centimetres and how the sides and back are cut. Show that on your phone together with your preview pictures (front, both sides and the back), and there is very little left to guess.",
+    a: "That's what the barber instructions are for. Every style on your list comes with the cut written out in words a barber uses: the lengths in centimetres and how the sides and back are cut. Show that on your phone together with your hairstyle pictures (front, both sides and the back), and there is very little left to guess.",
   },
   {
     q: "What if I don't like any of the styles?",
@@ -26,8 +26,8 @@ const FAQS = [
     a: "Your selfie is read twice, separately, comparing your forehead, cheekbones, jaw and face length; if the two readings disagree, the measurements decide. It's very good at spotting your shape and proportions — but it's a starting point for a great haircut conversation, not a lab measurement. You can also change the face shape yourself on your results.",
   },
   {
-    q: "Is the preview a guarantee of how I'll look?",
-    a: "No. Your preview is a close, realistic guide based on your photos — but real hair texture, growth pattern, and your barber's hand will always add small differences. Think of it as a very confident sneak peek, not a promise.",
+    q: "Is the AI hairstyle a guarantee of how I'll look?",
+    a: "No. Your AI hairstyle is a close, realistic guide based on your photos — but real hair texture, growth pattern, and your barber's hand will always add small differences. Think of it as a very confident sneak peek, not a promise.",
   },
   {
     q: "Are my photos safe?",
@@ -35,7 +35,7 @@ const FAQS = [
   },
   {
     q: "What is free, and what do I pay for?",
-    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack gives you 4 previews and the Style Pack 10, and you pick which styles to use them on. Each preview shows the style from the front, both sides and the back, and comes with the words to give your barber.",
+    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack gives you 4 hairstyles and the Style Pack 10, and you pick which styles to use them on. Each AI hairstyle shows the cut from the front, both sides and the back, and comes with the words to give your barber.",
   },
   {
     // 10.10.2026: was "Are the prices GST-inclusive?". Tressform isn't
