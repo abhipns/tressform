@@ -48,6 +48,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import CareBox, { useCareProducts } from "@/components/CareBox";
+import RateBox from "@/components/RateBox";
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
@@ -1074,6 +1075,11 @@ export default function StylePicks({
           </ul>
         </div>
       )}
+
+      {/* 13.10.2026: customer ratings. The paid part once a paid hairstyle's
+          four views are ready; the free list always. */}
+      {!samples && Object.values(previews).some((p) => p.viewsState === "done") && <RateBox section="hairstyles" />}
+      <RateBox section="list" />
 
       <p className="mt-8 text-[13.5px] leading-[1.5] text-ink-muted">
         An AI hairstyle shows how a cut is likely to look on you. Your own hair and your barber&apos;s hand will make the real

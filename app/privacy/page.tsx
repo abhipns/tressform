@@ -55,6 +55,10 @@ const SECTIONS = [
     body: "When you tap a product link, we record which product was tapped and on which page, but not who tapped it, so we can see which suggestions are useful. You then go to the shop's own website, where the shop's privacy policy applies.",
   },
   {
+    heading: "Visits and reviews",
+    body: "To count visits, your browser keeps a random number that it makes up itself and sends it, with the page you opened and the website you came from, when you open a page. We use no cookies for this and it does not identify you. If you rate Tressform, we keep your stars and comment with your account; comments, with the name you choose to show, appear on our website only after we check them, and you can change or remove your review at any time by contacting us.",
+  },
+  {
     heading: "How long we keep it",
     body: "Uploaded photos are automatically deleted 90 days after upload, unless your account is still active and using them. Hairstyles you have paid for are kept in your account until you ask us to delete them. You can ask us to delete your photos, your hairstyles or your whole account at any time, and we will do so without waiting for the 90-day period.",
   },

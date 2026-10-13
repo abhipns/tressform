@@ -16,6 +16,8 @@
 //    4. Try it — the upload     (UploadFlow)      id="upload"
 //    5. What you get            (WhatYouGet)      id="what"
 //    6. Why haircuts go wrong   (WhyItGoesWrong)  id="problem"
+//    6b. Reviews                (Reviews)         id="reviews"  — 13.10.2026; shows
+//       only once the owner has approved at least one review.
 //    7. Pricing                 (Pricing)         id="pricing"
 //    8. Salons, coming soon     (TressformSalons) id="salons"
 //    9. What to expect + privacy (ExpectationsAndPrivacy) id="expectations", id="privacy"
@@ -54,6 +56,7 @@ import UploadFlow from "@/components/UploadFlow";
 import WhatYouGet from "@/components/WhatYouGet";
 import WhyItGoesWrong from "@/components/WhyItGoesWrong";
 import Pricing from "@/components/Pricing";
+import Reviews from "@/components/Reviews";
 import TressformSalons from "@/components/TressformSalons";
 import ExpectationsAndPrivacy from "@/components/ExpectationsAndPrivacy";
 import Faq from "@/components/Faq";
@@ -71,6 +74,7 @@ export default function Home() {
       <UploadFlow />
       <WhatYouGet />
       <WhyItGoesWrong />
+      <Reviews />
       <Pricing />
       <TressformSalons />
       <ExpectationsAndPrivacy />

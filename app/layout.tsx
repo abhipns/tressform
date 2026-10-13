@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import VisitBeacon from "@/components/VisitBeacon";
 
 export const metadata: Metadata = {
   title: "Tressform",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <Header />
         {children}
         <Footer />
+        <VisitBeacon />
       </body>
     </html>
   );
