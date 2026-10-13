@@ -11,12 +11,12 @@ import { SUPABASE_MOCK_MODE } from "./serverAuth";
 import type { AffiliateProductRow } from "./database.types";
 
 const DEMO: CareProduct[] = [
-  { id: "demo-1", title: "Example mild shampoo", brand: "Demo", kind: "shampoo-mild", shops: ["amazon", "flipkart", "nykaa"], gender: "all", hairTypes: [], note: null },
-  { id: "demo-2", title: "Example sulphate-free shampoo", brand: "Demo", kind: "shampoo-sulphate-free", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null },
-  { id: "demo-3", title: "Example matte clay", brand: "Demo", kind: "matte-clay", shops: ["amazon", "flipkart", "nykaa"], gender: "men", hairTypes: [], note: "Light hold, no shine" },
-  { id: "demo-4", title: "Example conditioner", brand: "Demo", kind: "conditioner", shops: ["amazon", "flipkart", "nykaa"], gender: "all", hairTypes: [], note: null },
-  { id: "demo-5", title: "Example curl cream", brand: "Demo", kind: "curl-cream", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null },
-  { id: "demo-6", title: "Example hair serum", brand: "Demo", kind: "serum", shops: ["amazon", "flipkart", "nykaa"], gender: "women", hairTypes: [], note: null },
+  { id: "demo-1", title: "Example mild shampoo", brand: "Demo", kind: "shampoo-mild", shops: ["amazon", "flipkart", "nykaa"], gender: "all", hairTypes: [], note: null, image: null },
+  { id: "demo-2", title: "Example sulphate-free shampoo", brand: "Demo", kind: "shampoo-sulphate-free", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null, image: null },
+  { id: "demo-3", title: "Example matte clay", brand: "Demo", kind: "matte-clay", shops: ["amazon", "flipkart", "nykaa"], gender: "men", hairTypes: [], note: "Light hold, no shine", image: null },
+  { id: "demo-4", title: "Example conditioner", brand: "Demo", kind: "conditioner", shops: ["amazon", "flipkart", "nykaa"], gender: "all", hairTypes: [], note: null, image: null },
+  { id: "demo-5", title: "Example curl cream", brand: "Demo", kind: "curl-cream", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null, image: null },
+  { id: "demo-6", title: "Example hair serum", brand: "Demo", kind: "serum", shops: ["amazon", "flipkart", "nykaa"], gender: "women", hairTypes: [], note: null, image: null },
 ];
 
 /** Where each shop's button goes for this product; only shops with a usable link. */
@@ -52,6 +52,7 @@ export function rowToProduct(r: AffiliateProductRow): CareProduct | null {
     gender: r.gender ?? "all",
     hairTypes: (r.hair_types ?? []).filter((t): t is CareProduct["hairTypes"][number] => ["straight", "wavy", "curly"].includes(t)),
     note: r.description,
+    image: r.image_url && /^https:\/\//i.test(r.image_url) ? r.image_url : null,
   };
 }
 

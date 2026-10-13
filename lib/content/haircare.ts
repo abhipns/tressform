@@ -76,6 +76,41 @@ export function asinFromLink(link: string): string | null {
   const m = link.match(/\/(?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
   return m ? m[1].toUpperCase() : /^[A-Z0-9]{10}$/i.test(link.trim()) ? link.trim().toUpperCase() : null;
 }
+/**
+ * 13.10.2026: product photos may only come from Amazon's own image links
+ * (Associates "SiteStripe → Image" or its data service), which Amazon hosts.
+ * The owner pastes the SiteStripe code or the image address; this keeps only
+ * an https address on one of Amazon's image hosts, or null.
+ */
+const AMAZON_IMAGE_HOSTS = /^(m\.media-amazon\.com|images-na\.ssl-images-amazon\.com|images-eu\.ssl-images-amazon\.com|ws-in\.amazon-adsystem\.com)$/i;
+export function amazonImageFrom(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+  // SiteStripe writes the image as src="//ws-in.amazon-adsystem.com/…" (no https:), followed by
+  // a 1×1 tracking pixel from ir-in.amazon-adsystem.com, which is never taken as the photo.
+  const candidates = [...text.matchAll(/(?:https:)?\/\/[^"'\s>]+/gi)].map((m) =>
+    (m[0].startsWith("//") ? "https:" + m[0] : m[0]).replace(/&amp;/g, "&")
+  );
+  for (const c of candidates) {
+    try {
+      const u = new URL(c);
+      if (u.protocol === "https:" && AMAZON_IMAGE_HOSTS.test(u.hostname)) return u.toString();
+    } catch {
+      /* not a link */
+    }
+  }
+  return null;
+}
+
+/** Each shop's button colour (the shop's own brand colour; no logos are drawn). */
+export const SHOP_STYLE: Record<ShopId, { bg: string; fg: string }> = {
+  amazon: { bg: "#FF9900", fg: "#131921" },
+  flipkart: { bg: "#2874F0", fg: "#FFFFFF" },
+  nykaa: { bg: "#FC2779", fg: "#FFFFFF" },
+  myntra: { bg: "#FF3F6C", fg: "#FFFFFF" },
+  brand: { bg: "#16261C", fg: "#FFFFFF" },
+};
+
 export function amazonLink(asin: string): string {
   return `https://www.amazon.in/dp/${asin}?tag=${AMAZON_TAG}`;
 }
@@ -91,6 +126,8 @@ export interface CareProduct {
   gender: "all" | HairGender;
   hairTypes: HairTexture[];
   note: string | null;
+  /** The product photo: Amazon's own image (from SiteStripe), or null. */
+  image: string | null;
 }
 
 // ------------------------------------------------------------------ finishes

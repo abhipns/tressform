@@ -35,7 +35,7 @@ describe("hair care on the cards", () => {
 
   it("picks matching products, one per kind, and respects gender and hair type", () => {
     const p = (id: string, kind: CareProduct["kind"], extra: Partial<CareProduct> = {}): CareProduct => ({
-      id, title: id, brand: null, kind, shops: ["amazon"], gender: "all", hairTypes: [], note: null, ...extra,
+      id, title: id, brand: null, kind, shops: ["amazon"], gender: "all", hairTypes: [], note: null, image: null, ...extra,
     });
     const products = [
       p("sf", "shampoo-sulphate-free", { hairTypes: ["curly"] }),
@@ -69,5 +69,19 @@ describe("shop links (13.10.2026)", () => {
     const old = rowToProduct({ ...base, store: "Nykaa", earnkaro_tracked_url: "https://ek.example/3", amazon_asin: null, shop_links: {} } as never)!;
     expect(old.shops).toEqual(["nykaa"]);
     expect(rowToProduct({ ...base, store: null, earnkaro_tracked_url: null, amazon_asin: null, shop_links: {} } as never)).toBeNull();
+  });
+});
+
+describe("product photos (13.10.2026)", () => {
+  it("takes only Amazon-hosted images from a SiteStripe code", async () => {
+    const { amazonImageFrom } = await import("../lib/content/haircare");
+    const code = '<a href="https://www.amazon.in/dp/B0828PRFKP?tag=tressform-21" target="_blank"><img border="0" src="https://m.media-amazon.com/images/I/51abcDEF._SL160_.jpg"></a>';
+    expect(amazonImageFrom(code)).toBe("https://m.media-amazon.com/images/I/51abcDEF._SL160_.jpg");
+    expect(amazonImageFrom("https://ws-in.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=B0828PRFKP&Format=_SL160_&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1&tag=tressform-21")).toContain("ws-in.amazon-adsystem.com");
+    const siteStripe = '<a href="https://www.amazon.in/dp/B0828PRFKP?&linkCode=li2&tag=tressform-21" target="_blank"><img border="0" src="//ws-in.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=B0828PRFKP&Format=_SL160_&ID=AsinImage&MarketPlace=IN&ServiceVersion=20070822&WS=1&tag=tressform-21&language=en_IN" ></a><img src="https://ir-in.amazon-adsystem.com/e/ir?t=tressform-21&language=en_IN&l=li2&o=31&a=B0828PRFKP" width="1" height="1" border="0" alt="" />';
+    expect(amazonImageFrom(siteStripe)).toMatch(/^https:\/\/ws-in\.amazon-adsystem\.com\/widgets\/q\?.*ASIN=B0828PRFKP/);
+    expect(amazonImageFrom('<img src="https://ir-in.amazon-adsystem.com/e/ir?t=x">')).toBeNull();
+    expect(amazonImageFrom('<img src="https://example.com/x.jpg">')).toBeNull();
+    expect(amazonImageFrom("")).toBeNull();
   });
 });

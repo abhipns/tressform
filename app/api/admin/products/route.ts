@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
-import { KIND_IDS, SHOP_IDS, asinFromLink } from "@/lib/content/haircare";
+import { KIND_IDS, SHOP_IDS, amazonImageFrom, asinFromLink } from "@/lib/content/haircare";
 import type { AffiliateProductRow } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,8 @@ type Input = {
   kind?: unknown;
   /** Shop name → link. Amazon: the product's page link (or its code); others: affiliate links. */
   shops?: unknown;
+  /** Amazon SiteStripe "Image" code, or the image's address. Empty = no photo. */
+  image?: unknown;
   note?: unknown;
   gender?: unknown;
   hairTypes?: unknown;
@@ -70,6 +72,12 @@ function readInput(body: Input, partial: boolean): { ok: true; row: Partial<Affi
     const kind = text(body.kind, 40);
     if (!KIND_IDS.includes(kind as never)) return { ok: false, error: "Choose what kind of product it is." };
     row.kind = kind;
+  }
+  if (body.image !== undefined) {
+    const given = text(body.image, 4000);
+    const image = given ? amazonImageFrom(given) : null;
+    if (given && !image) return { ok: false, error: "That photo isn't from Amazon. Paste the code from SiteStripe → Image on the product's Amazon page." };
+    row.image_url = image;
   }
   if (body.brand !== undefined) row.brand = text(body.brand, 60) || null;
   if (body.note !== undefined) row.description = text(body.note, 140) || null;

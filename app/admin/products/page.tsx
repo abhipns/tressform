@@ -22,6 +22,7 @@ interface Row {
   kind: string | null;
   store: string | null;
   amazon_asin: string | null;
+  image_url: string | null;
   shop_links: Record<string, string> | null;
   description: string | null;
   earnkaro_tracked_url: string | null;
@@ -38,6 +39,7 @@ const EMPTY = {
   brand: "",
   kind: "" as ProductKind | "",
   shops: { amazon: "", flipkart: "", nykaa: "", myntra: "", brand: "" } as Record<ShopId, string>,
+  image: "",
   note: "",
   gender: "all",
   hairTypes: [] as string[],
@@ -112,6 +114,7 @@ export default function AdminProductsPage() {
       brand: form.brand,
       kind: form.kind,
       shops: form.shops,
+      image: form.image,
       note: form.note,
       gender: form.gender,
       hairTypes: form.hairTypes,
@@ -137,6 +140,7 @@ export default function AdminProductsPage() {
         myntra: r.shop_links?.myntra ?? "",
         brand: r.shop_links?.brand ?? (r.earnkaro_tracked_url ?? ""),
       },
+      image: r.image_url ?? "",
       note: r.description ?? "",
       gender: r.gender,
       hairTypes: r.hair_types ?? [],
@@ -229,6 +233,15 @@ export default function AdminProductsPage() {
               </label>
             ))}
           </fieldset>
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Photo (optional)</span>
+            <textarea
+              className={`${input} min-h-[70px] font-mono text-[12.5px]`}
+              value={form.image}
+              onChange={(e) => setForm({ ...form, image: e.target.value })}
+              placeholder="On the product's Amazon page, SiteStripe → Image → copy the code and paste it here"
+            />
+          </label>
           <label className="block">
             <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">For</span>
             <select className={input} value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
@@ -291,7 +304,12 @@ export default function AdminProductsPage() {
           {rows.map((r) => (
             <li key={r.id} className={`rounded-[16px] border border-line bg-surface p-4 ${r.is_active ? "" : "opacity-60"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-3">
+                  {r.image_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.image_url} alt="" className="h-12 w-12 shrink-0 rounded-full border border-line bg-white object-contain p-1" />
+                  )}
+                  <div className="min-w-0">
                   <p className="text-[16px] font-semibold text-ink-heading">
                     {r.brand ? `${r.brand} · ` : ""}
                     {r.title}
@@ -304,6 +322,7 @@ export default function AdminProductsPage() {
                   <p className="mt-0.5 text-[13.5px] text-ink-muted">
                     {r.clicks30} tap{r.clicks30 === 1 ? "" : "s"} in the last 30 days{r.is_active ? "" : " · switched off"}
                   </p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="btn-secondary !px-4 !py-2 !text-[14px]" onClick={() => edit(r)}>

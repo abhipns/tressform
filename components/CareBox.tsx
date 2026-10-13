@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from "react";
 import type { Hairstyle, HairTexture } from "@/lib/content/hairstyles";
-import { AMAZON_DISCLOSURE, KINDS, careFor, goLink, productsFor, shopLabel, type CareProduct } from "@/lib/content/haircare";
+import { AMAZON_DISCLOSURE, KINDS, SHOP_STYLE, careFor, goLink, productsFor, shopLabel, type CareProduct } from "@/lib/content/haircare";
 
 let cache: Promise<CareProduct[]> | null = null;
 
@@ -64,15 +64,27 @@ function GroupIcon({ group }: { group: string }) {
 // (owner's choice: Amazon, Flipkart, Nykaa, Myntra, the brand's site). No
 // prices yet: Amazon only allows prices from its own data service, which
 // switches on once the owner's Associates account qualifies; EarnKaro gives
-// no prices at all. So each button says "See price".
+// no prices at all. 13.10.2026 (later): the owner's wording, "Buy on";
+// each shop button in that shop's own colour; the product's Amazon photo in
+// the circle when there is one (the kind's icon otherwise).
 export function ProductLink({ product, from, styleId, compact = false }: { product: CareProduct; from: string; styleId?: string; compact?: boolean }) {
   const kind = KINDS[product.kind];
   return (
     <div className={`rounded-[12px] border border-line bg-surface ${compact ? "p-2.5" : "p-3"}`}>
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mint-pale text-mint-deep">
-          <GroupIcon group={kind.group} />
-        </span>
+        {product.image ? (
+          // eslint-disable-next-line @next/next/no-img-element -- Amazon's own hosted image, shown as Amazon allows.
+          <img
+            src={product.image}
+            alt=""
+            loading="lazy"
+            className="h-14 w-14 shrink-0 rounded-full border border-line bg-white object-contain p-1"
+          />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-mint-pale text-mint-deep">
+            <GroupIcon group={kind.group} />
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[12px] font-semibold uppercase tracking-[.03em] text-ink-muted">{kind.label}</span>
           <span className="block text-[14.5px] font-semibold leading-snug text-ink-heading">
@@ -83,18 +95,19 @@ export function ProductLink({ product, from, styleId, compact = false }: { produ
         </span>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2">
-        <span className="text-[12.5px] text-ink-muted">See price on</span>
+        <span className="text-[12.5px] text-ink-muted">Buy on</span>
         {product.shops.map((shop) => (
           <a
             key={shop}
             href={goLink(product.id, from, styleId, shop)}
             target="_blank"
             rel="sponsored noopener"
-            className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-soft px-3 py-1.5 text-[13px] font-semibold text-ink-heading transition hover:border-mint-deep hover:text-mint-deep"
-            aria-label={`See price of ${product.brand ? product.brand + " " : ""}${product.title} on ${shopLabel(shop)}`}
+            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition hover:opacity-90"
+            style={{ background: SHOP_STYLE[shop].bg, color: SHOP_STYLE[shop].fg }}
+            aria-label={`Buy ${product.brand ? product.brand + " " : ""}${product.title} on ${shopLabel(shop)}`}
           >
             {shopLabel(shop)}
-            <span aria-hidden="true" className="text-ink-muted">↗</span>
+            <span aria-hidden="true">↗</span>
           </a>
         ))}
       </div>
