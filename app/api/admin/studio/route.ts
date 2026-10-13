@@ -38,6 +38,8 @@ interface StudioBody {
   gender?: "men" | "women";
   model?: string;
   polish?: boolean; // false = change the hair only, no "flattering photo" finish
+  greyBackground?: boolean; // 13.10.2026 test: soft light-grey backdrop
+  evenLight?: boolean; // 13.10.2026 test: even light on the face, skin tone kept
 }
 
 function extensionFor(contentType: string | null): { ext: string; type: string } {
@@ -78,6 +80,8 @@ export async function POST(req: NextRequest) {
       styleDescription: styleText,
       model,
       polish: body.polish !== false,
+      greyBackground: body.greyBackground === true,
+      evenLight: body.evenLight === true,
     });
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
@@ -139,6 +143,8 @@ export async function POST(req: NextRequest) {
     facialHair,
     model,
     polish: body.polish !== false,
+    greyBackground: body.greyBackground === true,
+    evenLight: body.evenLight === true,
     imageSize,
   });
   if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
@@ -183,7 +189,7 @@ export async function POST(req: NextRequest) {
   const { error: insertError } = await admin.from("style_results").insert({
     user_id: userId,
     photo_id: photo.id,
-    style_name: `Studio: ${styleLabel}${body.polish === false ? " (hair only)" : ""}`.slice(0, 120),
+    style_name: `Studio: ${styleLabel}${body.polish === false ? " (hair only)" : ""}${body.greyBackground ? " (grey bg)" : ""}${body.evenLight ? " (even light)" : ""}`.slice(0, 120),
     status: "SUCCEEDED",
     result_storage_path: storedPath,
     provider: result.mock ? "mock" : result.model,

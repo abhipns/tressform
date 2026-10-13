@@ -139,6 +139,35 @@ export interface GenerateHairstyleParams {
    * for the same shape as the photo it was given.
    */
   imageSize?: { width: number; height: number } | null;
+  /**
+   * 13.10.2026, Studio test only (owner): replace the room behind the person
+   * with a plain, soft light-grey backdrop, so a messy room is hidden and the
+   * hair's outline is easy to judge. Not used for customers until the
+   * owner's test photos come out true to the person.
+   */
+  greyBackground?: boolean;
+  /**
+   * 13.10.2026, Studio test only (owner): light the face evenly from both
+   * sides, for selfies taken in poor light, with the skin tone kept exactly
+   * as it is (the models tend to make skin fairer when asked to relight).
+   */
+  evenLight?: boolean;
+}
+
+/** The backdrop line, when asked for (see GenerateHairstyleParams.greyBackground). */
+function backgroundLine(params: GenerateHairstyleParams): string {
+  return params.greyBackground
+    ? "Replace the background behind them with a plain, soft light-grey studio backdrop, smooth and evenly lit, with nothing else in it. " +
+        "Keep the outline of their hair, ears and shoulders natural against it. "
+    : "";
+}
+
+/** The lighting line, when asked for (see GenerateHairstyleParams.evenLight). */
+function lightLine(params: GenerateHairstyleParams): string {
+  return params.evenLight
+    ? "Light their face softly and evenly from the front, so that neither side of the face is in shadow and nothing is too dark or too bright. " +
+        "Keep their skin tone exactly as it is in the photo: do not make their skin lighter, fairer, smoother or more even in colour. "
+    : "";
 }
 
 export interface GenerateHairstyleResult {
@@ -238,7 +267,9 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     "They keep facing the camera exactly as in the photo: do not turn or tilt their head. " +
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
-    "expression, head position, camera angle, clothing and background. " +
+    `expression, head position, camera angle, clothing${params.greyBackground ? "" : " and background"}. ` +
+    backgroundLine(params) +
+    lightLine(params) +
     // 11.10.2026: a grey-haired man in his fifties came back from Flux
     // with dark hair and a younger man's face. Age and grey hair are now
     // named outright, for every model.
@@ -258,8 +289,8 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     "Work with their natural hair texture: do not straighten curly or wavy hair and do not curl straight hair, " +
     "unless the hairstyle itself is described as curly, wavy or straight. " +
     (params.polish === false
-      ? "Do not retouch, relight, smooth, slim, lighten or reframe anything: the face, skin texture, skin tone, " +
-        "jewellery, clothing, background, framing and image size must stay exactly as they are in the photo. " +
+      ? `Do not retouch, ${params.evenLight ? "" : "relight, "}smooth, slim, lighten or reframe anything: the face, skin texture, skin tone, ` +
+        `jewellery, clothing, ${params.greyBackground ? "" : "background, "}framing and image size must stay exactly as they are in the photo. ` +
         "The new hair should look freshly and neatly cut, with natural hair texture and a realistic hairline. "
       : // 10.10.2026: in the side-by-side sheets both models made the
         // person a little fairer when asked for a flattering photo, so
@@ -294,7 +325,9 @@ export function buildKontextPrompt(params: GenerateHairstyleParams): string {
     "Keep the exact same person: the same face, facial features, age, wrinkles and skin texture, skin tone, eye colour and expression. " +
     "Keep their natural hair colour, including any grey or white hair, and their natural hair texture: curly hair stays curly. " +
     `${facialHairLine(params.facialHair)} ` +
-    "Keep the clothing, background, lighting, camera angle and framing exactly as they are."
+    backgroundLine(params) +
+    lightLine(params) +
+    `Keep the clothing, ${params.greyBackground ? "" : "background, "}${params.evenLight ? "" : "lighting, "}camera angle and framing exactly as they are.`
   );
 }
 

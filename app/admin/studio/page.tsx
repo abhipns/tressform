@@ -109,6 +109,9 @@ export default function StudioPage() {
   const [modelId, setModelId] = useState(CHOSEN_MODEL.men);
   // On = what customers get today. Off = "change the hair, touch nothing else".
   const [polish, setPolish] = useState(true);
+  // 13.10.2026 test options (owner): not used for customers yet.
+  const [greyBackground, setGreyBackground] = useState(false);
+  const [evenLight, setEvenLight] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
   // The "score my earlier pictures" tool: null = not started.
   const [rescore, setRescore] = useState<string | null>(null);
@@ -182,7 +185,7 @@ export default function StudioPage() {
       {
         id,
         label: style.label,
-        modelLabel: `${model.label}${polish ? "" : ", hair only"}`,
+        modelLabel: `${model.label}${polish ? "" : ", hair only"}${greyBackground ? ", grey background" : ""}${evenLight ? ", even light" : ""}`,
         photoName,
         state: "loading",
         photoId,
@@ -203,6 +206,8 @@ export default function StudioPage() {
           gender,
           model: model.id,
           polish,
+          greyBackground,
+          evenLight,
         }),
       });
       const data = await res.json();
@@ -546,6 +551,33 @@ export default function StudioPage() {
               This is what customers get today. Untick it to change the hair only and leave the face, skin, jewellery
               and framing exactly as they are in the photo. Flux always changes the hair only, so this box does nothing
               for Flux.
+            </span>
+          </label>
+
+          {/* 13.10.2026: two looks to test before customers get them. */}
+          <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-[16px] bg-surface p-4">
+            <input
+              type="checkbox"
+              checked={greyBackground}
+              onChange={(e) => setGreyBackground(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-mint-deep"
+            />
+            <span className="text-[15px] leading-[1.5] text-ink-body">
+              <strong className="font-semibold text-ink-heading">Soft light-grey background</strong> (test). Replaces the
+              room behind the person with a plain light-grey backdrop. Customers don&apos;t get this yet.
+            </span>
+          </label>
+          <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-[16px] bg-surface p-4">
+            <input
+              type="checkbox"
+              checked={evenLight}
+              onChange={(e) => setEvenLight(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-mint-deep"
+            />
+            <span className="text-[15px] leading-[1.5] text-ink-body">
+              <strong className="font-semibold text-ink-heading">Even lighting</strong> (test). Lights both sides of the face
+              evenly, keeping the skin tone exactly as in the photo. Customers don&apos;t get this yet. Check the skin tone
+              against the original in every result.
             </span>
           </label>
         </div>
