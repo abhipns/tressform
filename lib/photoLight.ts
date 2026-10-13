@@ -34,8 +34,13 @@ export interface FaceRegion {
   ry: number;
 }
 
-/** Where the selfie camera's dashed outline sits (components/SelfieCamera.tsx). */
-export const GUIDE_OVAL: FaceRegion = { cx: 0.5, cy: 0.445, rx: 0.307, ry: 0.32 };
+/**
+ * Where the selfie camera's dashed outline sits (components/SelfieCamera.tsx).
+ * 13.10.2026: made smaller and higher, with a shoulder line under it, so a
+ * customer stands back far enough for the shoulders to be in the photo (the
+ * owner found previews cut off at the chin when the face filled the frame).
+ */
+export const GUIDE_OVAL: FaceRegion = { cx: 0.5, cy: 0.375, rx: 0.22, ry: 0.215 };
 
 export interface LightReading {
   problem: LightProblem | null;

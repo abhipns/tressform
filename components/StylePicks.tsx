@@ -529,7 +529,12 @@ export default function StylePicks({
           </p>
         )}
         {preview.viewsState === undefined && makeViews && !samples && (
-          <button type="button" className="mt-2 text-[14px] font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4" onClick={() => requestViews(style)}>
+          // 13.10.2026: a real button, not a text link (owner's request).
+          <button type="button" className="btn-secondary mt-3 w-full gap-2 !py-3 !text-[15.5px] sm:w-auto sm:!px-6" onClick={() => requestViews(style)}>
+            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+              <path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M18 3v3.6h-3.6M6 21v-3.6h3.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             See the sides and back
           </button>
         )}

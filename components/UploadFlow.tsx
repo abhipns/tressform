@@ -182,16 +182,19 @@ async function makeThumb(dataUrl: string | null): Promise<string | null> {
   }
 }
 
+// 13.10.2026 (owner): arm's length so the shoulders show, and a light top
+// (dark clothes blur into dark hair in the preview).
 const TIPS = [
   "Face a window or a light, so your face is evenly lit.",
-  "Hold the phone at eye level, not from below.",
+  "Hold the phone at arm's length, arm straight, at eye level, so your head and shoulders are in the picture.",
   "No glasses, cap or hat, and keep your hair off your face.",
+  "A light or plain top works best.",
 ];
 
 const GENDER_KEY = "tressform_hairstyles_for";
-const GENDER_OPTIONS: { value: HairGender; label: string }[] = [
-  { value: "men", label: "Men's hairstyles" },
-  { value: "women", label: "Women's hairstyles" },
+const GENDER_OPTIONS: { value: HairGender; label: string; short: string }[] = [
+  { value: "men", label: "Men's hairstyles", short: "Men's" },
+  { value: "women", label: "Women's hairstyles", short: "Women's" },
 ];
 
 const SLOT_LABEL: Record<Slot, string> = { front: "Front", left: "Left", right: "Right" };
@@ -549,27 +552,37 @@ export default function UploadFlow() {
         ? "Tick the box above to continue."
         : "";
 
+  // 13.10.2026 (owner): on a phone the whole upload card, button included,
+  // must be on screen when a customer arrives here. So on phones only the
+  // heading sits above the card; the intro and tips move below it. On a
+  // computer the two-column layout is unchanged.
+  const intro = (
+    <>
+      <p className="lead mt-5 max-w-[44ch]">
+        One selfie, looking straight at the camera. Take it now, or upload one you already have.
+        Your list of matched hairstyles is free.
+      </p>
+      <div className="mt-8 max-w-[44ch]">
+        <h3 className="text-[17px] font-semibold">For a good result</h3>
+        <ul className="mt-3 flex flex-col gap-2.5 text-[15.5px] leading-[1.55]">
+          {TIPS.map((tip) => (
+            <li key={tip} className="flex gap-3">
+              <span className="mt-[9px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
+              <span>{tip}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+
   return (
-    <section id="upload" className="bg-mint-pale text-ink-body">
-      <div className="frame py-16 sm:py-20 lg:py-28">
-        <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
+    <section id="upload" className="bg-mint-pale text-ink-body max-sm:!scroll-mt-[66px]">
+      <div className="frame pb-12 pt-5 sm:py-20 lg:py-28">
+        <div className="grid gap-x-16 gap-y-4 sm:gap-y-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
           <div className="lg:sticky lg:top-28 lg:self-start">
-            <h2 className="h-display">Try it on your own face.</h2>
-            <p className="lead mt-5 max-w-[44ch]">
-              One selfie, looking straight at the camera. Take it now, or upload one you already have.
-              Your list of matched hairstyles is free.
-            </p>
-            <div className="mt-8 max-w-[44ch]">
-              <h3 className="text-[17px] font-semibold">For a good result</h3>
-              <ul className="mt-3 flex flex-col gap-2.5 text-[15.5px] leading-[1.55]">
-                {TIPS.map((tip) => (
-                  <li key={tip} className="flex gap-3">
-                    <span className="mt-[9px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <h2 className="h-display max-sm:!text-[28px] max-sm:!leading-tight">Try it on your own face.</h2>
+            <div className="hidden sm:block">{intro}</div>
           </div>
 
           <div ref={card} className="min-w-0 scroll-mt-24 rounded-[28px] bg-surface p-5 shadow-card sm:p-8 lg:p-10">
@@ -600,9 +613,9 @@ export default function UploadFlow() {
 
             {step === "capture" && !sessionLoading && !needsLogin && !restoring && (
               <div>
-                <fieldset className="mb-6 sm:mb-7">
-                  <legend className="text-[17px] font-semibold text-ink-heading">Which hairstyles do you want to see?</legend>
-                  <div role="radiogroup" aria-label="Which hairstyles do you want to see?" className="mt-3 grid grid-cols-2 gap-3">
+                <fieldset className="mb-4 sm:mb-7">
+                  <legend className="text-[16px] font-semibold text-ink-heading sm:text-[17px]">Which hairstyles do you want to see?</legend>
+                  <div role="radiogroup" aria-label="Which hairstyles do you want to see?" className="mt-2.5 grid grid-cols-2 gap-3 sm:mt-3">
                     {GENDER_OPTIONS.map((option) => {
                       const selected = gender === option.value;
                       return (
@@ -612,13 +625,14 @@ export default function UploadFlow() {
                           role="radio"
                           aria-checked={selected}
                           onClick={() => chooseGender(option.value)}
-                          className={`rounded-[16px] border-[1.5px] px-3 py-3.5 font-heading text-[16px] font-semibold leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint-deep ${
+                          className={`rounded-[16px] border-[1.5px] px-3 py-2.5 font-heading text-[16px] sm:py-3.5 font-semibold leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint-deep ${
                             selected
                               ? "border-mint bg-mint text-white"
                               : "border-line bg-surface text-ink-heading hover:border-ink-heading"
                           }`}
                         >
-                          {option.label}
+                          <span className="sm:hidden">{option.short}</span>
+                          <span className="hidden sm:inline">{option.label}</span>
                         </button>
                       );
                     })}
@@ -629,12 +643,12 @@ export default function UploadFlow() {
                     buttons instead of a tall frame with empty space beside it.
                     The frame and "Upload a photo" both open the same file
                     picker (on a phone: gallery or camera). */}
-                <div className="border-t border-line pt-6 sm:pt-7">
-                  <p className="text-[17px] font-semibold text-ink-heading">Your selfie</p>
-                  <div className="mt-3 flex items-stretch gap-4 sm:gap-6">
+                <div className="border-t border-line pt-4 sm:pt-7">
+                  <p className="text-[16px] font-semibold text-ink-heading sm:text-[17px]">Your selfie</p>
+                  <div className="mt-2.5 flex items-stretch gap-4 sm:gap-6">
                     <label
                       htmlFor="selfieInput"
-                      className={`group relative flex aspect-[3/4] w-[128px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-[1.5px] bg-bg-soft transition hover:border-mint sm:w-[168px] ${
+                      className={`group relative flex aspect-[3/4] w-[108px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-[1.5px] bg-bg-soft transition hover:border-mint sm:w-[168px] ${
                         photos.front ? "border-mint" : "border-dashed border-ink-muted/50"
                       }`}
                     >
@@ -655,7 +669,7 @@ export default function UploadFlow() {
                       )}
                     </label>
                     <div className="flex min-w-0 flex-1 flex-col justify-center gap-3">
-                      <button type="button" className="btn-secondary w-full gap-2.5 !px-4 !py-3" onClick={openCamera}>
+                      <button type="button" className="btn-secondary w-full gap-2.5 !px-4 !py-3 max-sm:!text-[15px]" onClick={openCamera}>
                         <CameraIcon />
                         {allUploaded ? "Retake selfie" : "Take a selfie now"}
                       </button>
@@ -666,7 +680,7 @@ export default function UploadFlow() {
                         {allUploaded ? "Choose a different photo" : "or upload a photo"}
                       </label>
                       <p className="text-center text-[13px] leading-[1.45] text-ink-muted">
-                        Looking straight at the camera, whole face and hair in the picture.
+                        Phone at arm&apos;s length, looking straight at it, head and shoulders in the picture.
                       </p>
                     </div>
                   </div>
@@ -683,7 +697,7 @@ export default function UploadFlow() {
                   />
                 </div>
 
-                <div className="mt-7 flex items-start gap-3 rounded-[16px] bg-bg-soft p-4">
+                <div className="mt-4 flex items-start gap-3 rounded-[16px] bg-bg-soft p-3 sm:mt-7 sm:p-4">
                   <input
                     type="checkbox"
                     id="consentBox"
@@ -691,16 +705,16 @@ export default function UploadFlow() {
                     onChange={(e) => setConsent(e.target.checked)}
                     className="mt-0.5 h-5 w-5 shrink-0 accent-mint-deep"
                   />
-                  <label htmlFor="consentBox" className="text-[15px] leading-[1.5] text-ink-body">
+                  <label htmlFor="consentBox" className="text-[14px] leading-[1.45] text-ink-body sm:text-[15px] sm:leading-[1.5]">
                     I agree to Tressform analysing my photo to recommend hairstyles suited to me.
                   </label>
                 </div>
 
-                <div className="mt-6">
+                <div className="mt-4 sm:mt-6">
                   <button className="btn-primary w-full" disabled={!canSubmit} onClick={handleSubmit}>
                     See my hairstyles
                   </button>
-                  <p className="mt-3 min-h-[20px] text-center text-[13.5px] text-ink-muted" aria-live="polite">
+                  <p className="mt-2 min-h-[20px] text-center text-[13.5px] text-ink-muted sm:mt-3" aria-live="polite">
                     {missing}
                   </p>
                 </div>
@@ -774,6 +788,7 @@ export default function UploadFlow() {
               />
             )}
           </div>
+          {step === "capture" && <div className="sm:hidden">{intro}</div>}
         </div>
       </div>
       {cameraSlots && (

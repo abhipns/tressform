@@ -60,6 +60,7 @@ import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
 import { mockPreviewsLeft, previewsLeft as countPreviewsLeft } from "@/lib/allowance";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { tooClose } from "@/lib/photoFraming";
 
 const NOT_FOUND_MESSAGE = "We couldn't find your uploaded photos — please upload them again.";
 
@@ -95,6 +96,13 @@ function photoProblem(d: DetectFaceResult): string | null {
   }
   if (d.boundingBox.height < 0.12) {
     return "Your face is too small in the Front photo — please move closer to the camera.";
+  }
+  // 13.10.2026 (owner): previews came out cut off at the chin when the face
+  // filled the photo. Ask for a step back when the face is very large, or
+  // sits so low that the neck and shoulders can't be in the picture. Free:
+  // nothing has been spent yet at this point.
+  if (tooClose(d.boundingBox)) {
+    return "You're too close to the camera — hold the phone at arm's length so your shoulders show, then take the selfie again.";
   }
   if (d.pose && (Math.abs(d.pose.yaw) > 25 || Math.abs(d.pose.pitch) > 25)) {
     return "Please look straight at the camera for the Front photo — your head is turned or tilted.";

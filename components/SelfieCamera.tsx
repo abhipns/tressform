@@ -38,7 +38,8 @@ const STEPS: Record<SelfieSlot, { label: string; title: string; hint: string }> 
   front: {
     label: "Front",
     title: "Look straight at the camera",
-    hint: "Keep your whole face and your hair inside the outline.",
+    // 13.10.2026: arm's length, so the shoulders are in the photo.
+    hint: "Hold the phone at arm's length, arm straight, at eye level. Face and hair in the oval, shoulders on the line.",
   },
   left: {
     label: "Left",
@@ -286,8 +287,16 @@ export default function SelfieCamera({
                   <img src={shot.url} alt={`Your ${step.label.toLowerCase()} photo`} className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
                 )}
                 {!shot && status === "live" && (
+                  // 13.10.2026: face oval plus a shoulder line (see GUIDE_OVAL).
                   <svg viewBox="0 0 300 400" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-                    <ellipse cx="150" cy="178" rx="92" ry="128" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" strokeDasharray="9 9" />
+                    <ellipse cx="150" cy="150" rx="66" ry="86" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" strokeDasharray="9 9" />
+                    <path
+                      d="M28 400 C 36 338, 84 306, 150 306 C 216 306, 264 338, 272 400"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.85)"
+                      strokeWidth="2.5"
+                      strokeDasharray="9 9"
+                    />
                   </svg>
                 )}
                 {lightKnown && count === null && (
