@@ -109,6 +109,15 @@
 //     to buy a pack and coming back, or reloading, brings the same screen
 //     back, with the previews already made and the new balance, which the
 //     server supplies (/api/previews). "Start over" forgets it.
+//
+// 14.10.2026 ("My hairstyles" from the account): the tab's memory is lost
+// in a new tab, another browser or a link opened from WhatsApp, and the
+// customer used to land on an empty upload form although their hairstyles
+// were saved. Now, when this tab remembers nothing, a signed-in customer's
+// screen is rebuilt from their account: their latest photo that hairstyles
+// were made from, what they confirmed about their face and hair, and every
+// hairstyle with its pictures (/api/previews with { latest: true }). After
+// "Start over" this tab stays on a fresh upload form (FRESH_KEY).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -131,6 +140,25 @@ type Analysis = { photoId: string; previewsLeft: number | null; details: PhotoDe
 
 // What is remembered for this tab so the result screen can come back.
 const RESULT_KEY = "tressform_result";
+// Set by "Start over": this tab wants a fresh upload, not the account's latest screen.
+const FRESH_KEY = "tressform_fresh";
+
+function wantsFresh(): boolean {
+  try {
+    return window.sessionStorage.getItem(FRESH_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setFresh(value: boolean) {
+  try {
+    if (value) window.sessionStorage.setItem(FRESH_KEY, "1");
+    else window.sessionStorage.removeItem(FRESH_KEY);
+  } catch {
+    // Not remembered: a reload may bring the latest screen back, which is harmless.
+  }
+}
 type Remembered = {
   owner: string; // whose result this is: never shown to a different login
   photoId: string;
@@ -167,6 +195,8 @@ async function makeThumb(dataUrl: string | null): Promise<string | null> {
       const el = new Image();
       el.onload = () => resolve(el);
       el.onerror = () => reject(new Error("unreadable"));
+      // 14.10.2026: may be a link to the photo in storage (screen rebuilt from the account).
+      if (/^https?:/.test(dataUrl)) el.crossOrigin = "anonymous";
       el.src = dataUrl;
     });
     const width = 300;
@@ -324,12 +354,63 @@ export default function UploadFlow() {
   // Bring back the result screen this tab was showing (see the note at the
   // top of the file). The server says what previews exist and how many are
   // left; if it no longer knows the photo, the memory is dropped.
+  /** No memory in this tab: rebuild the screen from the customer's latest hairstyles. */
+  function restoreFromAccount(who: string) {
+    let cancelled = false;
+    setRestoring(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/previews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: JSON.stringify({ latest: true }),
+        });
+        if (!res.ok) return; // nothing made yet: the upload form, as before
+        const data = await res.json();
+        const l = data.latest as
+          | { gender: HairGender; faceShape: ConfirmedDetails["faceShape"]; length: string | null; texture: string | null; photoUrl: string | null }
+          | undefined;
+        if (cancelled || !l || typeof data.photoId !== "string") return;
+        const confirmed: ConfirmedDetails | null =
+          l.length && l.texture
+            ? { faceShape: l.faceShape, length: l.length as ConfirmedDetails["length"], texture: l.texture as ConfirmedDetails["texture"] }
+            : null;
+        const details: PhotoDetails = {
+          faceShape: l.faceShape,
+          secondFaceShape: null,
+          sure: "high",
+          readBy: "reading",
+          hair: { length: confirmed?.length ?? null, texture: confirmed?.texture ?? null },
+        };
+        const thumb = (await makeThumb(l.photoUrl)) ?? l.photoUrl;
+        if (cancelled) return;
+        setGender(l.gender);
+        setPhotos({ front: thumb, left: null, right: null });
+        setEarlier(Array.isArray(data.previews) ? data.previews : []);
+        setAnalysis({ photoId: data.photoId, previewsLeft: typeof data.previewsLeft === "number" ? data.previewsLeft : null, details });
+        setStep("results");
+        // Remember it for this tab, so a reload doesn't ask the server again.
+        remember({ owner: who, photoId: data.photoId, gender: l.gender, details, confirmed, thumb: thumb?.startsWith("data:") ? thumb : null });
+      } catch {
+        // Couldn't reach the account: the upload form, as before.
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }
+
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current || !owner) return;
     restored.current = true;
     const saved = recall();
-    if (!saved) return;
+    if (!saved) {
+      if (!SUPABASE_MOCK_MODE && !wantsFresh()) return restoreFromAccount(owner);
+      return;
+    }
     if (saved.owner !== owner) {
       remember(null);
       return;
@@ -471,6 +552,7 @@ export default function UploadFlow() {
       });
       if (owner) {
         remember({ owner, photoId: analyzeData.photoId, gender, details, confirmed: null, thumb: await makeThumb(photos.front) });
+        setFresh(false);
       }
       setStep("results");
       // The list is long; bring its top into view rather than leaving the
@@ -539,6 +621,7 @@ export default function UploadFlow() {
     setAnalysis(null);
     setEarlier([]);
     remember(null);
+    setFresh(true);
     setConsent(false);
     setError(null);
     window.setTimeout(() => card.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);

@@ -10,6 +10,15 @@
 //
 // Nothing is made or counted here. In real mode only the photo's owner
 // gets an answer; anyone else gets the same "not found" as a wrong id.
+//
+// 14.10.2026 ("My hairstyles" from the account): with { latest: true } and
+// no photoId, the answer is about the customer's most recent photo that
+// they made hairstyles from — its id, what they confirmed about their face
+// and hair (saved with the first hairstyle, photos.customer_details), a
+// short-lived link to the photo, and the hairstyles. The page uses it when
+// the browser tab has no memory of the screen (new tab, other browser,
+// opened from WhatsApp), so the customer's hairstyles are always there.
+// "none" (404) when they have no such photo yet.
 
 import { NextRequest, NextResponse } from "next/server";
 import { FALAI_MOCK_MODE } from "@/lib/integrations/falai";
@@ -20,7 +29,7 @@ import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 const LINK_SECONDS = 3600;
 
 export async function POST(req: NextRequest) {
-  let body: { userId?: string; photoId?: string };
+  let body: { userId?: string; photoId?: string; latest?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -30,10 +39,13 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req, body.userId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const userId = auth.userId;
-  if (!body.photoId) return NextResponse.json({ error: "photoId is required." }, { status: 400 });
+  const wantLatest = body.latest === true && !body.photoId;
+  if (!body.photoId && !wantLatest) return NextResponse.json({ error: "photoId is required." }, { status: 400 });
 
   if (SUPABASE_MOCK_MODE) {
-    const photo = mockStore.getPhoto(body.photoId);
+    // The demo keeps its screen in the tab only.
+    if (wantLatest) return NextResponse.json({ error: "none" }, { status: 404 });
+    const photo = mockStore.getPhoto(body.photoId!);
     if (!photo || photo.userId !== userId) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
     const previews = [...mockStore.styleResults.values()]
       .filter((r) => r.userId === userId && r.photoId === photo.id && r.status === "SUCCEEDED" && r.resultImageUrl)
@@ -44,15 +56,46 @@ export async function POST(req: NextRequest) {
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
 
-  const { data: photo } = await admin.from("photos").select("id").eq("id", body.photoId).eq("user_id", userId).maybeSingle();
-  if (!photo) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
+  let latestPhoto: { gender: "men" | "women"; faceShape: string; length: string | null; texture: string | null; photoUrl: string | null } | null =
+    null;
+  let photo: { id: string } | null = null;
+  if (wantLatest) {
+    // Newest photo with saved details (they are saved when the first hairstyle is made from it).
+    const { data: rows } = await admin
+      .from("photos")
+      .select("id, storage_path, customer_details")
+      .eq("user_id", userId)
+      .not("customer_details", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    for (const row of rows ?? []) {
+      const d = (row.customer_details ?? {}) as Record<string, unknown>;
+      if ((d.gender !== "men" && d.gender !== "women") || typeof d.faceShape !== "string") continue;
+      const { data: link } = await admin.storage.from("photos").createSignedUrl(row.storage_path as string, LINK_SECONDS);
+      latestPhoto = {
+        gender: d.gender,
+        faceShape: d.faceShape,
+        length: typeof d.length === "string" ? d.length : null,
+        texture: typeof d.texture === "string" ? d.texture : null,
+        photoUrl: link?.signedUrl ?? null,
+      };
+      photo = { id: row.id as string };
+      break;
+    }
+    if (!photo) return NextResponse.json({ error: "none" }, { status: 404 });
+  } else {
+    const { data: found } = await admin.from("photos").select("id").eq("id", body.photoId!).eq("user_id", userId).maybeSingle();
+    if (!found) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
+    photo = found;
+  }
+  const photoId = photo.id;
 
   const [{ data: rows }, left] = await Promise.all([
     admin
       .from("style_results")
       .select("style_name, result_storage_path, view_paths, created_at")
       .eq("user_id", userId)
-      .eq("photo_id", photo.id)
+      .eq("photo_id", photoId)
       .eq("status", "SUCCEEDED")
       .not("result_storage_path", "is", null)
       .order("created_at", { ascending: true }),
@@ -89,5 +132,9 @@ export async function POST(req: NextRequest) {
     )
   ).filter((p): p is { styleName: string; url: string; views: { left: string | null; right: string | null; back: string | null } | null } => p !== null);
 
-  return NextResponse.json({ previewsLeft: FALAI_MOCK_MODE ? null : left.total, previews });
+  return NextResponse.json({
+    previewsLeft: FALAI_MOCK_MODE ? null : left.total,
+    previews,
+    ...(latestPhoto ? { photoId, latest: latestPhoto } : {}),
+  });
 }

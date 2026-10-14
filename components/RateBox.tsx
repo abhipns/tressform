@@ -4,6 +4,13 @@
 // the name to show. Used under the hairstyle list ("list") and once the
 // four views of a paid hairstyle are ready ("hairstyles"). If the customer
 // already rated this part, it says so, with a link to change it.
+//
+// 14.10.2026: customers weren't finding the boxes at the very bottom of the
+// hairstyle screen. They now sit higher up (StylePicks.tsx) and are
+// highlighted, and the hairstyles question also opens as a one-time popup
+// once a paid hairstyle's pictures are ready (components/RatePopup.tsx).
+// `bare` drops the outer box for use inside that popup; `onSent` lets the
+// popup close itself after a rating is sent.
 
 import { useEffect, useState } from "react";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId } from "@/lib/authClient";
@@ -12,6 +19,12 @@ import { COMMENT_MAX, NAME_MAX, REVIEW_SECTIONS, type ReviewSection } from "@/li
 type Mine = { rating: number; comment: string | null };
 
 const cache: { promise: Promise<Partial<Record<ReviewSection, Mine>>> | null } = { promise: null };
+
+/** The customer's own ratings (shared with the popup, which only opens if this part isn't rated yet). */
+export function myRatings(): Promise<Partial<Record<ReviewSection, Mine>>> {
+  cache.promise ??= loadMine().catch(() => ({}));
+  return cache.promise;
+}
 
 async function loadMine(): Promise<Partial<Record<ReviewSection, Mine>>> {
   const res = await fetch("/api/reviews/mine", {
@@ -59,7 +72,15 @@ function Stars({ value, onPick, size = 34 }: { value: number; onPick?: (n: numbe
 
 export { Stars };
 
-export default function RateBox({ section }: { section: ReviewSection }) {
+export default function RateBox({
+  section,
+  bare = false,
+  onSent,
+}: {
+  section: ReviewSection;
+  bare?: boolean;
+  onSent?: () => void;
+}) {
   const [mine, setMine] = useState<Mine | null | undefined>(undefined);
   const [editing, setEditing] = useState(false);
   const [rating, setRating] = useState(0);
@@ -72,8 +93,7 @@ export default function RateBox({ section }: { section: ReviewSection }) {
 
   useEffect(() => {
     let alive = true;
-    cache.promise ??= loadMine().catch(() => ({}));
-    cache.promise.then((all) => alive && setMine(all[section] ?? null));
+    myRatings().then((all) => alive && setMine(all[section] ?? null));
     return () => {
       alive = false;
     };
@@ -104,6 +124,7 @@ export default function RateBox({ section }: { section: ReviewSection }) {
       setMine({ rating, comment: comment || null });
       setEditing(false);
       setThanks(true);
+      onSent?.();
     } finally {
       setBusy(false);
     }
@@ -113,7 +134,9 @@ export default function RateBox({ section }: { section: ReviewSection }) {
 
   if (mine && !editing) {
     return (
-      <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[16px] bg-bg-soft px-4 py-3 text-[14.5px]">
+      <div
+        className={`${bare ? "" : "mt-6 rounded-[16px] bg-bg-soft px-4 py-3"} flex flex-wrap items-center gap-x-3 gap-y-1 text-[14.5px]`}
+      >
         <span className="font-semibold text-ink-heading">{thanks ? "Thank you for your rating!" : "You rated this"}</span>
         <Stars value={mine.rating} size={18} />
         <button
@@ -133,8 +156,9 @@ export default function RateBox({ section }: { section: ReviewSection }) {
   }
 
   return (
-    <div className="mt-6 rounded-[18px] border border-line bg-surface p-4 sm:p-5">
-      <p className="text-[16.5px] font-semibold text-ink-heading">{q.question}</p>
+    <div className={bare ? "" : "mt-6 rounded-[18px] border-2 border-mint bg-mint-pale/40 p-4 sm:p-5"}>
+      {!bare && <p className="text-[13px] font-bold uppercase tracking-[.04em] text-mint-deep">Rate your experience</p>}
+      <p className={`${bare ? "" : "mt-1"} text-[16.5px] font-semibold text-ink-heading`}>{q.question}</p>
       <div className="mt-2">
         <Stars value={rating} onPick={setRating} />
       </div>

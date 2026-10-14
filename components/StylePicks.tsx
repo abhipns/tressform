@@ -46,9 +46,10 @@
 // picked is decided in lib/recommend.ts; making a preview is done by the
 // function the upload flow passes in.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CareBox, { useCareProducts } from "@/components/CareBox";
 import RateBox from "@/components/RateBox";
+import RatePopup, { mayAskForRating } from "@/components/RatePopup";
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
@@ -281,6 +282,12 @@ export default function StylePicks({
   useEffect(() => setLeft(previewsLeftAtStart), [previewsLeftAtStart]);
   const [samples, setSamples] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  // 14.10.2026: the one-time rating popup (components/RatePopup.tsx).
+  const [askRating, setAskRating] = useState(false);
+  const askTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (askTimer.current) window.clearTimeout(askTimer.current);
+  }, []);
   // 13.10.2026 (owner): Short / Medium / Long filter on the list; null = all lengths.
   const [band, setBand] = useState<LengthBand | null>(null);
 
@@ -323,6 +330,12 @@ export default function StylePicks({
     if (outcome.ok && outcome.state === "making" && tries < 12) {
       window.setTimeout(() => requestViews(style, tries + 1), 5000);
       return;
+    }
+    // A paid hairstyle's full set of pictures just arrived: ask for a rating a few seconds later.
+    if (outcome.ok && outcome.views.left && outcome.views.right && outcome.views.back && !samples && !askTimer.current) {
+      askTimer.current = window.setTimeout(() => {
+        mayAskForRating().then((ok) => ok && setAskRating(true)).catch(() => undefined);
+      }, 3000);
     }
     setPreviews((prev) => {
       const current = prev[style.id];
@@ -1080,9 +1093,16 @@ export default function StylePicks({
 
           {renderShare()}
 
+          {/* 14.10.2026: the hairstyles rating sits here, near the top, once a paid
+              hairstyle's pictures are ready — it used to be at the very bottom. */}
+          {!samples && Object.values(previews).some((p) => p.viewsState === "done") && <RateBox section="hairstyles" />}
+
           <ol className="mt-5 flex flex-col gap-4">
             {picks.top.map((pick, i) => renderPick(pick, i + 1))}
           </ol>
+
+          {/* 14.10.2026: the list rating right after the matched haircuts, where reading them ends. */}
+          {picks.top.length > 0 && <RateBox section="list" />}
 
           {picks.more.length > 0 && (
             <div className="mt-8">
@@ -1124,10 +1144,8 @@ export default function StylePicks({
         </div>
       )}
 
-      {/* 13.10.2026: customer ratings. The paid part once a paid hairstyle's
-          four views are ready; the free list always. */}
-      {!samples && Object.values(previews).some((p) => p.viewsState === "done") && <RateBox section="hairstyles" />}
-      <RateBox section="list" />
+      {/* 14.10.2026: the rating boxes moved up (see the list above); the popup opens here. */}
+      {askRating && <RatePopup onClose={() => setAskRating(false)} />}
 
       <p className="mt-8 text-[13.5px] leading-[1.5] text-ink-muted">
         An AI hairstyle shows how a cut is likely to look on you. Your own hair and your barber&apos;s hand will make the real
