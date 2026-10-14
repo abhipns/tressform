@@ -32,7 +32,7 @@ export interface StudioGroup {
 const GROUPS: Record<HairGender, { title: string; hint: string; needs: StyleNeeds[] }[]> = {
   men: [
     { title: "Short cuts", hint: "works on any photo", needs: ["very-short", "short"] },
-    { title: "Medium cuts", hint: "best on a photo with medium or long hair", needs: ["medium"] },
+    { title: "Medium cuts", hint: "best on a photo with medium or long hair", needs: ["medium", "medium-long"] },
     { title: "Long styles", hint: "needs a photo with long hair", needs: ["long"] },
   ],
   women: [

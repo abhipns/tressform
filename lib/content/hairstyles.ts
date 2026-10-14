@@ -49,8 +49,15 @@ export type HairGender = "men" | "women";
 export type HairTexture = "straight" | "wavy" | "curly";
 export type Upkeep = "low" | "medium" | "high";
 
-/** Men: how long the hair on top is now. */
-export const MEN_LENGTHS = ["very-short", "short", "medium", "long"] as const;
+/**
+ * Men: how long the hair on top is now. 14.10.2026: "medium" (5 to 10 cm)
+ * was split in two. A man with 5–6 cm and a man with 9–10 cm were both
+ * "medium", so an 8–10 cm cut counted as "ready today" for both, and the
+ * first one's picture grew his hair. "medium" now means 5 to 7 cm and
+ * "medium-long" 7 to 10 cm. A reading saved before the split as "medium"
+ * is read as 5 to 7 cm: the safer side (fewer cuts shown as ready today).
+ */
+export const MEN_LENGTHS = ["very-short", "short", "medium", "medium-long", "long"] as const;
 export type MenLength = (typeof MEN_LENGTHS)[number];
 /** Women: where the hair reaches when it is left open. */
 export const WOMEN_LENGTHS = ["ear", "chin", "shoulder", "below-shoulder", "mid-back", "waist"] as const;
@@ -60,7 +67,8 @@ export type HairLength = MenLength | WomenLength;
 export const LENGTH_LABELS: Record<HairLength, string> = {
   "very-short": "Very short (under 2 cm)",
   short: "Short (2 to 5 cm)",
-  medium: "Medium (5 to 10 cm)",
+  medium: "Medium (5 to 7 cm)",
+  "medium-long": "Medium-long (7 to 10 cm)",
   long: "Long (over 10 cm, covers the ears)",
   ear: "Ear length",
   chin: "Chin length",
@@ -68,6 +76,24 @@ export const LENGTH_LABELS: Record<HairLength, string> = {
   "below-shoulder": "Below the shoulder",
   "mid-back": "Mid-back",
   waist: "Waist length",
+};
+
+/**
+ * How long the customer's hair is now, in words the image model is given
+ * (14.10.2026): a cut made today must not come out longer than this.
+ */
+export const LENGTH_NOW: Record<HairLength, string> = {
+  "very-short": "Their hair on top is very short now, under 2 cm.",
+  short: "Their hair on top is about 2 to 5 cm long now.",
+  medium: "Their hair on top is about 5 to 7 cm long now.",
+  "medium-long": "Their hair on top is about 7 to 10 cm long now.",
+  long: "Their hair is long now, over 10 cm on top and covering the ears.",
+  ear: "Their hair now ends around the ears.",
+  chin: "Their hair now ends around the chin.",
+  shoulder: "Their hair now reaches the shoulders.",
+  "below-shoulder": "Their hair now reaches below the shoulders.",
+  "mid-back": "Their hair now reaches the middle of the back.",
+  waist: "Their hair now reaches the waist.",
 };
 
 /**
@@ -170,7 +196,7 @@ const MEN: Row[] = [
     id: "m-slick-back-undercut",
     name: "Slick back, undercut",
     family: "slick",
-    needs: "medium",
+    needs: "medium-long",
     texture: [2, 1, 0],
     best: ["Square", "Oval", "Diamond"],
     avoid: ["Heart"],
@@ -183,7 +209,7 @@ const MEN: Row[] = [
     id: "m-pompadour",
     name: "Pompadour, low fade",
     family: "quiff",
-    needs: "medium",
+    needs: "medium-long",
     texture: [2, 2, 1],
     best: ["Round", "Oval", "Square"],
     avoid: ["Long"],
@@ -326,7 +352,7 @@ const MEN: Row[] = [
     id: "m-side-swept-fringe",
     name: "Side-swept fringe, taper",
     family: "sweep",
-    needs: "medium",
+    needs: "medium-long",
     texture: [2, 2, 1],
     best: ["Heart", "Long", "Diamond", "Oval"],
     avoid: [],
@@ -339,7 +365,7 @@ const MEN: Row[] = [
     id: "m-two-block",
     name: "Two-block cut",
     family: "crop",
-    needs: "medium",
+    needs: "medium-long",
     texture: [2, 2, 0],
     best: ["Long", "Oval", "Heart", "Diamond"],
     avoid: ["Round"],
@@ -352,7 +378,7 @@ const MEN: Row[] = [
     id: "m-slick-back-taper",
     name: "Slick back, taper",
     family: "slick",
-    needs: "medium",
+    needs: "medium-long",
     texture: [2, 1, 0],
     best: ["Oval", "Square"],
     avoid: ["Heart"],
@@ -417,7 +443,7 @@ const MEN: Row[] = [
     id: "m-wavy-side-sweep",
     name: "Wavy side sweep, taper",
     family: "sweep",
-    needs: "medium",
+    needs: "medium-long",
     texture: [1, 2, 2],
     best: ["Heart", "Oval", "Square", "Long"],
     avoid: [],
@@ -1145,7 +1171,9 @@ export function needsLabel(needs: StyleNeeds): string {
     case "short":
       return "Short or longer";
     case "medium":
-      return "Medium or longer";
+      return "Medium (5 cm) or longer";
+    case "medium-long":
+      return "Medium-long (7 cm) or longer";
     case "long":
       return "Long";
     case "ear":

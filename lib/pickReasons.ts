@@ -77,6 +77,7 @@ const LENGTH_WORD: Record<HairLength, string> = {
   "very-short": "very short",
   short: "short",
   medium: "medium length",
+  "medium-long": "medium-long",
   long: "long",
   ear: "ear length",
   chin: "chin length",

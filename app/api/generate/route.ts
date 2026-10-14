@@ -44,7 +44,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { generateHairstyle, FALAI_MOCK_MODE, type GenerateHairstyleResult } from "@/lib/integrations/falai";
 import { checkPreview, describeVerdict, poseFromAnalysis, type PreviewVerdict } from "@/lib/previewCheck";
-import { frontDescription, hairstyleById, MEN_LENGTHS, WOMEN_LENGTHS } from "@/lib/content/hairstyles";
+import { frontDescription, hairstyleById, LENGTH_NOW, MEN_LENGTHS, WOMEN_LENGTHS, type HairLength } from "@/lib/content/hairstyles";
+import { canCutToday } from "@/lib/recommend";
 import { mockStore } from "@/lib/mockStore";
 import {
   mockPreviewsLeft,
@@ -216,6 +217,15 @@ export async function POST(req: NextRequest) {
     (analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean" || analysed?.facialHair === "stubble"
       ? analysed.facialHair
       : null);
+  // 14.10.2026: how long their hair is now — their own correction first,
+  // then the photo's reading. For a cut they can get today the image model
+  // is told this as the limit (lib/integrations/falai.ts, lengthLimitLine).
+  const readLength = (analysed as { reading?: { hairLength?: unknown } } | undefined)?.reading?.hairLength;
+  const lengthIs = (v: unknown): v is HairLength => typeof v === "string" && (lengths as readonly string[]).includes(v);
+  const saidLength = details?.length;
+  const currentLength: HairLength | null = lengthIs(saidLength) ? saidLength : lengthIs(readLength) ? readLength : null;
+  const lengthNow =
+    style && currentLength && canCutToday(style.gender, currentLength, style) ? LENGTH_NOW[currentLength] : null;
   // The customer's own correction comes first: it is their face.
   const analysedFaceShape: string | null = customerShape ?? photo.face_shape ?? faceShape ?? null;
 
@@ -336,6 +346,7 @@ export async function POST(req: NextRequest) {
         faceShape: analysedFaceShape,
         facialHair,
         gender,
+        lengthNow,
       });
     } catch (err) {
       await giveBack();

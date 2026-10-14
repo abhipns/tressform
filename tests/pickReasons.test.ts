@@ -66,7 +66,7 @@ describe("the lines under a pick", () => {
   const customers: CustomerHair[] = [];
   for (const faceShape of SHAPES) {
     for (const texture of ["straight", "wavy", "curly"] as const) {
-      for (const length of ["very-short", "short", "medium", "long"] as const) customers.push({ gender: "men", faceShape, length, texture });
+      for (const length of ["very-short", "short", "medium", "medium-long", "long"] as const) customers.push({ gender: "men", faceShape, length, texture });
       for (const length of ["ear", "chin", "shoulder", "below-shoulder", "mid-back", "waist"] as const) {
         customers.push({ gender: "women", faceShape, length, texture });
       }

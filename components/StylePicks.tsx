@@ -196,7 +196,8 @@ const LENGTH_OPTIONS: Record<HairGender, { value: HairLength; label: string; hin
   men: [
     { value: "very-short", label: "Very short", hint: "under 2 cm" },
     { value: "short", label: "Short", hint: "2 to 5 cm" },
-    { value: "medium", label: "Medium", hint: "5 to 10 cm" },
+    { value: "medium", label: "Medium", hint: "5 to 7 cm" },
+    { value: "medium-long", label: "Medium-long", hint: "7 to 10 cm" },
     { value: "long", label: "Long", hint: "covers the ears" },
   ],
   women: [

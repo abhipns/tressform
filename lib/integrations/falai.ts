@@ -115,6 +115,12 @@ export interface GenerateHairstyleParams {
   facialHair?: "beard" | "moustache" | "clean" | "stubble" | null;
   addonKind?: "BACKGROUND" | "OUTFIT" | null;
   /**
+   * 14.10.2026: for a cut the customer can get today, how long their hair
+   * is now (a sentence from LENGTH_NOW). The picture must not come out
+   * with more hair than that. Left out for a style they must grow into.
+   */
+  lengthNow?: string | null;
+  /**
    * The owner's Studio page only (10.10.2026): the hairstyle in the owner's
    * own words, used instead of the built-in description for `styleName`.
    */
@@ -241,6 +247,21 @@ function facialHairLine(facialHair: GenerateHairstyleParams["facialHair"]): stri
   }
 }
 
+// 14.10.2026: the owner (7–10 cm on top) got carousel pictures with
+// noticeably more hair than he has, on cuts marked "ready now". The style
+// descriptions give a length (say 8–10 cm) and the model drew that much,
+// with nothing telling it how much hair there is to cut from. A haircut can
+// only take hair away, so the customer's present length is now given as
+// the limit.
+export function lengthLimitLine(params: GenerateHairstyleParams): string {
+  if (!params.lengthNow) return "";
+  return (
+    `${params.lengthNow} This is a haircut made from the hair they have today, so it can only take length away: ` +
+    "the finished hair must not be longer or thicker anywhere than their own hair in the photo. " +
+    "Where the style describes more length than they have, keep the length they have and shape it into the style. Never add hair. "
+  );
+}
+
 /**
  * The instruction for the two editing models: change the hair, keep the
  * person. Also asks for a flattering, well-lit, sharp result (requested
@@ -264,6 +285,7 @@ export function buildEditPrompt(params: GenerateHairstyleParams): string {
     // check with the ordinary style buttons.
     "Cut the hair to the lengths described, clearly shorter than in the photo wherever the style is shorter than " +
     "their hair is now, so the new haircut is plain to see. " +
+    lengthLimitLine(params) +
     "They keep facing the camera exactly as in the photo: do not turn or tilt their head. " +
     `${facialHairLine(params.facialHair)} ` +
     "Keep everything else the same as in the photo: the same person, face, facial features, face shape, skin tone, " +
@@ -322,6 +344,7 @@ export function buildKontextPrompt(params: GenerateHairstyleParams): string {
   return (
     `Give this person a new haircut: ${params.styleDescription?.trim() || describeStyle(params.styleName)}. ` +
     "Change only the hair on their head. " +
+    lengthLimitLine(params) +
     "Keep the exact same person: the same face, facial features, age, wrinkles and skin texture, skin tone, eye colour and expression. " +
     "Keep their natural hair colour, including any grey or white hair, and their natural hair texture: curly hair stays curly. " +
     `${facialHairLine(params.facialHair)} ` +

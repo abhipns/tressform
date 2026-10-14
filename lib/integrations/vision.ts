@@ -110,7 +110,8 @@ function lengthGuide(gender: HairGender): string {
       '"hair_length": how long the hair on TOP of the head is now. One of:\n' +
       '  "very-short" = clipped close to the scalp, under 2 cm\n' +
       '  "short" = about 2 to 5 cm, lying close to the head, ears completely clear\n' +
-      '  "medium" = about 5 to 10 cm, enough to comb over, sweep back or stand up; ends at or above the ears\n' +
+      '  "medium" = about 5 to 7 cm, enough to comb to one side or push up a little; ends well above the ears\n' +
+      '  "medium-long" = about 7 to 10 cm, enough to sweep back, slick back or fall over the forehead; ends at or above the ears\n' +
       '  "long" = hangs down over the ears to the jaw, the collar or lower\n' +
       "  null = cannot be judged (covered by a cap or turban, tied back, or cut off by the frame)\n" +
       CURLS_NOTE +

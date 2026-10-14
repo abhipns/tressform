@@ -126,6 +126,7 @@ export function lengthBand(style: Hairstyle): LengthBand {
     case "chin":
       return "short";
     case "medium":
+    case "medium-long":
     case "shoulder":
       return "medium";
     default:
@@ -145,8 +146,9 @@ const UPKEEP_POINTS = { low: 8, medium: 6, high: 4 } as const;
 
 // Men, in cm of hair on top: the least each length class means, and a
 // typical figure for a customer in it. Hair grows about 1 cm a month.
-const MEN_NEEDS_CM = [0, 2, 5, 10];
-const MEN_TYPICAL_CM = [1, 3.5, 7.5, 12];
+// 14.10.2026: "medium" split into 5–7 and 7–10 cm (lib/content/hairstyles.ts).
+const MEN_NEEDS_CM = [0, 2, 5, 7, 10];
+const MEN_TYPICAL_CM = [1, 3.5, 6, 8.5, 12];
 // Women: ear → chin → shoulder → below the shoulder is roughly 8 cm a step.
 const WOMEN_MONTHS_PER_STEP = 8;
 
@@ -164,6 +166,18 @@ function needsRank(gender: HairGender, needs: StyleNeeds): number {
 function monthsToGrow(gender: HairGender, current: number, needed: number): number {
   if (gender === "men") return Math.max(1, Math.ceil(MEN_NEEDS_CM[needed] - MEN_TYPICAL_CM[current]));
   return (needed - current) * WOMEN_MONTHS_PER_STEP;
+}
+
+/**
+ * Whether a style can be cut from the hair the customer has now (no
+ * growing first). Used by /api/generate to tell the image model the cut
+ * must not come out longer than their hair is today.
+ */
+export function canCutToday(gender: HairGender, length: HairLength, style: Hairstyle): boolean {
+  if (style.gender !== gender) return false;
+  const current = gender === "men" ? MEN_LENGTHS.indexOf(length as never) : WOMEN_LENGTHS.indexOf(length as never);
+  if (current < 0) return false;
+  return current >= needsRank(gender, style.needs);
 }
 
 /** The beard's nudge to a man's score, and a reason to show when it helps (see the note at the top). */
