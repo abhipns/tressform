@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import OwnerGate from "@/components/admin/OwnerGate";
 import { authHeaders } from "@/lib/authClient";
-import { PERIODS, rupees, stepRate, type Period } from "@/lib/stats";
+import { PERIODS, finalSummary, rupees, stepRate, type Period } from "@/lib/stats";
 import { shopLabel, type ShopId } from "@/lib/content/haircare";
 import { PACK_TIERS, type PackTier } from "@/lib/pricing";
 import { REVIEW_SECTIONS, REVIEW_SECTION_IDS, type ReviewSection } from "@/lib/reviews";
@@ -73,6 +73,25 @@ function Dashboard() {
   const [income, setIncome] = useState<Income[]>([]);
   // 14.10.2026: AI cost customers have paid for but that isn't spent yet (lib/stats.ts).
   const [committed, setCommitted] = useState<{ unopenedLooks: number; unmadeLooks: number; paise: number } | null>(null);
+  // 14.10.2026: GST figures and the owner's own income-tax rate for the final summary.
+  const [gst, setGst] = useState<{ registered: boolean; duePaise: number; ifRegisteredPaise: number } | null>(null);
+  const [taxRate, setTaxRate] = useState("30");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("tf_tax_rate");
+      if (saved !== null) setTaxRate(saved);
+    } catch {
+      /* not remembered on this device */
+    }
+  }, []);
+  function changeTaxRate(value: string) {
+    setTaxRate(value);
+    try {
+      window.localStorage.setItem("tf_tax_rate", value);
+    } catch {
+      /* not remembered on this device */
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ month: new Date().toISOString().slice(0, 7), source: "amazon", amount: "" });
   const [saving, setSaving] = useState(false);
@@ -88,6 +107,7 @@ function Dashboard() {
     setStats(data.stats);
     setIncome(data.income ?? []);
     setCommitted(data.committed ?? null);
+    setGst(data.gst ?? null);
   }
 
   useEffect(() => {
@@ -210,6 +230,86 @@ function Dashboard() {
               </p>
             </div>
           )}
+
+          {/* 14.10.2026: the final summary — everything known, down to an estimated take-home. */}
+          {(() => {
+            const rate = Number(taxRate);
+            const sum = finalSummary({
+              salesPaise: s.revenue_paise,
+              affiliatePaise: s.affiliate_income_paise,
+              feesPaise: s.fees_paise,
+              aiCostPaise: s.ai_cost_paise,
+              committedPaise: committed?.paise ?? 0,
+              gstPaise: gst?.duePaise ?? 0,
+              taxRatePct: Number.isFinite(rate) ? rate : 0,
+            });
+            const rows: { label: string; paise: number; sign: "+" | "−"; note?: string }[] = [
+              { label: "Pack sales", paise: s.revenue_paise, sign: "+" },
+              { label: "Affiliate income", paise: s.affiliate_income_paise, sign: "+", note: "as typed in below" },
+              { label: "PayU fees", paise: s.fees_paise, sign: "−" },
+              { label: "AI picture cost", paise: s.ai_cost_paise, sign: "−" },
+              { label: "AI cost still to come", paise: committed?.paise ?? 0, sign: "−", note: "estimate, right now" },
+              {
+                label: "GST to pay",
+                paise: gst?.duePaise ?? 0,
+                sign: "−",
+                note: gst?.registered ? "on this period's sales" : "not GST-registered yet",
+              },
+            ];
+            return (
+              <div className="mt-6 rounded-[18px] bg-header-dark p-5 text-white sm:p-6">
+                <h3 className="text-[19px] font-semibold text-white">Final summary · {PERIODS.find((p) => p.id === period)?.label}</h3>
+                <dl className="mt-4 flex flex-col gap-2 text-[15px]">
+                  {rows.map((r) => (
+                    <div key={r.label} className="flex items-baseline justify-between gap-4 border-b border-white/10 pb-2">
+                      <dt className="text-white/80">
+                        {r.label}
+                        {r.note && <span className="ml-2 text-[12.5px] text-white/50">({r.note})</span>}
+                      </dt>
+                      <dd className="font-semibold tabular-nums">
+                        {r.sign} {rupees(r.paise)}
+                      </dd>
+                    </div>
+                  ))}
+                  <div className="flex items-baseline justify-between gap-4 border-b border-white/10 pb-2">
+                    <dt className="font-semibold">Profit before income tax</dt>
+                    <dd className="font-semibold tabular-nums">{rupees(sum.profitBeforeTaxPaise)}</dd>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-white/10 pb-2">
+                    <dt className="flex items-center gap-2 text-white/80">
+                      Tentative income tax at
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={100}
+                        value={taxRate}
+                        onChange={(e) => changeTaxRate(e.target.value)}
+                        aria-label="Your income tax rate, in percent"
+                        className="w-[64px] rounded-md border border-white/25 bg-white/10 px-2 py-1 text-right text-white"
+                      />
+                      %
+                    </dt>
+                    <dd className="font-semibold tabular-nums">− {rupees(sum.incomeTaxPaise)}</dd>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-4 pt-1">
+                    <dt className="text-[17px] font-semibold">Estimated take-home</dt>
+                    <dd className="font-heading text-[26px] font-semibold tabular-nums text-[#E9CE8A]">{rupees(sum.takeHomePaise)}</dd>
+                  </div>
+                </dl>
+                <p className="mt-4 text-[13px] leading-[1.55] text-white/60">
+                  {gst && !gst.registered && gst.ifRegisteredPaise > 0 && (
+                    <>
+                      Planning note: if you were GST-registered and kept the same prices, GST on these sales would be about{" "}
+                      {rupees(gst.ifRegisteredPaise)} (18% included in the price).{" "}
+                    </>
+                  )}
+                  Income tax depends on your total income from every source, so set the rate your CA advises; it&apos;s
+                  remembered on this device. Hosting, domain and other bills are not included. An estimate, not tax advice.
+                </p>
+              </div>
+            );
+          })()}
           {Object.keys(s.by_pack).length > 0 && (
             <p className="mt-3 text-[14.5px] text-ink-muted">
               Packs:{" "}

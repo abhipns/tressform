@@ -54,3 +54,23 @@ describe("AI cost still to come", () => {
     expect(committedCost(-3, -1, 350).paise).toBe(0);
   });
 });
+
+import { finalSummary } from "../lib/stats";
+
+describe("final summary", () => {
+  const base = { salesPaise: 19_900, affiliatePaise: 0, feesPaise: 470, aiCostPaise: 5_600, committedPaise: 0, gstPaise: 0, taxRatePct: 30 };
+  it("takes every known cost off, then the owner's tax rate on what's left", () => {
+    const r = finalSummary(base);
+    expect(r.profitBeforeTaxPaise).toBe(13_830);
+    expect(r.incomeTaxPaise).toBe(4_149);
+    expect(r.takeHomePaise).toBe(13_830 - 4_149);
+  });
+  it("counts GST and AI cost still to come as costs", () => {
+    expect(finalSummary({ ...base, gstPaise: 3_036, committedPaise: 1_050, taxRatePct: 0 }).takeHomePaise).toBe(13_830 - 3_036 - 1_050);
+  });
+  it("charges no income tax on a loss, and keeps the rate between 0 and 100", () => {
+    expect(finalSummary({ ...base, salesPaise: 0 }).incomeTaxPaise).toBe(0);
+    expect(finalSummary({ ...base, taxRatePct: 250 }).incomeTaxPaise).toBe(13_830);
+    expect(finalSummary({ ...base, taxRatePct: NaN }).incomeTaxPaise).toBe(0);
+  });
+});

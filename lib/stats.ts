@@ -66,3 +66,36 @@ export function committedCost(unopenedLooks: number, unmadeLooks: number, perPic
     paise: (a * PICTURES_PER_UNOPENED_LOOK + b * PICTURES_PER_UNMADE_LOOK) * perPicturePaise,
   };
 }
+
+// 14.10.2026 (owner): one "Final summary" on the dashboard — what is left
+// after every cost the business already knows about, including AI cost
+// still to come, GST to pay and a tentative income tax. Other bills
+// (hosting, domain…) are not in it.
+//
+// Income tax depends on the owner's TOTAL income from all sources, which
+// the site can't know, so the rate is the owner's own setting (a
+// percentage typed on the dashboard), applied to the profit after GST.
+
+export interface SummaryInput {
+  salesPaise: number;
+  affiliatePaise: number;
+  feesPaise: number;
+  aiCostPaise: number;
+  committedPaise: number;
+  gstPaise: number;
+  taxRatePct: number;
+}
+
+export interface SummaryOutput {
+  profitBeforeTaxPaise: number;
+  incomeTaxPaise: number;
+  takeHomePaise: number;
+}
+
+export function finalSummary(i: SummaryInput): SummaryOutput {
+  const rate = Math.min(100, Math.max(0, Number.isFinite(i.taxRatePct) ? i.taxRatePct : 0));
+  const profitBeforeTaxPaise =
+    i.salesPaise + i.affiliatePaise - i.feesPaise - i.aiCostPaise - i.committedPaise - i.gstPaise;
+  const incomeTaxPaise = profitBeforeTaxPaise > 0 ? Math.round((profitBeforeTaxPaise * rate) / 100) : 0;
+  return { profitBeforeTaxPaise, incomeTaxPaise, takeHomePaise: profitBeforeTaxPaise - incomeTaxPaise };
+}
