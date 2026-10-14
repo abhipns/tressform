@@ -31,6 +31,18 @@
 // long cuts (LengthBand). The same rules then choose from that length only,
 // so someone who wants to stay short never sees only longer cuts.
 //
+// 14.10.2026 (owner: "it has to take care of … beard factor"): for men,
+// facial hair nudges the score (beardAdjustment below). The photo reading
+// says clean-shaven / stubble / beard / moustache, and the customer can
+// correct it. A beard adds weight and length to the lower face, so:
+//   - long face: height on top makes it look longer still (lower); fullness
+//     at the sides or a fringe balances it (higher);
+//   - round face: height on top, with the beard, makes it look longer and
+//     slimmer (higher);
+//   - any face: neat, short, structured cuts frame a beard well (higher).
+// Stubble counts half. Clean-shaven or a moustache only: no change. The
+// nudges are small next to face shape and hair type, which still decide.
+//
 // Nothing here talks to a database or an image model; it is a plain
 // function so it can be tested against every kind of customer.
 
@@ -46,8 +58,14 @@ import {
   type StyleNeeds,
 } from "./content/hairstyles";
 
+/** What the photo reading (or the customer) says about a man's facial hair. */
+export type FacialHair = "clean" | "stubble" | "beard" | "moustache";
+export const FACIAL_HAIR_OPTIONS: FacialHair[] = ["clean", "stubble", "beard", "moustache"];
+
 export interface CustomerHair {
   gender: HairGender;
+  /** Men: facial hair, from the photo reading or the customer's correction; null = not known. */
+  facialHair?: FacialHair | null;
   faceShape: FaceShape;
   /** The second guess, when the face reading is under 60% sure: styles to avoid for it are left out too. */
   secondFaceShape?: FaceShape | null;
@@ -68,6 +86,8 @@ export interface StylePick {
   bigChange: boolean;
   faceFit: "best" | "fine";
   needsDailyStyling: boolean;
+  /** 14.10.2026: why the cut goes well with the customer's beard or stubble, when it does. */
+  beardReason: string | null;
 }
 
 export interface StylePicks {
@@ -146,6 +166,33 @@ function monthsToGrow(gender: HairGender, current: number, needed: number): numb
   return (needed - current) * WOMEN_MONTHS_PER_STEP;
 }
 
+/** The beard's nudge to a man's score, and a reason to show when it helps (see the note at the top). */
+export function beardAdjustment(style: Hairstyle, customer: CustomerHair): { points: number; reason: string | null } {
+  if (customer.gender !== "men") return { points: 0, reason: null };
+  const weight = customer.facialHair === "beard" ? 1 : customer.facialHair === "stubble" ? 0.5 : 0;
+  if (weight === 0) return { points: 0, reason: null };
+  const word = customer.facialHair === "beard" ? "beard" : "stubble";
+  const has = (e: string) => style.effects.includes(e as never);
+  let points = 0;
+  let reason: string | null = null;
+  if (customer.faceShape === "Long") {
+    if (has("height")) points -= 6 * weight;
+    if (has("side-volume") || has("fringe")) {
+      points += 4 * weight;
+      reason = `With your ${word}, this keeps your face from looking longer.`;
+    }
+  }
+  if (customer.faceShape === "Round" && has("height")) {
+    points += 4 * weight;
+    reason = `With your ${word}, the height on top makes your face look longer and slimmer.`;
+  }
+  if (has("sharp") || has("show-face")) {
+    points += 3 * weight;
+    reason ??= `Neat, short lines frame your ${word} well.`;
+  }
+  return { points: Math.round(points), reason: points > 0 ? reason : null };
+}
+
 function rate(style: Hairstyle, customer: CustomerHair): StylePick | null {
   if (style.avoid.includes(customer.faceShape)) return null;
   if (customer.secondFaceShape && style.avoid.includes(customer.secondFaceShape)) return null;
@@ -170,7 +217,8 @@ function rate(style: Hairstyle, customer: CustomerHair): StylePick | null {
   // cuts close to their present length before much shorter ones.
   const stepsShorter = Math.max(0, current - finished);
   const lengthPoints = !cutToday ? 0 : stepsShorter === 0 ? 15 : stepsShorter === 1 ? 10 : stepsShorter === 2 ? 4 : 0;
-  const score = facePoints + (textureFit === 2 ? 30 : 15) + lengthPoints + UPKEEP_POINTS[style.upkeep];
+  const beard = beardAdjustment(style, customer);
+  const score = facePoints + (textureFit === 2 ? 30 : 15) + lengthPoints + UPKEEP_POINTS[style.upkeep] + beard.points;
 
   return {
     style,
@@ -181,6 +229,7 @@ function rate(style: Hairstyle, customer: CustomerHair): StylePick | null {
     bigChange,
     faceFit,
     needsDailyStyling: textureFit === 1,
+    beardReason: beard.reason,
   };
 }
 

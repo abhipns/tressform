@@ -13,13 +13,10 @@
 // Once that flow exists, this route needs no changes — it already looks up
 // the row and no-ops cleanly when it's missing.
 //
-// NOT covered by this route (left as-is, matching lib/integrations/
-// razorpay.ts's own real-webhook TODO): a real Razorpay webhook endpoint as
-// the authoritative payment-confirmation source. Client-side verification
-// like this is fine for mock mode / getting the flow demoable end-to-end,
-// but a production build should also add a webhook route
-// (verifyWebhookSignature in lib/integrations/razorpay.ts is already there
-// for it) so a payment can't be marked paid purely by a client call.
+// 14.10.2026: real payments are confirmed only by PayU (lib/payments.ts,
+// via /api/payment/payu-return and /api/payment/payu-webhook); the old
+// Razorpay integration file was removed. This route now serves the demo
+// mode only (no database), where "Pay" completes at once.
 //
 // 09.10.2026 (real sign-in): in real mode the caller must be logged in and
 // must own the order; an order that is already PAID is acknowledged without

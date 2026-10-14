@@ -82,7 +82,16 @@ import {
   type HairTexture,
   type Hairstyle,
 } from "@/lib/content/hairstyles";
-import { LENGTH_BANDS, LENGTH_BAND_LABELS, pickStyles, type CustomerHair, type LengthBand, type StylePick } from "@/lib/recommend";
+import {
+  FACIAL_HAIR_OPTIONS,
+  LENGTH_BANDS,
+  LENGTH_BAND_LABELS,
+  pickStyles,
+  type CustomerHair,
+  type FacialHair,
+  type LengthBand,
+  type StylePick,
+} from "@/lib/recommend";
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
 import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
 import {
@@ -107,13 +116,24 @@ export interface PhotoDetails {
   /** "measurement" = the reading failed and the old face measurement was used instead. */
   readBy: "reading" | "measurement";
   hair: { length: HairLength | null; texture: HairTexture | null };
+  /** 14.10.2026, men: facial hair from the photo reading (the beard factor in lib/recommend.ts). */
+  facialHair?: FacialHair | null;
 }
 
 export interface ConfirmedDetails {
   faceShape: FaceShape;
   length: HairLength;
   texture: HairTexture;
+  /** 14.10.2026, men: as read or as the customer corrected it. */
+  facialHair?: FacialHair | null;
 }
+
+const FACIAL_HAIR_LABELS: Record<FacialHair, string> = {
+  clean: "Clean-shaven",
+  stubble: "Stubble",
+  beard: "Beard",
+  moustache: "Moustache only",
+};
 
 export type PreviewOutcome =
   | { ok: true; imageUrl: string; sample: boolean; previewsLeft: number | null; paid: boolean }
@@ -278,6 +298,8 @@ export default function StylePicks({
     initial.hair.length && lengths.includes(initial.hair.length) ? initial.hair.length : null
   );
   const [texture, setTexture] = useState<HairTexture | null>(initial.hair.texture);
+  // 14.10.2026: men's facial hair, as read; the customer can correct it under "About you".
+  const [facialHair, setFacialHair] = useState<FacialHair | null>(gender === "men" ? initial.facialHair ?? null : null);
   const careProducts = useCareProducts();
 
   // The face shape needs a look from the customer when the reading was not
@@ -326,17 +348,18 @@ export default function StylePicks({
             secondFaceShape: !faceChanged && initial.sure === "low" ? initial.secondFaceShape : null,
             length,
             texture,
+            facialHair,
           }
         : null,
-    [gender, faceShape, faceChanged, initial.sure, initial.secondFaceShape, length, texture]
+    [gender, faceShape, faceChanged, initial.sure, initial.secondFaceShape, length, texture, facialHair]
   );
   const picks = useMemo(() => (customer ? pickStyles(customer, band) : null), [customer, band]);
 
   useEffect(() => {
-    if (length && texture) onDetails?.({ faceShape, length, texture });
+    if (length && texture) onDetails?.({ faceShape, length, texture, facialHair });
     // onDetails is the page's own function; only a change in the details matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [faceShape, length, texture]);
+  }, [faceShape, length, texture, facialHair]);
 
   const loadingCount = Object.values(previews).filter((p) => p.state === "loading").length;
   const canStart = left === null || left - loadingCount > 0;
@@ -387,7 +410,12 @@ export default function StylePicks({
     }
     let outcome: PreviewOutcome;
     try {
-      outcome = await makePreview(style.id, { faceShape: customer.faceShape, length: customer.length, texture: customer.texture });
+      outcome = await makePreview(style.id, {
+        faceShape: customer.faceShape,
+        length: customer.length,
+        texture: customer.texture,
+        facialHair: customer.facialHair ?? null,
+      });
     } catch {
       outcome = {
         ok: false,
@@ -999,6 +1027,7 @@ export default function StylePicks({
     { label: "Face shape", value: faceShape },
     { label: "Hair now", value: LENGTH_OPTIONS[gender].find((o) => o.value === length)?.label ?? "Not set" },
     { label: "Hair type", value: TEXTURE_OPTIONS.find((o) => o.value === texture)?.label ?? "Not set" },
+    ...(gender === "men" ? [{ label: "Facial hair", value: facialHair ? FACIAL_HAIR_LABELS[facialHair] : "Not set" }] : []),
   ];
 
   return (
@@ -1119,6 +1148,22 @@ export default function StylePicks({
                 ))}
               </div>
             </fieldset>
+
+            {gender === "men" && (
+              <fieldset>
+                <legend className="text-[15.5px] font-semibold text-ink-heading">Your facial hair now</legend>
+                <div role="radiogroup" aria-label="Facial hair" className="mt-2.5 flex flex-wrap gap-2">
+                  {FACIAL_HAIR_OPTIONS.map((option) => (
+                    <OptionPill key={option} selected={facialHair === option} onClick={() => setFacialHair(option)}>
+                      {FACIAL_HAIR_LABELS[option]}
+                    </OptionPill>
+                  ))}
+                </div>
+                <p className="mt-2 text-[13.5px] text-ink-muted">
+                  It changes which cuts suit you best, and your hairstyles keep it exactly as it is.
+                </p>
+              </fieldset>
+            )}
 
             {customer && (
               <button type="button" className="btn-secondary self-start !px-6 !py-2.5 !text-[15px]" onClick={() => setEditing(false)}>

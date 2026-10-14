@@ -74,3 +74,22 @@ describe("final summary", () => {
     expect(finalSummary({ ...base, taxRatePct: NaN }).incomeTaxPaise).toBe(0);
   });
 });
+
+import { shouldCountVisit } from "../lib/stats";
+
+describe("visit counter limits", () => {
+  const now = new Date("2026-10-14T12:00:00Z");
+  const ago = (min: number) => new Date(now.getTime() - min * 60_000).toISOString();
+  it("counts a first visit and a different page", () => {
+    expect(shouldCountVisit("/", [], now)).toBe(true);
+    expect(shouldCountVisit("/refer", [{ path: "/", created_at: ago(1) }], now)).toBe(true);
+  });
+  it("counts the same page once per half hour", () => {
+    expect(shouldCountVisit("/", [{ path: "/", created_at: ago(10) }], now)).toBe(false);
+    expect(shouldCountVisit("/", [{ path: "/", created_at: ago(45) }], now)).toBe(true);
+  });
+  it("stops at 60 pages a day for one visitor", () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ path: `/p${i}`, created_at: ago(60 + i) }));
+    expect(shouldCountVisit("/new", many, now)).toBe(false);
+  });
+});

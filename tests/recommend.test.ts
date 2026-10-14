@@ -135,3 +135,44 @@ describe("length filter", () => {
     expect(pickStyles(c, null)).toEqual(pickStyles(c));
   });
 });
+
+import { beardAdjustment } from "../lib/recommend";
+import { hairstyleById } from "../lib/content/hairstyles";
+
+describe("beard factor (men)", () => {
+  const style = (id: string) => hairstyleById(id)!;
+  const man = (faceShape: CustomerHair["faceShape"], facialHair: CustomerHair["facialHair"]): CustomerHair => ({
+    gender: "men",
+    faceShape,
+    texture: "wavy",
+    length: "medium",
+    facialHair,
+  });
+
+  it("long face + beard: height on top goes down, a fringe goes up", () => {
+    expect(beardAdjustment(style("m-pompadour"), man("Long", "beard")).points).toBe(-6);
+    const fringe = beardAdjustment(style("m-messy-fringe"), man("Long", "beard"));
+    expect(fringe.points).toBe(4);
+    expect(fringe.reason).toMatch(/beard/);
+  });
+  it("round face + beard: height on top goes up", () => {
+    expect(beardAdjustment(style("m-pompadour"), man("Round", "beard")).points).toBe(4);
+  });
+  it("neat, short cuts go up with a beard on any face", () => {
+    expect(beardAdjustment(style("m-crew-cut"), man("Oval", "beard")).points).toBe(3);
+  });
+  it("stubble counts half, and says stubble", () => {
+    const r = beardAdjustment(style("m-crew-cut"), man("Oval", "stubble"));
+    expect(r.points).toBe(2);
+    expect(r.reason).toMatch(/stubble/);
+  });
+  it("no change when clean-shaven, moustache only, unknown, or for women", () => {
+    for (const fh of ["clean", "moustache", null] as const) expect(beardAdjustment(style("m-pompadour"), man("Long", fh)).points).toBe(0);
+    const woman: CustomerHair = { gender: "women", faceShape: "Long", texture: "wavy", length: "waist", facialHair: "beard" };
+    expect(beardAdjustment(style("m-pompadour"), woman).points).toBe(0);
+  });
+  it("a long-faced man with a beard sees fewer height-on-top cuts at the top of his list", () => {
+    const heights = (c: CustomerHair) => pickStyles(c).top.filter((p) => p.style.effects.includes("height")).length;
+    expect(heights(man("Long", "beard"))).toBeLessThanOrEqual(heights(man("Long", "clean")));
+  });
+});

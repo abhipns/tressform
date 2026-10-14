@@ -4,9 +4,13 @@
 // itself (kept on the device), the page's path and, if the visitor came from
 // another site, that site's name. Search-engine robots are not counted.
 // The owner's admin pages are not counted either (the browser doesn't send them).
+//
+// 14.10.2026: limited per visitor id (lib/stats.ts, shouldCountVisit): the
+// same page once per half hour, at most 60 pages a day.
 
 import { NextRequest, NextResponse } from "next/server";
 import { SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { VISITS_PER_VISITOR_PER_DAY, shouldCountVisit } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +28,16 @@ export async function POST(req: NextRequest) {
   if (SUPABASE_MOCK_MODE) return new NextResponse(null, { status: 204 });
 
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
-  await getSupabaseAdmin()
+  const db = getSupabaseAdmin();
+  const { data: recent } = await db
+    .from("site_visits")
+    .select("path, created_at")
+    .eq("visitor", visitor)
+    .gte("created_at", new Date(Date.now() - 86_400_000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(VISITS_PER_VISITOR_PER_DAY);
+  if (!shouldCountVisit(path, recent ?? [], new Date())) return new NextResponse(null, { status: 204 });
+  await db
     .from("site_visits")
     .insert({ visitor, path, referrer_host: /^[a-z0-9.-]+$/.test(ref) && ref !== "tressform.co.in" ? ref : null });
   return new NextResponse(null, { status: 204 });

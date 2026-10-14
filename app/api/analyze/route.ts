@@ -291,7 +291,10 @@ export async function POST(req: NextRequest) {
           confidence: Math.min(classification.confidence, 45),
           readBy: "measurement" as const,
         };
+  // 14.10.2026: men's facial hair goes to the page too, for the beard factor in the list (lib/recommend.ts).
+  const facialHair = settleFacialHair(detection.facialHair, gender === "men" ? (read?.facialHair ?? null) : null);
   const forPage = {
+    facialHair: gender === "men" ? facialHair : null,
     faceShape: face.shape,
     secondFaceShape: face.second,
     sure: face.sure,
@@ -315,7 +318,7 @@ export async function POST(req: NextRequest) {
       gender,
       // Read back by /api/generate so the image model is told, as a fact,
       // whether to keep the customer clean-shaven or keep their beard.
-      facialHair: settleFacialHair(detection.facialHair, gender === "men" ? (read?.facialHair ?? null) : null),
+      facialHair,
       faceServiceFacialHair: detection.facialHair,
     },
   };

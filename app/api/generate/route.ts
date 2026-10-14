@@ -78,7 +78,7 @@ interface GenerateBody {
   styleName?: string;
   faceShape?: string | null;
   /** What the customer confirmed on the result screen. */
-  details?: { faceShape?: unknown; length?: unknown; texture?: unknown } | null;
+  details?: { faceShape?: unknown; length?: unknown; texture?: unknown; facialHair?: unknown } | null;
   /** Whose hairstyle it is: decides which image model makes the preview. */
   gender?: string | null;
 }
@@ -120,6 +120,11 @@ export async function POST(req: NextRequest) {
         texture:
           typeof body.details.texture === "string" && ["straight", "wavy", "curly"].includes(body.details.texture)
             ? body.details.texture
+            : null,
+        // 14.10.2026: the customer's own word on their facial hair (men).
+        facialHair:
+          gender === "men" && typeof body.details.facialHair === "string" && ["clean", "stubble", "beard", "moustache"].includes(body.details.facialHair)
+            ? (body.details.facialHair as "clean" | "stubble" | "beard" | "moustache")
             : null,
       }
     : null;
@@ -205,10 +210,12 @@ export async function POST(req: NextRequest) {
   // What the analysis recorded about this photo — trusted over anything
   // the browser sends.
   const analysed = (photo.rekognition_raw as { tressform?: { facialHair?: unknown } } | null)?.tressform;
+  // 14.10.2026: a customer's correction comes first — it is their face.
   const facialHair =
-    analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean" || analysed?.facialHair === "stubble"
+    details?.facialHair ??
+    (analysed?.facialHair === "beard" || analysed?.facialHair === "moustache" || analysed?.facialHair === "clean" || analysed?.facialHair === "stubble"
       ? analysed.facialHair
-      : null;
+      : null);
   // The customer's own correction comes first: it is their face.
   const analysedFaceShape: string | null = customerShape ?? photo.face_shape ?? faceShape ?? null;
 

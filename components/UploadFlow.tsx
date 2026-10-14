@@ -132,6 +132,12 @@ import StylePicks, {
   type ViewsOutcome,
 } from "./StylePicks";
 import type { HairGender } from "@/lib/content/hairstyles";
+import { FACIAL_HAIR_OPTIONS, type FacialHair } from "@/lib/recommend";
+
+/** 14.10.2026: a facial-hair value from the server, or null if it isn't one. */
+function asFacialHair(value: unknown): FacialHair | null {
+  return typeof value === "string" && (FACIAL_HAIR_OPTIONS as string[]).includes(value) ? (value as FacialHair) : null;
+}
 
 type Slot = "front" | "left" | "right";
 type Step = "capture" | "analyzing" | "results";
@@ -368,12 +374,24 @@ export default function UploadFlow() {
         if (!res.ok) return; // nothing made yet: the upload form, as before
         const data = await res.json();
         const l = data.latest as
-          | { gender: HairGender; faceShape: ConfirmedDetails["faceShape"]; length: string | null; texture: string | null; photoUrl: string | null }
+          | {
+              gender: HairGender;
+              faceShape: ConfirmedDetails["faceShape"];
+              length: string | null;
+              texture: string | null;
+              facialHair?: string | null;
+              photoUrl: string | null;
+            }
           | undefined;
         if (cancelled || !l || typeof data.photoId !== "string") return;
         const confirmed: ConfirmedDetails | null =
           l.length && l.texture
-            ? { faceShape: l.faceShape, length: l.length as ConfirmedDetails["length"], texture: l.texture as ConfirmedDetails["texture"] }
+            ? {
+                faceShape: l.faceShape,
+                length: l.length as ConfirmedDetails["length"],
+                texture: l.texture as ConfirmedDetails["texture"],
+                facialHair: asFacialHair(l.facialHair),
+              }
             : null;
         const details: PhotoDetails = {
           faceShape: l.faceShape,
@@ -381,6 +399,7 @@ export default function UploadFlow() {
           sure: "high",
           readBy: "reading",
           hair: { length: confirmed?.length ?? null, texture: confirmed?.texture ?? null },
+          facialHair: asFacialHair(l.facialHair),
         };
         const thumb = (await makeThumb(l.photoUrl)) ?? l.photoUrl;
         if (cancelled) return;
@@ -435,6 +454,7 @@ export default function UploadFlow() {
               sure: "high",
               readBy: "reading",
               hair: { length: saved.confirmed.length, texture: saved.confirmed.texture },
+              facialHair: saved.confirmed.facialHair ?? saved.details.facialHair ?? null,
             }
           : saved.details;
         setGender(saved.gender);
@@ -543,6 +563,7 @@ export default function UploadFlow() {
         sure: analyzeData.sure ?? "low",
         readBy: analyzeData.readBy ?? "measurement",
         hair: { length: analyzeData.hair?.length ?? null, texture: analyzeData.hair?.texture ?? null },
+        facialHair: asFacialHair(analyzeData.facialHair),
       };
       setEarlier([]);
       setAnalysis({

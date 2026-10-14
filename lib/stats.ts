@@ -99,3 +99,18 @@ export function finalSummary(i: SummaryInput): SummaryOutput {
   const incomeTaxPaise = profitBeforeTaxPaise > 0 ? Math.round((profitBeforeTaxPaise * rate) / 100) : 0;
   return { profitBeforeTaxPaise, incomeTaxPaise, takeHomePaise: profitBeforeTaxPaise - incomeTaxPaise };
 }
+
+// 14.10.2026: the visit counter's limits (app/api/visit/route.ts), so one
+// visitor — or someone calling the counter in a loop — can't inflate the
+// dashboard. No IP address is kept (the privacy page promises nothing
+// personal), so the limits are per visitor id: the same page counts once
+// per half hour, and a visitor counts at most 60 pages a day.
+export const VISIT_SAME_PAGE_MINUTES = 30;
+export const VISITS_PER_VISITOR_PER_DAY = 60;
+
+/** Whether a visit should be counted, given this visitor's visits in the last 24 hours (newest first is fine). */
+export function shouldCountVisit(path: string, recent: { path: string; created_at: string }[], now: Date): boolean {
+  if (recent.length >= VISITS_PER_VISITOR_PER_DAY) return false;
+  const since = now.getTime() - VISIT_SAME_PAGE_MINUTES * 60_000;
+  return !recent.some((v) => v.path === path && new Date(v.created_at).getTime() > since);
+}

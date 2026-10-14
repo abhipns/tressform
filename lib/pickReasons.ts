@@ -140,10 +140,12 @@ export const UPKEEP_LABEL = { low: "Low upkeep", medium: "Some upkeep", high: "H
  */
 export function reasonsFor(pick: StylePick, customer: CustomerHair): string[] {
   const face = faceReason(pick, customer.faceShape);
+  // 14.10.2026: how the cut goes with a man's beard or stubble, when it helps.
+  const beard = pick.beardReason ? [pick.beardReason] : [];
   if (!pick.needsDailyStyling && pick.cutToday && pick.stepsShorter === 0) {
     const keeps =
       customer.gender === "women" && pick.style.needs === "below-shoulder" ? "keeps your length" : "uses the length you have now";
-    return [face, `Works with your ${TEXTURE_WORD[customer.texture]} hair as it is, and ${keeps}.`];
+    return [face, ...beard, `Works with your ${TEXTURE_WORD[customer.texture]} hair as it is, and ${keeps}.`];
   }
-  return [face, hairReason(pick, customer.texture), lengthReason(pick, customer)];
+  return [face, ...beard, hairReason(pick, customer.texture), lengthReason(pick, customer)];
 }

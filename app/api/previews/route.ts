@@ -56,14 +56,20 @@ export async function POST(req: NextRequest) {
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
 
-  let latestPhoto: { gender: "men" | "women"; faceShape: string; length: string | null; texture: string | null; photoUrl: string | null } | null =
-    null;
+  let latestPhoto: {
+    gender: "men" | "women";
+    faceShape: string;
+    length: string | null;
+    texture: string | null;
+    facialHair: string | null;
+    photoUrl: string | null;
+  } | null = null;
   let photo: { id: string } | null = null;
   if (wantLatest) {
     // Newest photo with saved details (they are saved when the first hairstyle is made from it).
     const { data: rows } = await admin
       .from("photos")
-      .select("id, storage_path, customer_details")
+      .select("id, storage_path, customer_details, rekognition_raw")
       .eq("user_id", userId)
       .not("customer_details", "is", null)
       .order("created_at", { ascending: false })
@@ -77,6 +83,13 @@ export async function POST(req: NextRequest) {
         faceShape: d.faceShape,
         length: typeof d.length === "string" ? d.length : null,
         texture: typeof d.texture === "string" ? d.texture : null,
+        // 14.10.2026: the customer's correction, else what the photo reading saw.
+        facialHair:
+          d.gender !== "men"
+            ? null
+            : typeof d.facialHair === "string"
+              ? d.facialHair
+              : ((row.rekognition_raw as { tressform?: { facialHair?: unknown } } | null)?.tressform?.facialHair as string | undefined) ?? null,
         photoUrl: link?.signedUrl ?? null,
       };
       photo = { id: row.id as string };
