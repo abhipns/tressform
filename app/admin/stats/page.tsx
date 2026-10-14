@@ -30,6 +30,8 @@ interface Stats {
   buyers: number;
   repeat_buyers: number;
   revenue_paise: number;
+  /** 14.10.2026: Tressform credit customers put toward paid orders (not money received). */
+  credit_used_paise?: number;
   fees_paise: number;
   ai_cost_paise: number;
   by_pack: Record<string, number>;
@@ -180,7 +182,13 @@ function Dashboard() {
 
           <h2 className="mt-10 text-[21px] font-semibold">Money</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Tile label="Pack sales" value={rupees(s.revenue_paise)} note={`${s.orders} order${s.orders === 1 ? "" : "s"}`} />
+            <Tile
+              label="Pack sales"
+              value={rupees(s.revenue_paise)}
+              note={`${s.orders} order${s.orders === 1 ? "" : "s"}${
+                s.credit_used_paise ? ` · plus ${rupees(s.credit_used_paise)} paid with credit` : ""
+              }`}
+            />
             <Tile label="PayU fees" value={rupees(s.fees_paise)} />
             <Tile label="AI picture cost" value={rupees(s.ai_cost_paise)} />
             <Tile label="Left after costs" value={rupees(profit)} note="Before tax and other bills" />

@@ -4,12 +4,14 @@
 // Pulls the real numbers straight from lib/pricing.ts (flat, capped,
 // non-cash referral credits — resolved via doc comments 21.09.2026 and the
 // ₹15,000/FY cap) rather than restating them as separate copy that could
-// drift out of sync. No referral code / dashboard wiring yet (that needs a
-// logged-in user + a real backend), so this is the marketing/explainer page
-// only, matching the honesty pattern used elsewhere for not-yet-built
-// pieces.
+// drift out of sync.
+//
+// 14.10.2026: signed-in customers now see their own referral link, with
+// copy / WhatsApp buttons and what it has earned (components/MyReferral.tsx).
+// How links are picked up and linked is described in lib/referral.ts.
 
 import { REFERRAL_CREDITS_BY_TIER_PAISE, REFERRAL_ANNUAL_CAP_PAISE, paiseToRupees } from "@/lib/pricing";
+import MyReferral, { LoginForLink } from "@/components/MyReferral";
 
 const TIER_LABELS: Record<keyof typeof REFERRAL_CREDITS_BY_TIER_PAISE, string> = {
   STARTER: "Starter Pack",
@@ -42,6 +44,8 @@ export default function ReferPage() {
           When someone you refer makes their first purchase, you earn a flat Tressform credit — no math, no tiers to
           climb, no waiting on their spend.
         </p>
+
+        <MyReferral />
 
         <div className="mb-9 grid gap-4 sm:grid-cols-3">
           {(Object.keys(REFERRAL_CREDITS_BY_TIER_PAISE) as Array<keyof typeof REFERRAL_CREDITS_BY_TIER_PAISE>).map((tier) => (
@@ -80,12 +84,14 @@ export default function ReferPage() {
           .
         </div>
 
-        <p className="mt-8 text-center text-[14px] text-ink-muted">
-          <a href="/login" className="font-semibold text-mint-deep">
-            Log in or create an account
-          </a>{" "}
-          to get your referral link.
-        </p>
+        <LoginForLink>
+          <p className="mt-8 text-center text-[14px] text-ink-muted">
+            <a href="/login?next=%2Frefer" className="font-semibold text-mint-deep">
+              Log in or create an account
+            </a>{" "}
+            to get your referral link.
+          </p>
+        </LoginForLink>
       </div>
     </section>
   );

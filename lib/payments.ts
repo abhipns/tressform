@@ -19,6 +19,7 @@
 
 import { verifyPayment } from "@/lib/integrations/payu";
 import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/pricing";
+import { financialYearStart } from "@/lib/referral";
 
 export type ConfirmResult =
   | { found: false }
@@ -49,7 +50,10 @@ export async function confirmPayuTxn(txnid: string): Promise<ConfirmResult> {
       .eq("id", order.id)
       .in("status", ["CREATED", "FAILED"])
       .select("id");
-    if (updated && updated.length > 0) await settleReferral(admin, order);
+    if (updated && updated.length > 0) {
+      await spendOrderCredit(admin, order);
+      await settleReferral(admin, order);
+    }
     return { found: true, orderId: order.id, tier: order.tier, status: "PAID" };
   }
 
@@ -62,9 +66,32 @@ export async function confirmPayuTxn(txnid: string): Promise<ConfirmResult> {
   return { found: true, orderId: order.id, tier: order.tier, status: "PENDING" };
 }
 
-// Referral credit on a referred customer's first purchase. Best-effort and
-// a no-op while no referrals row exists (the referral sign-up flow isn't
-// built yet). Moved here unchanged from the old /api/payment/verify route.
+// 14.10.2026: credit the customer put toward this order (lib/credit.ts) leaves
+// their balance now that PayU has confirmed the payment — never earlier, so a
+// cancelled payment costs nothing. spend_credit refuses rather than going
+// below zero; that can only happen if the same credit was spent on another
+// order in the meantime, and the customer has still paid the reduced price,
+// so the order stands and the mismatch is logged for the owner to look at.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function spendOrderCredit(admin: any, order: { id: string; user_id: string; credit_used_paise?: number | null }) {
+  const amount = order.credit_used_paise ?? 0;
+  if (amount <= 0) return;
+  try {
+    const { data: took, error } = await admin.rpc("spend_credit", { p_user: order.user_id, p_amount: amount });
+    if (error || took !== true) {
+      console.error(
+        `[Tressform] order ${order.id}: could not take ${amount} paise of credit from ${order.user_id} (balance too low or error).`,
+        error ?? ""
+      );
+    }
+  } catch (err) {
+    console.error(`[Tressform] order ${order.id}: taking credit failed.`, err);
+  }
+}
+
+// Referral credit on a referred customer's first purchase. Best-effort: a
+// no-op when the customer wasn't referred. The referrals row it looks for is
+// made by /api/referral/claim (14.10.2026; see lib/referral.ts).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function settleReferral(admin: any, order: { id: string; user_id: string; tier: string | null; is_referred_first_purchase: boolean }) {
   if (!order.is_referred_first_purchase || !order.tier) return;
@@ -76,14 +103,14 @@ async function settleReferral(admin: any, order: { id: string; user_id: string; 
       .maybeSingle();
     if (!referral?.referrer_id) return;
 
-    const fyStart = new Date();
-    fyStart.setUTCMonth(fyStart.getUTCMonth() >= 3 ? 3 : -9, 1);
-    fyStart.setUTCHours(0, 0, 0, 0);
+    // 14.10.2026: the ₹15,000 yearly cap counts credit by when it was EARNED
+    // (paid_at), in India's financial year — not by when the friend signed
+    // up, which put a March sign-up / April purchase in the wrong year.
     const { data: priorCredits } = await admin
       .from("referrals")
       .select("credits_paise")
       .eq("referrer_id", referral.referrer_id)
-      .gte("created_at", fyStart.toISOString());
+      .gte("paid_at", financialYearStart().toISOString());
     const cumulative = ((priorCredits ?? []) as { credits_paise: number | null }[]).reduce((s, r) => s + (r.credits_paise ?? 0), 0);
     const creditsPaise = calculateReferralCreditsPaiseWithCap(order.tier as PackTier, true, cumulative);
 

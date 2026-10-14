@@ -97,6 +97,8 @@ export interface OrderRow {
   /** How many hairstyle previews this order came with, and how many have been made from it. */
   preview_count: number;
   previews_used: number;
+  /** 14.10.2026: Tressform credit put toward this order. price_paise is what was actually charged. */
+  credit_used_paise: number;
   created_at: string;
   paid_at: string | null;
 }

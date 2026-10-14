@@ -72,8 +72,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Order/payment mismatch." }, { status: 400 });
     }
 
+    const wasPaid = order.status === "PAID";
     const paid = mockStore.markOrderPaid(orderId, razorpayPaymentId);
     if (!paid) return NextResponse.json({ error: "Failed to mark order paid." }, { status: 500 });
+
+    // 14.10.2026: credit put toward the order leaves the balance on payment (lib/credit.ts).
+    if (!wasPaid && (order.creditUsedPaise ?? 0) > 0) {
+      const buyer = mockStore.getOrCreateProfile(order.userId);
+      buyer.creditBalancePaise = Math.max(0, buyer.creditBalancePaise - (order.creditUsedPaise ?? 0));
+    }
 
     // Best-effort referral settlement — see file header for why this is a
     // no-op when there's no referrals row for this user yet.

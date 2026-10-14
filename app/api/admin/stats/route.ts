@@ -21,6 +21,7 @@ const EMPTY = {
   buyers: 0,
   repeat_buyers: 0,
   revenue_paise: 0,
+  credit_used_paise: 0,
   fees_paise: 0,
   ai_cost_paise: 0,
   by_pack: {},

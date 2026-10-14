@@ -20,7 +20,10 @@
 --    row level security (section 9) is what actually limits access. Tables
 --    with security on but no policy (reviews, site_visits, affiliate_income,
 --    affiliate_clicks, job_runs) are reachable only by the server.
---  * Every function except set_updated_at() is server-only (section 6).
+--  * Every function except set_updated_at() is server-only (section 7).
+--  * Updated 14.10.2026: credit at checkout (orders.credit_used_paise,
+--    spend_credit) and the profiles column permissions. Individual changes
+--    are also kept in supabase/migrations/.
 -- =====================================================================
 
 -- 1. Extensions (Supabase usually has these already) ------------------
@@ -78,7 +81,8 @@ create table public.orders (
   created_at timestamp with time zone default now() not null,
   paid_at timestamp with time zone,
   preview_count integer default 0 not null,
-  previews_used integer default 0 not null
+  previews_used integer default 0 not null,
+  credit_used_paise integer default 0 not null
 );
 
 create table public.photos (
@@ -253,6 +257,7 @@ alter table public.notifications_log add constraint notifications_log_pkey PRIMA
 alter table public.notifications_log add constraint notifications_log_channel_check CHECK ((channel = ANY (ARRAY['EMAIL'::text, 'WHATSAPP'::text])));
 alter table public.notifications_log add constraint notifications_log_status_check CHECK ((status = ANY (ARRAY['QUEUED'::text, 'SENT'::text, 'FAILED'::text])));
 alter table public.orders add constraint orders_pkey PRIMARY KEY (id);
+alter table public.orders add constraint orders_credit_used_paise_check CHECK ((credit_used_paise >= 0));
 alter table public.photos add constraint photos_pkey PRIMARY KEY (id);
 alter table public.profiles add constraint profiles_pkey PRIMARY KEY (id);
 alter table public.profiles add constraint profiles_referral_code_key UNIQUE (referral_code);
@@ -409,6 +414,22 @@ AS $function$
    where id = p_order;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.spend_credit(p_user uuid, p_amount integer)
+ RETURNS boolean
+ LANGUAGE sql
+ SET search_path TO ''
+AS $function$
+  with taken as (
+    update public.profiles
+       set credit_balance_paise = credit_balance_paise - p_amount
+     where id = p_user
+       and p_amount > 0
+       and credit_balance_paise >= p_amount
+    returning 1
+  )
+  select exists (select 1 from taken);
+$function$;
+
 CREATE OR REPLACE FUNCTION public.account_last_seen()
  RETURNS TABLE(user_id uuid, seen timestamp with time zone)
  LANGUAGE sql
@@ -554,6 +575,7 @@ select jsonb_build_object(
   'buyers', (select count(distinct user_id) from paid),
   'repeat_buyers', (select count(*) from paid_all where n >= 2 and user_id in (select user_id from paid)),
   'revenue_paise', (select coalesce(sum(price_paise), 0) from paid),
+  'credit_used_paise', (select coalesce(sum(credit_used_paise), 0) from paid),
   'fees_paise', (select coalesce(sum(gateway_fee_paise), 0) from paid),
   'ai_cost_paise', (select coalesce(sum(cost_paise), 0) from style_results
       where created_at >= p_since and user_id not in (select id from admins)),
@@ -591,6 +613,8 @@ revoke all on function public.reserve_free_preview(uuid) from public, anon, auth
 grant execute on function public.reserve_free_preview(uuid) to service_role;
 revoke all on function public.reserve_paid_preview(uuid) from public, anon, authenticated;
 grant execute on function public.reserve_paid_preview(uuid) to service_role;
+revoke all on function public.spend_credit(uuid, integer) from public, anon, authenticated;
+grant execute on function public.spend_credit(uuid, integer) to service_role;
 revoke all on function public.set_updated_at() from public, anon, authenticated;
 grant execute on function public.set_updated_at() to anon, authenticated, service_role;
 
@@ -599,6 +623,12 @@ CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXEC
 CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_affiliate_products_updated_at BEFORE UPDATE ON public.affiliate_products FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_salons_updated_at BEFORE UPDATE ON public.salons FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- Signed-in customers may change only their own name and phone in profiles —
+-- never their role, credit balance or referral fields. (Every other table
+-- keeps Supabase's standard grants; row level security below limits them.)
+revoke insert, update, delete on public.profiles from anon, authenticated;
+grant update (full_name, phone) on public.profiles to authenticated;
 
 -- 9. Row level security and policies ------------------------------------
 alter table public.affiliate_clicks enable row level security;

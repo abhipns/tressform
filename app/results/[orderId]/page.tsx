@@ -25,6 +25,8 @@ interface OrderSummary {
   tierLabel: string | null;
   imageCount: number;
   pricePaise: number;
+  /** 14.10.2026: Tressform credit put toward the order (pricePaise is what was charged). */
+  creditUsedPaise?: number;
   gstPaise: number;
   referralCreditsPaise: number;
   paidAt: string | null;
@@ -153,8 +155,19 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           <br />
           <div className="mx-auto mb-2 inline-flex gap-6 rounded-md2 border border-line bg-surface px-6 py-3 text-[13px] text-ink-muted">
             <span>
-              Paid <strong className="text-ink-heading">₹{paiseToRupees(order.pricePaise).split(".")[0]}</strong>
-              {order.gstPaise > 0 ? " (GST incl.)" : ""}
+              {order.pricePaise > 0 || !order.creditUsedPaise ? (
+                <>
+                  Paid <strong className="text-ink-heading">₹{paiseToRupees(order.pricePaise).split(".")[0]}</strong>
+                  {order.gstPaise > 0 ? " (GST incl.)" : ""}
+                  {order.creditUsedPaise ? (
+                    <> + ₹{paiseToRupees(order.creditUsedPaise).split(".")[0]} credit</>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  Paid with <strong className="text-ink-heading">₹{paiseToRupees(order.creditUsedPaise).split(".")[0]}</strong> credit
+                </>
+              )}
             </span>
             <span>
               Order <strong className="text-ink-heading">{order.id.slice(0, 8)}</strong>

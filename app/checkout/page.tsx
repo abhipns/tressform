@@ -26,12 +26,19 @@
 // /api/payment/payu-return. PayU requires a mobile number, so the page asks
 // for one (passed to PayU, not stored by Tressform). Coming back with
 // ?payment=failed shows a short "didn't go through" note above the button.
+//
+// 14.10.2026 (credit at checkout): customers with Tressform credit see a
+// ticked-by-default "Use my ₹X credit" box; the breakdown and the Pay button
+// follow it live. The server works the sum out again itself (lib/credit.ts)
+// — this page only shows it. When the credit covers everything, there is no
+// PayU step and no mobile number to give: the order completes straight away.
 
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  GST_RATE,
   GST_REGISTERED,
   PACK_TIERS,
   calculatePackPnl,
@@ -40,6 +47,7 @@ import {
   isEarlyBirdActive,
 } from "@/lib/pricing";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
+import { splitWithCredit } from "@/lib/credit";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
@@ -77,8 +85,10 @@ function CheckoutContent() {
   const [error, setError] = useState<string | null>(null);
   const { session, loading: sessionLoading } = useSession();
   const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
-  const askPhone = !SUPABASE_MOCK_MODE;
+  const userId = session?.user.id ?? null;
   const [phone, setPhone] = useState("");
+  const [balancePaise, setBalancePaise] = useState(0);
+  const [useCredit, setUseCredit] = useState(true);
   const [phoneError, setPhoneError] = useState(false);
 
   // Remember the number on this device only, so a second purchase is one tap.
@@ -91,10 +101,38 @@ function CheckoutContent() {
     }
   }, []);
 
+  // The customer's Tressform credit, for the "Use my credit" box.
+  useEffect(() => {
+    if (!SUPABASE_MOCK_MODE && (sessionLoading || !userId)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/referral/me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: JSON.stringify({ userId: SUPABASE_MOCK_MODE ? getMockUserId() : undefined }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { balancePaise?: number };
+        if (!cancelled) setBalancePaise(Math.max(0, data.balancePaise ?? 0));
+      } catch {
+        /* no credit shown — the customer can still pay in full */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, sessionLoading]);
+
   const validTier = SELLABLE_TIERS.includes(tierParam) ? tierParam : null;
 
   const pnl = useMemo(() => (validTier ? calculatePackPnl(validTier) : null), [validTier]);
   const pack = validTier ? PACK_TIERS[validTier] : null;
+  const split = splitWithCredit(pnl?.pricePaise ?? 0, balancePaise, useCredit);
+  const free = split.duePaise === 0 && split.creditPaise > 0;
+  const askPhone = !SUPABASE_MOCK_MODE && !free;
+  const gstOnDuePaise = GST_REGISTERED ? Math.round(split.duePaise * GST_RATE) : 0;
+  const rupees = (paise: number) => `₹${paiseToRupees(paise).split(".")[0]}`;
 
   async function handlePay() {
     if (!validTier) return;
@@ -116,7 +154,11 @@ function CheckoutContent() {
       const createRes = await fetch("/api/payment/create-order", {
         method: "POST",
         headers,
-        body: JSON.stringify(SUPABASE_MOCK_MODE ? { userId: getMockUserId(), tier: validTier } : { tier: validTier, phone }),
+        body: JSON.stringify(
+          SUPABASE_MOCK_MODE
+            ? { userId: getMockUserId(), tier: validTier, useCredit }
+            : { tier: validTier, phone: free ? undefined : phone, useCredit }
+        ),
       });
       const createData = await createRes.json();
       if (createRes.status === 401) {
@@ -129,6 +171,12 @@ function CheckoutContent() {
       }
 
       const { orderId, razorpayOrderId, mockMode, payu } = createData;
+
+      // Paid entirely with credit: nothing to pay, the order is already complete.
+      if (createData.free) {
+        router.push(`/results/${orderId}`);
+        return;
+      }
 
       if (mockMode) {
         const verifyRes = await fetch("/api/payment/verify", {
@@ -193,18 +241,52 @@ function CheckoutContent() {
               Early Bird price applied — regular price is ₹{paiseToRupees(pack.regularPricePaise).split(".")[0]}
             </p>
           )}
+          {balancePaise > 0 && (
+            <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-md2 bg-mint-pale/50 px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={useCredit}
+                onChange={(e) => setUseCredit(e.target.checked)}
+                className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-mint-deep"
+              />
+              <span className="text-[14px] leading-[1.45] text-ink-heading">
+                <strong>Use my {rupees(balancePaise)} credit</strong>
+                <span className="block text-[12.5px] text-ink-muted">
+                  {useCredit
+                    ? split.creditPaise < balancePaise
+                      ? `${rupees(split.creditPaise)} goes toward this pack; ${rupees(balancePaise - split.creditPaise)} stays in your account.`
+                      : "Your credit is taken only once your payment goes through."
+                    : "Your credit stays in your account for later."}
+                </span>
+              </span>
+            </label>
+          )}
           <div className="flex flex-col gap-1.5 border-t border-line pt-4 text-[13px] text-ink-muted">
-            <div className="flex justify-between">
-              <span>{GST_REGISTERED ? "Price (GST-inclusive)" : "Total to pay"}</span>
-              <span>₹{paiseToRupees(pnl.pricePaise)}</span>
+            {split.creditPaise > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <span>Price</span>
+                  <span>₹{paiseToRupees(split.pricePaise)}</span>
+                </div>
+                <div className="flex justify-between text-mint-deep">
+                  <span>Your credit</span>
+                  <span>−₹{paiseToRupees(split.creditPaise)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between font-semibold text-ink-heading">
+              <span>{GST_REGISTERED && split.duePaise > 0 ? "Total to pay (GST-inclusive)" : "Total to pay"}</span>
+              <span>₹{paiseToRupees(split.duePaise)}</span>
             </div>
-            {GST_REGISTERED ? (
+            {GST_REGISTERED && split.duePaise > 0 ? (
               <div className="flex justify-between">
                 <span>Includes GST</span>
-                <span>₹{paiseToRupees(pnl.gstPaise)}</span>
+                <span>₹{paiseToRupees(gstOnDuePaise)}</span>
               </div>
             ) : (
-              <p className="text-[12px]">One-time payment. Nothing else is added.</p>
+              <p className="text-[12px]">
+                {free ? "Covered in full by your credit. Nothing to pay." : "One-time payment. Nothing else is added."}
+              </p>
             )}
           </div>
         </div>
@@ -251,12 +333,21 @@ function CheckoutContent() {
           </a>
         ) : (
           <button className="btn-primary w-full" disabled={status === "paying" || sessionLoading} onClick={handlePay}>
-            {status === "paying" ? "Opening PayU…" : `Pay ₹${paiseToRupees(pnl.pricePaise).split(".")[0]}`}
+            {status === "paying"
+              ? free
+                ? "Completing your order…"
+                : "Opening PayU…"
+              : free
+                ? "Get it with my credit"
+                : `Pay ${rupees(split.duePaise)}`}
           </button>
         )}
 
         <p className="mt-4 text-center text-[12px] text-ink-muted">
-          You&apos;ll pay on PayU&apos;s secure page (UPI, cards, net banking), then come straight back here. See our{" "}
+          {free
+            ? "Your credit pays for the whole pack, so there's no payment step."
+            : "You'll pay on PayU's secure page (UPI, cards, net banking), then come straight back here."}{" "}
+          See our{" "}
           <a href="/refund" className="font-semibold text-mint-deep">
             Refund and Cancellation Policy
           </a>{" "}

@@ -20,16 +20,26 @@
 // requires one), saves the order with a fresh PayU transaction id, and
 // returns the form the checkout page posts to PayU. The mobile number is
 // passed to PayU only; Tressform does not store it.
+//
+// 14.10.2026 (credit at checkout): with `useCredit: true` the customer's
+// Tressform credit goes toward the order (rules in lib/credit.ts). The
+// order is saved at the reduced price, with the credit used beside it, and
+// PayU is asked only for the reduced amount. When the credit covers the
+// whole price there is no PayU step at all: the credit is taken at once and
+// the order is saved already PAID (answer: { free: true, orderId }).
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import {
   calculatePackPnl,
   calculateAddonPnl,
+  calculateOrderPnl,
   PACK_TIERS,
+  PICTURES_PER_PREVIEW,
   type PackTier,
   type AddonKind,
 } from "@/lib/pricing";
+import { CREDIT_ONLY_TXN_PREFIX, splitWithCredit } from "@/lib/credit";
 import { PAYU_LIVE, PAYU_MOCK_MODE, buildPaymentForm, cleanFirstName, newTxnId } from "@/lib/integrations/payu";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
@@ -42,6 +52,7 @@ interface CreateOrderBody {
   addonKind?: AddonKind;
   addonPhotoCount?: number;
   phone?: string;
+  useCredit?: boolean;
 }
 
 /** A 10-digit Indian mobile number, or null. Accepts +91 / 0 / spaces / dashes. */
@@ -87,16 +98,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "addonPhotoCount must be at least 1 for an add-on order." }, { status: 400 });
   }
 
-  const pnl = tier ? calculatePackPnl(tier) : calculateAddonPnl(addonPhotoCount!);
+  const listPnl = tier ? calculatePackPnl(tier) : calculateAddonPnl(addonPhotoCount!);
   const imageCount = tier ? PACK_TIERS[tier].imageCount : addonPhotoCount!;
   const internalOrderId = randomUUID();
+  const useCredit = body.useCredit === true;
+  /** The order's figures at the price actually charged (after any credit). */
+  const pnlFor = (duePaise: number) => calculateOrderPnl(duePaise, imageCount, tier ? PICTURES_PER_PREVIEW : 1);
 
   const txnid = PAYU_MOCK_MODE ? `mock_${newTxnId()}` : newTxnId();
 
   if (SUPABASE_MOCK_MODE) {
     const profile = mockStore.getOrCreateProfile(userId);
     const hasPaidBefore = [...mockStore.orders.values()].some((o) => o.userId === userId && o.status === "PAID");
-    const isReferredFirstPurchase = Boolean(profile.referredBy) && !hasPaidBefore;
+    const split = splitWithCredit(listPnl.pricePaise, profile.creditBalancePaise, useCredit);
+    const free = split.duePaise === 0;
+    const pnl = pnlFor(split.duePaise);
+    // A first purchase paid entirely with credit brings no new money in, so it earns the referrer nothing.
+    const isReferredFirstPurchase = Boolean(profile.referredBy) && !hasPaidBefore && !free;
+    if (free) profile.creditBalancePaise -= split.creditPaise;
 
     const order = mockStore.createOrder({
       id: internalOrderId,
@@ -111,20 +130,23 @@ export async function POST(req: NextRequest) {
       profitBeforeReferralPaise: pnl.profitBeforeReferralPaise,
       isReferredFirstPurchase,
       referralCreditsPaise: 0, // settled in /api/payment/verify once payment is confirmed
-      status: "CREATED",
-      razorpayOrderId: txnid,
+      status: free ? "PAID" : "CREATED",
+      razorpayOrderId: free ? `${CREDIT_ONLY_TXN_PREFIX}${txnid}` : txnid,
       razorpayPaymentId: null,
       createdAt: new Date().toISOString(),
-      paidAt: null,
+      paidAt: free ? new Date().toISOString() : null,
       previewCount: imageCount,
       previewsUsed: 0,
+      creditUsedPaise: split.creditPaise,
     });
 
     return NextResponse.json({
       mockMode: true,
+      free,
       orderId: order.id,
-      razorpayOrderId: txnid,
-      amountPaise: pnl.pricePaise,
+      razorpayOrderId: order.razorpayOrderId,
+      amountPaise: split.duePaise,
+      creditUsedPaise: split.creditPaise,
       currency: "INR",
       imageCount,
     });
@@ -143,14 +165,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const phone = cleanPhone(body.phone);
-  if (!phone) {
-    return NextResponse.json({ error: "Please enter your 10-digit mobile number.", field: "phone" }, { status: 400 });
-  }
-  if (!auth.email) {
-    return NextResponse.json({ error: "Your account has no email address. Please log in with Google again." }, { status: 400 });
-  }
-
   const { data: existingPaid } = await admin
     .from("orders")
     .select("id")
@@ -158,8 +172,26 @@ export async function POST(req: NextRequest) {
     .eq("status", "PAID")
     .limit(1);
 
-  const { data: profile } = await admin.from("profiles").select("referred_by").eq("id", userId).single();
-  const isReferredFirstPurchase = Boolean(profile?.referred_by) && !(existingPaid && existingPaid.length > 0);
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("referred_by, credit_balance_paise")
+    .eq("id", userId)
+    .single();
+  const split = splitWithCredit(listPnl.pricePaise, profile?.credit_balance_paise ?? 0, useCredit);
+  const pnl = pnlFor(split.duePaise);
+  // A first purchase paid entirely with credit brings no new money in, so it earns the referrer nothing.
+  const isReferredFirstPurchase =
+    Boolean(profile?.referred_by) && !(existingPaid && existingPaid.length > 0) && split.duePaise > 0;
+
+  if (split.duePaise === 0) return creditOnlyOrder();
+
+  const phone = cleanPhone(body.phone);
+  if (!phone) {
+    return NextResponse.json({ error: "Please enter your 10-digit mobile number.", field: "phone" }, { status: 400 });
+  }
+  if (!auth.email) {
+    return NextResponse.json({ error: "Your account has no email address. Please log in with Google again." }, { status: 400 });
+  }
 
   const { data: order, error } = await admin
     .from("orders")
@@ -182,6 +214,8 @@ export async function POST(req: NextRequest) {
       // What the customer is buying: this many hairstyle previews (see the
       // "paid previews" section at the end of db/schema.sql).
       preview_count: imageCount,
+      // Taken from the balance only when PayU confirms the payment (lib/payments.ts).
+      credit_used_paise: split.creditPaise,
     })
     .select()
     .single();
@@ -194,7 +228,7 @@ export async function POST(req: NextRequest) {
   const returnUrl = `${req.nextUrl.origin}/api/payment/payu-return`;
   const payu = buildPaymentForm({
     txnid,
-    amountPaise: pnl.pricePaise,
+    amountPaise: split.duePaise,
     productinfo: tier ? `Tressform ${PACK_TIERS[tier].label}` : "Tressform add-on",
     firstname: cleanFirstName(auth.name),
     email: auth.email,
@@ -206,10 +240,65 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     mockMode: false,
+    free: false,
     orderId: order.id,
-    amountPaise: pnl.pricePaise,
+    amountPaise: split.duePaise,
+    creditUsedPaise: split.creditPaise,
     currency: "INR",
     imageCount,
     payu,
   });
+
+  /** The credit covers the whole price: take it now and save the order already PAID — no PayU step. */
+  async function creditOnlyOrder() {
+    const { data: took, error: spendError } = await admin.rpc("spend_credit", {
+      p_user: userId,
+      p_amount: split.creditPaise,
+    });
+    if (spendError || took !== true) {
+      return NextResponse.json(
+        { error: "Your credit balance has changed. Please refresh the page and try again." },
+        { status: 409 }
+      );
+    }
+    const now = new Date().toISOString();
+    const { data: order, error } = await admin
+      .from("orders")
+      .insert({
+        id: internalOrderId,
+        user_id: userId,
+        tier: tier ?? null,
+        addon_kind: addonKind ?? null,
+        addon_photo_count: isAddon ? addonPhotoCount! : 0,
+        price_paise: 0,
+        gst_paise: pnl.gstPaise,
+        generation_cost_paise: pnl.generationCostPaise,
+        gateway_fee_paise: pnl.gatewayFeePaise,
+        profit_before_referral_paise: pnl.profitBeforeReferralPaise,
+        is_referred_first_purchase: false,
+        referral_credits_paise: 0,
+        status: "PAID",
+        paid_at: now,
+        razorpay_order_id: `${CREDIT_ONLY_TXN_PREFIX}${txnid}`,
+        preview_count: imageCount,
+        credit_used_paise: split.creditPaise,
+      })
+      .select("id")
+      .single();
+    if (error || !order) {
+      // Give the credit back — nothing was bought.
+      await admin.rpc("increment_credit_balance", { profile_id: userId, amount_paise: split.creditPaise });
+      console.error("[Tressform] Credit-only order not created:", error?.message);
+      return NextResponse.json({ error: "We couldn't complete your order. Your credit is unchanged — please try again." }, { status: 500 });
+    }
+    return NextResponse.json({
+      mockMode: false,
+      free: true,
+      orderId: order.id,
+      amountPaise: 0,
+      creditUsedPaise: split.creditPaise,
+      currency: "INR",
+      imageCount,
+    });
+  }
 }

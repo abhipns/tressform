@@ -9,6 +9,8 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import VisitBeacon from "@/components/VisitBeacon";
+// 14.10.2026: picks up ?ref= referral links on any page (lib/referral.ts).
+import ReferralBeacon from "@/components/ReferralBeacon";
 
 export const metadata: Metadata = {
   title: "Tressform",
@@ -34,6 +36,7 @@ export default function RootLayout({
         {children}
         <Footer />
         <VisitBeacon />
+        <ReferralBeacon />
       </body>
     </html>
   );

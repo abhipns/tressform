@@ -35,6 +35,8 @@ export interface MockOrder {
   /** How many previews the order came with, and how many have been made from it. */
   previewCount?: number;
   previewsUsed?: number;
+  /** 14.10.2026: credit put toward the order; pricePaise is what was charged. */
+  creditUsedPaise?: number;
 }
 
 export interface MockReferral {
