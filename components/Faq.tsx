@@ -19,7 +19,7 @@ const FAQS = [
     q: "What if I don't like any of the styles?",
     // 10.10.2026: no longer mentions "different questions in the assessment
     // step" — those option buttons were removed from the upload step.
-    a: "Your list of matched hairstyles is free, so you see what we suggest before paying anything. You buy a pack only if there are styles on it you want to see on your own photo, and you choose which ones.",
+    a: "Your list of matched hairstyles is free, so you see what we suggest before paying anything. You buy a pack only if you want to see those styles on your own photo; we then make your best-matched ones for you.",
   },
   {
     q: "How accurate is the face-shape detection?",
@@ -35,7 +35,7 @@ const FAQS = [
   },
   {
     q: "What is free, and what do I pay for?",
-    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack gives you 4 hairstyles and the Style Pack 10, and you pick which styles to use them on. Each AI hairstyle shows the cut from the front, both sides and the back, and comes with the words to give your barber.",
+    a: "Having your photo read and seeing your own list of matched hairstyles are free. Seeing a style on your own photo is paid: the Starter Pack shows your 4 best-matched hairstyles and the Style Pack your 10, made for you straight after you pay. Tap any one to see it from both sides and the back; each comes with the words to give your barber.",
   },
   {
     // 10.10.2026: was "Are the prices GST-inclusive?". Tressform isn't

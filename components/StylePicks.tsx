@@ -42,6 +42,23 @@
 // friends: the customer's photo and up to four styles, numbered for votes —
 // see lib/shareTools.ts.
 //
+// 14.10.2026 (owner's redesign, "make it simple"): customers don't have
+// time to read why each style suits them. The screen now leads with "Your
+// looks", a carousel (components/LookCarousel.tsx):
+//   - with a pack, the best-matched cuts are made AUTOMATICALLY on the
+//     customer's photo, as many as the pack holds, two at a time, in list
+//     order (cut-today styles first, then the ones that need growing) —
+//     the customer no longer chooses which styles to spend a pack on;
+//   - only the front is made; a look's sides and back are made when the
+//     customer opens it and asks (they used to be made for every look,
+//     about three times the AI cost);
+//   - tapping a look opens its full card (pictures, barber words, products);
+//   - without a pack, their own selfie, blurred, under locked tiles named
+//     with their top styles (no AI cost before payment), and the packs;
+//   - the detailed list with reasons and match scores is one tap away
+//     ("See all your matches"), no longer the first thing on the screen.
+// The rating popup now opens a few seconds after the automatic looks finish.
+//
 // This component only shows things and asks for previews. Which styles are
 // picked is decided in lib/recommend.ts; making a preview is done by the
 // function the upload flow passes in.
@@ -50,6 +67,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CareBox, { useCareProducts } from "@/components/CareBox";
 import RateBox from "@/components/RateBox";
 import RatePopup, { mayAskForRating } from "@/components/RatePopup";
+import { LookCarousel, LockedLooks, type LookItem } from "@/components/LookCarousel";
+import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId } from "@/lib/authClient";
+import { referralLink } from "@/lib/referral";
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
@@ -71,6 +91,7 @@ import {
   makeSharePicture,
   pictureFile,
   saveFile,
+  SITE_URL,
   savePicture,
   shareFiles,
   slug,
@@ -284,6 +305,10 @@ export default function StylePicks({
   const [showMore, setShowMore] = useState(false);
   // 14.10.2026: the one-time rating popup (components/RatePopup.tsx).
   const [askRating, setAskRating] = useState(false);
+  // 14.10.2026 (carousel): the full list is one tap away; a tapped look opens its card.
+  const [showList, setShowList] = useState(false);
+  const [openLook, setOpenLook] = useState<string | null>(null);
+  const autoStarted = useRef(false);
   const askTimer = useRef<number | null>(null);
   useEffect(() => () => {
     if (askTimer.current) window.clearTimeout(askTimer.current);
@@ -331,12 +356,6 @@ export default function StylePicks({
       window.setTimeout(() => requestViews(style, tries + 1), 5000);
       return;
     }
-    // A paid hairstyle's full set of pictures just arrived: ask for a rating a few seconds later.
-    if (outcome.ok && outcome.views.left && outcome.views.right && outcome.views.back && !samples && !askTimer.current) {
-      askTimer.current = window.setTimeout(() => {
-        mayAskForRating().then((ok) => ok && setAskRating(true)).catch(() => undefined);
-      }, 3000);
-    }
     setPreviews((prev) => {
       const current = prev[style.id];
       if (!current) return prev;
@@ -354,15 +373,18 @@ export default function StylePicks({
     });
   }
 
-  async function seeItOnMe(style: Hairstyle) {
+  /** Make one look. `quiet`: made automatically for the carousel, so the page doesn't scroll. */
+  async function seeItOnMe(style: Hairstyle, quiet = false) {
     if (!customer || !canStart || previews[style.id]?.state === "loading") return;
     setPreviews((prev) => ({ ...prev, [style.id]: { state: "loading", style } }));
     // The picture appears at the top of the card, above the button that was
     // just tapped; bring it into view so the customer sees it arrive.
-    window.setTimeout(
-      () => document.getElementById(`pick-${style.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
-      60
-    );
+    if (!quiet) {
+      window.setTimeout(
+        () => document.getElementById(`pick-${style.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+        60
+      );
+    }
     let outcome: PreviewOutcome;
     try {
       outcome = await makePreview(style.id, { faceShape: customer.faceShape, length: customer.length, texture: customer.texture });
@@ -379,8 +401,8 @@ export default function StylePicks({
       setPreviews((prev) => ({ ...prev, [style.id]: { state: "done", imageUrl: done.imageUrl, style } }));
       if (done.sample) setSamples(true);
       else if (done.previewsLeft !== null) setLeft(done.previewsLeft);
-      // A preview from a pack comes with its side and back views.
-      if (done.paid) void requestViews(style);
+      // 14.10.2026: the side and back views are made only when the customer
+      // opens the look and asks ("See the sides and back"), not for every look.
       return;
     }
     if (outcome.noAllowance) {
@@ -400,6 +422,65 @@ export default function StylePicks({
   // Previews already made for styles that a later correction took off the list.
   const listed = new Set([...(picks?.top ?? []), ...(picks?.more ?? [])].map((p) => p.style.id));
   const offList = Object.values(previews).filter((p) => !listed.has(p.style.id) && p.state !== "failed");
+
+  // ------------------------------------------------- 14.10.2026: your looks
+  // The carousel's order: the full list for this customer (not narrowed by
+  // the length filter), cut-today styles first, then the ones to grow into.
+  const lookPicks = useMemo(() => {
+    if (!customer) return [] as StylePick[];
+    const all = pickStyles(customer, null);
+    return [...all.top, ...all.more];
+  }, [customer]);
+
+  // With a pack, make the best-matched looks automatically: as many as the
+  // pack holds, two at a time. Waits while the customer is still checking
+  // their details, so no look is made for the wrong face shape or hair.
+  // A look that failed is not retried on its own (the tile offers "Try
+  // again"). With previews uncounted (placeholder images), four are made.
+  useEffect(() => {
+    if (!customer || editing) return;
+    const loading = Object.values(previews).filter((p) => p.state === "loading").length;
+    const started = lookPicks.filter((p) => previews[p.style.id]).length;
+    const room = left === null ? Math.max(0, 4 - started) : left - loading;
+    const slots = Math.min(room, 2 - loading);
+    if (slots <= 0) return;
+    const next = lookPicks.filter((p) => !previews[p.style.id]).slice(0, slots);
+    if (next.length === 0) return;
+    autoStarted.current = true;
+    for (const pick of next) void seeItOnMe(pick.style, true);
+    // seeItOnMe is this component's own function; the state it reads is listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer, editing, left, previews, lookPicks]);
+
+  // The automatic looks are all in: a few seconds later, ask for a rating (once per customer).
+  const looksLoading = Object.values(previews).some((p) => p.state === "loading");
+  const anyLookDone = Object.values(previews).some((p) => p.state === "done" && p.imageUrl);
+  useEffect(() => {
+    if (!autoStarted.current || looksLoading || !anyLookDone || samples || askTimer.current) return;
+    askTimer.current = window.setTimeout(() => {
+      mayAskForRating().then((ok) => ok && setAskRating(true)).catch(() => undefined);
+    }, 3000);
+  }, [looksLoading, anyLookDone, samples]);
+
+  /** The carousel: every look started for this customer, numbered in list order, then any made before a correction. */
+  const lookOrder: { pick: StylePick | null; preview: PreviewState }[] = [
+    ...lookPicks.filter((p) => previews[p.style.id]).map((p) => ({ pick: p, preview: previews[p.style.id] })),
+    ...offList.map((preview) => ({ pick: null, preview })),
+  ];
+  const growLabel = (pick: StylePick | null) =>
+    !pick || pick.cutToday
+      ? "Ready now"
+      : `Grow first · about ${pick.monthsToGrow ?? 1} ${(pick.monthsToGrow ?? 1) === 1 ? "month" : "months"}`;
+  const lookItems: LookItem[] = lookOrder.map(({ pick, preview }, i) => ({
+    id: preview.style.id,
+    rank: i + 1,
+    name: preview.style.name,
+    state: preview.state,
+    imageUrl: preview.imageUrl,
+    ready: growLabel(pick),
+    readyNow: !pick || pick.cutToday,
+  }));
+  const looksReady = lookItems.filter((l) => l.state === "done").length;
 
   // Plain functions, not components: a component declared in here would be
   // a new one on every render, which would reload every picture each time
@@ -622,7 +703,8 @@ export default function StylePicks({
   }
 
   // ------------------------------------------------------- share my styles
-  const madeStyles = Object.values(previews).filter((p) => p.state === "done" && p.imageUrl);
+  // 14.10.2026: in the carousel's order, so the share picture starts with looks 1, 2, 3, 4.
+  const madeStyles = lookOrder.map((l) => l.preview).filter((p) => p.state === "done" && p.imageUrl);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareIds, setShareIds] = useState<string[]>([]);
   const chosen = shareIds.filter((id) => previews[id]?.state === "done");
@@ -632,14 +714,30 @@ export default function StylePicks({
     await shareStyles(shareList, "share", "share");
   }
 
+  /** The customer's referral link for the share picture and caption; the plain web address if it can't be had. */
+  async function myShareLink(): Promise<string> {
+    try {
+      const res = await fetch("/api/referral/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ userId: SUPABASE_MOCK_MODE ? getMockUserId() : undefined }),
+      });
+      const data = (await res.json()) as { code?: string };
+      return res.ok && data.code ? referralLink(data.code) : SITE_URL;
+    } catch {
+      return SITE_URL;
+    }
+  }
+
   /** One picture for friends: the customer now, then the chosen styles numbered. */
   async function shareStyles(ids: string[], busyKey: string, noticeKey: string) {
     if (!frontPhoto || ids.length === 0) return;
     setBusy(busyKey);
     try {
       const styles = ids.map((id) => ({ name: previews[id].style.name, url: previews[id].imageUrl! }));
-      const file = await makeSharePicture(frontPhoto, styles);
-      const text = friendsMessage(styles.length);
+      const link = await myShareLink();
+      const file = await makeSharePicture(frontPhoto, styles, link);
+      const text = friendsMessage(styles.length, link);
       const result = await shareFiles([file], text, "My hairstyles");
       if (result === "unsupported") {
         saveFile(file, file.name);
@@ -666,7 +764,7 @@ export default function StylePicks({
           <div>
             <p className="text-[16px] font-semibold text-ink-heading">Can&apos;t decide? Ask your friends.</p>
             <p className="mt-0.5 text-[13.5px] text-ink-muted">
-              One picture of you now and {Math.min(4, madeStyles.length) === 1 ? "your style" : `your styles, numbered 1–${Math.min(4, madeStyles.length)}`}, ready for WhatsApp. Includes your photo.
+              Post one picture of you and {Math.min(4, madeStyles.length) === 1 ? "this look" : `your looks numbered 1–${Math.min(4, madeStyles.length)}`}, and let friends comment their pick. Friends who join with your link earn you credit.
             </p>
           </div>
           <div className="flex gap-2">
@@ -846,6 +944,57 @@ export default function StylePicks({
     );
   }
 
+  // 14.10.2026: the open look's card closes with Escape, and the page behind it stays still.
+  useEffect(() => {
+    if (!openLook) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenLook(null);
+    const before = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = before;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [openLook]);
+
+  /** A tapped look, full screen: its card from the list, with arrows to the other finished looks. */
+  function renderLookSheet(id: string) {
+    const done = lookOrder.filter(({ preview }) => preview.state === "done" && preview.imageUrl);
+    const at = done.findIndex(({ preview }) => preview.style.id === id);
+    if (at < 0) return null;
+    const { pick, preview } = done[at];
+    const rank = lookOrder.findIndex(({ preview: p }) => p.style.id === id) + 1;
+    const prev = at > 0 ? done[at - 1].preview.style.id : null;
+    const next = at < done.length - 1 ? done[at + 1].preview.style.id : null;
+    const arrow = "flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-[20px] font-semibold text-ink-heading disabled:opacity-30";
+    return (
+      <div
+        className="fixed inset-0 z-[110] overflow-y-auto bg-black/60 sm:p-6"
+        onClick={(e) => e.target === e.currentTarget && setOpenLook(null)}
+      >
+        <div role="dialog" aria-modal="true" aria-label={`Look ${rank}: ${preview.style.name}`} className="mx-auto min-h-full max-w-[760px] bg-surface sm:min-h-0 sm:rounded-[24px]">
+          <div className="sticky top-0 z-[1] flex items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur sm:rounded-t-[24px]">
+            <div className="flex gap-2">
+              <button type="button" className={arrow} disabled={!prev} onClick={() => prev && setOpenLook(prev)} aria-label="Previous look">
+                ‹
+              </button>
+              <button type="button" className={arrow} disabled={!next} onClick={() => next && setOpenLook(next)} aria-label="Next look">
+                ›
+              </button>
+            </div>
+            <p className="text-[14px] font-semibold text-ink-muted">
+              Look {rank} of {lookOrder.length}
+            </p>
+            <button type="button" className="btn-secondary !px-4 !py-2 !text-[14.5px]" onClick={() => setOpenLook(null)}>
+              Close
+            </button>
+          </div>
+          <ul className="p-2 sm:p-3">{renderDone(pick, preview, rank)}</ul>
+        </div>
+      </div>
+    );
+  }
+
   const about: { label: string; value: string }[] = [
     { label: "Face shape", value: faceShape },
     { label: "Hair now", value: LENGTH_OPTIONS[gender].find((o) => o.value === length)?.label ?? "Not set" },
@@ -980,14 +1129,108 @@ export default function StylePicks({
         )}
       </div>
 
+      {/* ------------------------------------- 14.10.2026: your looks (carousel) */}
+      {customer && !editing && picks && (lookItems.length > 0 || allowanceSpent) && (
+        <section className="mt-7" aria-labelledby="your-looks">
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1.5">
+            <h4 id="your-looks" className="text-[22px] font-semibold leading-tight">
+              {lookItems.length > 0 ? "Your looks" : "Your best-matched looks"}
+            </h4>
+            {looksLoading ? (
+              <p className="rounded-full bg-mint-pale px-3.5 py-1 text-[13.5px] font-semibold text-ink-heading" role="status">
+                Making your looks · {looksReady} of {lookItems.length} ready
+              </p>
+            ) : (
+              lookItems.length > 0 &&
+              left !== null &&
+              left > 0 && (
+                <p className="rounded-full bg-mint-pale px-3.5 py-1 text-[13.5px] font-semibold text-ink-heading">
+                  {left} more {left === 1 ? "look" : "looks"} to make
+                </p>
+              )
+            )}
+          </div>
+          <p className="mt-1 text-[14.5px] text-ink-muted">
+            {lookItems.length > 0
+              ? looksLoading
+                ? "About 20 seconds each. Swipe to see them as they arrive."
+                : "Swipe through, then tap a look to see it from every side."
+              : "Matched to your face shape and hair. Unlock them to see each cut on your own photo."}
+          </p>
+
+          {samples && (
+            <p className="mt-3 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
+              These are placeholder images while the AI is being switched on. They don&apos;t use up your hairstyles.
+            </p>
+          )}
+
+          <div className="mt-4">
+            {lookItems.length > 0 ? (
+              <LookCarousel
+                items={lookItems}
+                photo={frontPhoto}
+                onOpen={setOpenLook}
+                onRetry={(id) => {
+                  const style = previews[id]?.style;
+                  if (style) void seeItOnMe(style, true);
+                }}
+              />
+            ) : (
+              <LockedLooks
+                photo={frontPhoto}
+                names={lookPicks.slice(0, PACK_TIERS.STARTER.imageCount).map((p) => ({
+                  name: p.style.name,
+                  ready: growLabel(p),
+                  readyNow: p.cutToday,
+                }))}
+                packs={PACKS_ON_SALE.map((tier) => ({
+                  tier,
+                  count: PACK_TIERS[tier].imageCount,
+                  rupees: paiseToRupees(getCurrentPackPricePaise(tier)).split(".")[0],
+                }))}
+              />
+            )}
+          </div>
+
+          {lookItems.length > 0 && allowanceSpent && (
+            <p id="get-previews" className="mt-3 scroll-mt-24 text-[14.5px] text-ink-muted">
+              Want more looks?{" "}
+              {PACKS_ON_SALE.map((tier, i) => (
+                <span key={tier}>
+                  {i > 0 && " · "}
+                  <a href={`/checkout?tier=${tier}`} className="font-semibold text-mint-deep underline decoration-mint/40 underline-offset-4">
+                    {PACK_TIERS[tier].imageCount} for ₹{paiseToRupees(getCurrentPackPricePaise(tier)).split(".")[0]}
+                  </a>
+                </span>
+              ))}
+            </p>
+          )}
+
+          {renderShare()}
+
+          {!samples && anyLookDone && !looksLoading && <RateBox section="hairstyles" />}
+        </section>
+      )}
+
       {/* ---------------------------------------------------- The picks */}
+      {picks && customer && !showList && !editing && (
+        <button
+          type="button"
+          className="btn-secondary mt-7 w-full !py-3 !text-[15.5px]"
+          onClick={() => setShowList(true)}
+          aria-expanded={false}
+        >
+          See all your matches and why they suit you
+        </button>
+      )}
+
       {!picks && (
         <p className="mt-6 rounded-[16px] bg-bg-soft px-5 py-5 text-[15.5px] font-medium leading-[1.5]" role="status">
           Choose your hair length and hair type above to see your hairstyles.
         </p>
       )}
 
-      {picks && customer && (
+      {picks && customer && (showList || editing) && (
         <div className="mt-7">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
             <div>
@@ -1004,7 +1247,7 @@ export default function StylePicks({
                 <p className="mt-1 text-[15px] text-ink-muted">
                   {/* 12.10.2026: the list is free and can be longer than a pack (5 here, 4 in the
                       Starter Pack); the heading no longer puts a number on it. */}
-                  {picks.top.length} {band ? `${band} ` : ""}cuts you can get today, best match first. Choose which ones to see on you.
+                  {picks.top.length} {band ? `${band} ` : ""}cuts you can get today, best match first, with why each one suits you.
                 </p>
               )}
             </div>
@@ -1061,42 +1304,6 @@ export default function StylePicks({
             </p>
           )}
 
-          {samples && (
-            <p className="mt-4 rounded-sm2 bg-bg-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
-              These are placeholder images while the AI is being switched on. They don&apos;t use up your
-              hairstyles.
-            </p>
-          )}
-
-          {allowanceSpent && (
-            <div id="get-previews" className="mt-5 scroll-mt-24 rounded-[20px] bg-[#16261C] px-5 py-6 text-white sm:px-7">
-              <h4 className="text-[20px] font-semibold leading-tight text-white">See them on your own photo</h4>
-              <p className="mt-2 max-w-[56ch] text-[15px] leading-[1.5] text-white/75">
-                Your list is free. To see a style on your own photo, pick a pack and then choose which styles to use it
-                on. Each AI hairstyle shows the cut from the front, both sides and the back, with the words to give your
-                barber.
-              </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {PACKS_ON_SALE.map((tier, i) => (
-                  <a
-                    key={tier}
-                    href={`/checkout?tier=${tier}`}
-                    className={`${i === 0 ? "btn-secondary" : "btn-amber"} w-full !px-5 !py-3 !text-[15.5px]`}
-                  >
-                    {PACK_TIERS[tier].imageCount} hairstyles · ₹{paiseToRupees(getCurrentPackPricePaise(tier)).split(".")[0]}
-                  </a>
-                ))}
-              </div>
-              <p className="mt-3 text-[13.5px] text-white/55">One-time payment. You come back to this list afterwards.</p>
-            </div>
-          )}
-
-          {renderShare()}
-
-          {/* 14.10.2026: the hairstyles rating sits here, near the top, once a paid
-              hairstyle's pictures are ready — it used to be at the very bottom. */}
-          {!samples && Object.values(previews).some((p) => p.viewsState === "done") && <RateBox section="hairstyles" />}
-
           <ol className="mt-5 flex flex-col gap-4">
             {picks.top.map((pick, i) => renderPick(pick, i + 1))}
           </ol>
@@ -1126,7 +1333,7 @@ export default function StylePicks({
         </div>
       )}
 
-      {offList.length > 0 && (
+      {offList.length > 0 && (showList || editing) && (
         <div className="mt-8">
           <h4 className="text-[19px] font-semibold leading-tight">Hairstyles you made earlier</h4>
           <ul className="mt-4 flex flex-col gap-4">
@@ -1146,6 +1353,9 @@ export default function StylePicks({
 
       {/* 14.10.2026: the rating boxes moved up (see the list above); the popup opens here. */}
       {askRating && <RatePopup onClose={() => setAskRating(false)} />}
+
+      {/* 14.10.2026: a tapped look's full card — every side, barber words, products. */}
+      {openLook && previews[openLook]?.state === "done" && renderLookSheet(openLook)}
 
       <p className="mt-8 text-[13.5px] leading-[1.5] text-ink-muted">
         An AI hairstyle shows how a cut is likely to look on you. Your own hair and your barber&apos;s hand will make the real

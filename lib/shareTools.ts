@@ -12,6 +12,15 @@
 // Instagram…). Where that isn't possible (most computers), the pictures are
 // downloaded instead and, for the barber, WhatsApp is opened with the text.
 // Client-only.
+//
+// 14.10.2026 (owner: "let the customers comment on the social media comment
+// section itself"): the share picture is the customer's own post — nothing
+// is published by Tressform. The caption asks friends to comment a number,
+// and both the caption and the picture carry the customer's referral link
+// (lib/referral.ts): tappable in WhatsApp and Facebook, and as a QR code on
+// the picture for Instagram, where links in posts can't be tapped.
+
+import QRCode from "qrcode";
 
 export const SITE_URL = "https://www.tressform.co.in";
 
@@ -78,11 +87,11 @@ export function barberMessage(styleName: string, cutName: string, points: string
   ].join("\n");
 }
 
-/** The message that goes to friends with the "Share my styles" picture. */
-export function friendsMessage(count: number): string {
+/** The message that goes to friends with the "Share my styles" picture. `link`: the customer's referral link. */
+export function friendsMessage(count: number, link: string = SITE_URL): string {
   const choices = count <= 1 ? "" : count === 2 ? "1 or 2" : count === 3 ? "1, 2 or 3" : "1, 2, 3 or 4";
-  const ask = count <= 1 ? "Should I get this haircut?" : `Which haircut should I get: ${choices}?`;
-  return `${ask} 🤔 I tried them on my own photo with Tressform. Get your free hairstyle list: ${SITE_URL}`;
+  const ask = count <= 1 ? "Should I get this haircut? Tell me in the comments 👇" : `Which haircut should I get? Comment ${choices} 👇`;
+  return `${ask}\nI tried them on my own photo with Tressform. Find the haircut that suits you: ${link}`;
 }
 
 // ------------------------------------------------------------ share picture
@@ -147,7 +156,11 @@ function badge(ctx: CanvasRenderingContext2D, n: number, cx: number, cy: number)
  * name and web address. Made on the customer's own device; nothing extra
  * is paid for.
  */
-export async function makeSharePicture(photo: string, styles: { name: string; url: string }[]): Promise<File> {
+export async function makeSharePicture(
+  photo: string,
+  styles: { name: string; url: string }[],
+  link: string = SITE_URL
+): Promise<File> {
   const W = 1080;
   const pad = 44;
   const gap = 22;
@@ -158,7 +171,8 @@ export async function makeSharePicture(photo: string, styles: { name: string; ur
   const rows = Math.ceil(picked.length / cols);
   const meW = 400;
   const meH = Math.round((meW * 4) / 3);
-  const H = pad + meH + gap * 2 + rows * tileH + (rows - 1) * gap + 210;
+  const footer = 250; // the question, then the name, web address and QR code
+  const H = pad + meH + gap * 2 + rows * tileH + (rows - 1) * gap + footer;
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -167,7 +181,8 @@ export async function makeSharePicture(photo: string, styles: { name: string; ur
   ctx.fillStyle = "#16261C";
   ctx.fillRect(0, 0, W, H);
 
-  const [me, ...tiles] = await Promise.all([loadImage(photo), ...picked.map((s) => loadImage(s.url))]);
+  const qrData = await QRCode.toDataURL(link, { margin: 1, width: 360, color: { dark: "#16261C", light: "#FFFFFF" } });
+  const [me, qr, ...tiles] = await Promise.all([loadImage(photo), loadImage(qrData), ...picked.map((s) => loadImage(s.url))]);
 
   // The customer's own photo, framed in white.
   const meX = (W - meW) / 2;
@@ -197,22 +212,34 @@ export async function makeSharePicture(photo: string, styles: { name: string; ur
   ctx.font = "700 46px system-ui, -apple-system, Segoe UI, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(picked.length > 1 ? "Which one should I get?" : "Should I get this one?", W / 2, y + 86);
+  ctx.fillText(picked.length > 1 ? "Which one should I get?" : "Should I get this one?", W / 2, y + 74);
+  ctx.font = "500 30px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillStyle = "#B9DFCB";
+  ctx.fillText(picked.length > 1 ? "Comment the number 👇" : "Tell me in the comments 👇", W / 2, y + 120);
   ctx.textAlign = "left";
 
-  // Footer: the name and the web address.
+  // Footer: the name and web address on the left, the QR code (the
+  // customer's referral link) on the right.
+  const qrSize = 150;
+  const qrX = W - pad - qrSize;
+  const qrY = H - pad - qrSize + 10;
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.roundRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 14);
+  ctx.fill();
+  ctx.drawImage(qr, qrX, qrY, qrSize, qrSize);
+
   ctx.fillStyle = "#B9DFCB";
   ctx.beginPath();
-  ctx.arc(pad + 16, H - 62, 14, 0, Math.PI * 2);
+  ctx.arc(pad + 16, H - 112, 14, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#fff";
-  ctx.font = "700 34px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText("Tressform", pad + 44, H - 50);
+  ctx.font = "700 36px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("Tressform", pad + 44, H - 100);
   ctx.fillStyle = "#B9DFCB";
-  ctx.font = "500 30px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText("tressform.co.in", W - pad, H - 50);
-  ctx.textAlign = "left";
+  ctx.font = "500 27px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("Find the haircut that suits you", pad, H - 58);
+  ctx.fillText("Scan, or visit tressform.co.in", pad, H - 24);
 
   const blob: Blob = await new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("canvas"))), "image/jpeg", 0.9)

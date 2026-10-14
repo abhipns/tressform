@@ -34,7 +34,7 @@ const INCLUDED = [
     title: "Hairstyles matched to you",
     body: "Chosen for your face shape, your hair type and the length you have now, not from a list of what is trending.",
   },
-  { title: "Each hairstyle on your own photo", body: "Each hairstyle you choose is shown on your own photo, not on a model: from the front, both sides and the back." },
+  { title: "Each hairstyle on your own photo", body: "Your best-matched hairstyles are shown on your own photo, not on a model. Tap one to see it from both sides and the back." },
   {
     title: "Barber-ready instructions",
     body: "The cut written out in a barber's words, with lengths, so your barber can recreate the look.",

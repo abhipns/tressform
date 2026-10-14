@@ -35,6 +35,9 @@
 //     option buttons were removed from the upload step);
 //   - its button says "See my hairstyles", the one name used for that action
 //     everywhere on the site now.
+// 14.10.2026 (carousel redesign): packs now make the customer's best-matched
+// hairstyles automatically ("Your 4 best-matched…", not "See any 4…"), and
+// the sides and back are made when the customer taps a look.
 
 import {
   PACK_TIERS,
@@ -46,12 +49,12 @@ import {
 const TIER_COPY: Record<keyof typeof PACK_TIERS, { tagline: string; popular?: boolean; features: string[] }> = {
   STARTER: {
     tagline: "Try your first matches",
-    features: ["See any 4 of your matched hairstyles on your own photo", "Each from the front, both sides and the back", "Barber instructions with every hairstyle"],
+    features: ["Your 4 best-matched hairstyles on your own photo", "Tap any one to see it from both sides and the back", "Barber instructions with every hairstyle"],
   },
   STYLE: {
     tagline: "Our most-picked plan",
     popular: true,
-    features: ["See any 10 of your matched hairstyles on your own photo", "Each from the front, both sides and the back", "Barber instructions with every hairstyle"],
+    features: ["Your 10 best-matched hairstyles on your own photo", "Tap any one to see it from both sides and the back", "Barber instructions with every hairstyle"],
   },
   FULL_EXPLORE: {
     tagline: "The complete look, styled",

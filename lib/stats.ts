@@ -41,3 +41,28 @@ export function monthStart(value: string): string | null {
   if (month < 1 || month > 12) return null;
   return `${m[1]}-${m[2]}-01`;
 }
+
+// 14.10.2026 (owner): "AI cost still to come". Customers have paid for
+// pictures that haven't been made yet, and that AI cost can arrive any
+// time: a look whose sides and back were never opened (3 pictures each,
+// made when the customer taps "See the sides and back"), and a paid look
+// not made at all yet (up to 4: the front, then the 3 others).
+export const PICTURES_PER_UNOPENED_LOOK = 3;
+export const PICTURES_PER_UNMADE_LOOK = 4;
+
+export interface CommittedCost {
+  unopenedLooks: number;
+  unmadeLooks: number;
+  paise: number;
+}
+
+/** The AI cost already paid for by customers but not yet spent, at `perPicturePaise` a picture. */
+export function committedCost(unopenedLooks: number, unmadeLooks: number, perPicturePaise: number): CommittedCost {
+  const a = Math.max(0, Math.floor(unopenedLooks));
+  const b = Math.max(0, Math.floor(unmadeLooks));
+  return {
+    unopenedLooks: a,
+    unmadeLooks: b,
+    paise: (a * PICTURES_PER_UNOPENED_LOOK + b * PICTURES_PER_UNMADE_LOOK) * perPicturePaise,
+  };
+}

@@ -30,7 +30,7 @@ export default function FourViews() {
     <div className="mt-14">
       <h3 className="text-[clamp(22px,2.2vw,28px)] font-semibold leading-tight">Every hairstyle, from four sides.</h3>
       <p className="mt-2 max-w-[56ch] text-[15.5px] leading-[1.6]">
-        The front, both sides and the back of each style you choose, so you and your barber can see the whole cut. The
+        Tap any of your looks to see its front, both sides and the back, so you and your barber can see the whole cut. The
         sides and back are the AI&apos;s estimate from your one selfie.
       </p>
       <div role="tablist" aria-label="Example" className="mt-5 flex flex-wrap gap-2">

@@ -71,6 +71,8 @@ function Dashboard() {
   const [period, setPeriod] = useState<Period>("30");
   const [stats, setStats] = useState<Stats | null>(null);
   const [income, setIncome] = useState<Income[]>([]);
+  // 14.10.2026: AI cost customers have paid for but that isn't spent yet (lib/stats.ts).
+  const [committed, setCommitted] = useState<{ unopenedLooks: number; unmadeLooks: number; paise: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ month: new Date().toISOString().slice(0, 7), source: "amazon", amount: "" });
   const [saving, setSaving] = useState(false);
@@ -85,6 +87,7 @@ function Dashboard() {
     }
     setStats(data.stats);
     setIncome(data.income ?? []);
+    setCommitted(data.committed ?? null);
   }
 
   useEffect(() => {
@@ -194,6 +197,19 @@ function Dashboard() {
             <Tile label="Left after costs" value={rupees(profit)} note="Before tax and other bills" />
             <Tile label="Affiliate income" value={rupees(s.affiliate_income_paise)} note="As you typed it in below" />
           </div>
+          {committed && (
+            <div className="mt-3 rounded-[16px] border-2 border-[#C79A3D]/50 bg-[#C79A3D]/10 p-4">
+              <p className="text-[13px] font-semibold uppercase tracking-[.03em] text-ink-muted">AI cost still to come · right now</p>
+              <p className="mt-1 font-heading text-[26px] font-semibold text-ink-heading">{rupees(committed.paise)}</p>
+              <p className="mt-1 text-[14px] leading-[1.5] text-ink-muted">
+                Already paid for by customers, not spent yet: {committed.unopenedLooks}{" "}
+                {committed.unopenedLooks === 1 ? "look" : "looks"} whose sides and back haven&apos;t been opened (3 pictures
+                each), and {committed.unmadeLooks} paid {committed.unmadeLooks === 1 ? "look" : "looks"} not made yet (up to 4
+                each). An estimate at about ₹3.50 a picture; it can arrive any time a customer taps. Not part of
+                &ldquo;Left after costs&rdquo; above.
+              </p>
+            </div>
+          )}
           {Object.keys(s.by_pack).length > 0 && (
             <p className="mt-3 text-[14.5px] text-ink-muted">
               Packs:{" "}

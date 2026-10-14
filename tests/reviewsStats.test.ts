@@ -42,3 +42,15 @@ describe("dashboard", () => {
     expect(monthStart("2026-13")).toBeNull();
   });
 });
+
+import { committedCost } from "../lib/stats";
+
+describe("AI cost still to come", () => {
+  it("counts 3 pictures per unopened look and 4 per look not made yet", () => {
+    expect(committedCost(2, 1, 350)).toEqual({ unopenedLooks: 2, unmadeLooks: 1, paise: (2 * 3 + 1 * 4) * 350 });
+  });
+  it("is zero with nothing outstanding and never negative", () => {
+    expect(committedCost(0, 0, 350).paise).toBe(0);
+    expect(committedCost(-3, -1, 350).paise).toBe(0);
+  });
+});
