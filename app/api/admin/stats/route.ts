@@ -72,15 +72,17 @@ export async function GET(req: NextRequest) {
   const { data: admins } = await db.from("profiles").select("id").eq("role", "ADMIN");
   const adminIds = new Set((admins ?? []).map((a) => a.id as string));
   const [{ data: unopened }, { data: paidOrders }] = await Promise.all([
-    db.from("style_results").select("user_id").not("order_id", "is", null).eq("status", "SUCCEEDED").is("view_paths", null).limit(10000),
-    db.from("orders").select("user_id, preview_count, previews_used, gst_paise, paid_at").eq("status", "PAID").limit(10000),
+    db.from("style_results").select("user_id, order_id").not("order_id", "is", null).eq("status", "SUCCEEDED").is("view_paths", null).limit(10000),
+    db.from("orders").select("id, user_id, preview_count, previews_used, gst_paise, paid_at").eq("status", "PAID").limit(10000),
   ]);
   const customerOrders = (paidOrders ?? []).filter((o) => !adminIds.has(o.user_id as string));
+  // 14.10.2026: a refunded order makes no more pictures (lib/refunds.ts), so its looks don't count here.
+  const paidIds = new Set(customerOrders.map((o) => o.id as string));
   const gstDuePaise = customerOrders
     .filter((o) => o.paid_at && (o.paid_at as string) >= since)
     .reduce((sum, o) => sum + (o.gst_paise ?? 0), 0);
   const revenuePaise = Number((data as { revenue_paise?: number } | null)?.revenue_paise ?? 0);
-  const unopenedLooks = (unopened ?? []).filter((r) => !adminIds.has(r.user_id as string)).length;
+  const unopenedLooks = (unopened ?? []).filter((r) => !adminIds.has(r.user_id as string) && paidIds.has(r.order_id as string)).length;
   const unmadeLooks = customerOrders.reduce((sum, o) => sum + Math.max(0, (o.preview_count ?? 0) - (o.previews_used ?? 0)), 0);
 
   return NextResponse.json({

@@ -22,3 +22,18 @@ describe("credit at checkout", () => {
     expect(splitWithCredit(19_900, 1_999.7, true).creditPaise).toBe(1_999);
   });
 });
+
+import { takeBack } from "../lib/refunds";
+
+describe("refund: taking back a referrer's credit", () => {
+  it("takes it all back when it's still in their balance", () => {
+    expect(takeBack(4_000, 10_000)).toEqual({ takenPaise: 4_000, shortPaise: 0 });
+  });
+  it("takes only what's left if they spent some, and reports the rest", () => {
+    expect(takeBack(4_000, 1_500)).toEqual({ takenPaise: 1_500, shortPaise: 2_500 });
+  });
+  it("takes nothing from an empty or broken balance", () => {
+    expect(takeBack(4_000, 0)).toEqual({ takenPaise: 0, shortPaise: 4_000 });
+    expect(takeBack(4_000, -50)).toEqual({ takenPaise: 0, shortPaise: 4_000 });
+  });
+});

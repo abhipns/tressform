@@ -5,13 +5,10 @@
 // pattern as the public UploadFlow.tsx, just posting to an admin-only
 // endpoint instead of the (not-yet-built) analysis pipeline).
 //
-// Auth: there's no role-based session system wired up yet (profiles.role =
-// 'ADMIN' exists in the schema but nothing checks it server-side). Until
-// that's built, this route gates on a single shared secret — set
-// ADMIN_UPLOAD_KEY in .env.local / Vercel project env, and enter the same
-// value on the /admin/carousel page (kept in sessionStorage there, sent as
-// the x-admin-key header here). Swap this for a real profiles.role check
-// once auth exists — do not treat this as production-grade access control.
+// Auth (14.10.2026): OWNER ONLY, by login — the same check as the other
+// admin routes (lib/serverAuth.ts requireAdmin: a signed-in account whose
+// profile role is ADMIN). The old shared password (ADMIN_UPLOAD_KEY, sent
+// as an x-admin-key header) is gone.
 //
 // Storage: in mock mode (no Supabase project connected — see
 // lib/supabaseClient.ts) uploaded photos are kept as the data: URL the
@@ -24,25 +21,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { mockStore } from "@/lib/mockStore";
+import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
-// Mirrors lib/supabaseClient.ts's own env-var check. Not importing that
-// module directly here: it also imports ./database.types, which hasn't been
-// generated yet (see that file's own note) and would break this route's
-// build along with it. Once database.types.ts exists, switch this route to
-// `import { getSupabaseAdmin, SUPABASE_MOCK_MODE } from "@/lib/supabaseClient"`
-// instead of re-deriving mock mode here.
-const SUPABASE_MOCK_MODE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const dynamic = "force-dynamic";
 
-function isAuthorized(req: NextRequest): boolean {
-  const provided = req.headers.get("x-admin-key");
-  const expected = process.env.ADMIN_UPLOAD_KEY;
-  return Boolean(expected) && provided === expected;
+async function denied(req: NextRequest) {
+  const auth = await requireAdmin(req, SUPABASE_MOCK_MODE ? "demo-owner" : null);
+  return auth.ok ? null : NextResponse.json({ error: auth.error }, { status: auth.status });
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const no = await denied(req);
+  if (no) return no;
 
   if (SUPABASE_MOCK_MODE) {
     return NextResponse.json({ mockMode: true, sessions: mockStore.listCarouselSessions() });
@@ -67,9 +57,8 @@ export async function GET(req: NextRequest) {
  *   tags: matching array of tags, one per photo (e.g. "Model" / "AI")
  */
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const no = await denied(req);
+  if (no) return no;
 
   const form = await req.formData();
   const caption = String(form.get("caption") || "").trim();

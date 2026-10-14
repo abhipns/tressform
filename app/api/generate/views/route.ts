@@ -91,6 +91,15 @@ export async function POST(req: NextRequest) {
   const current = (row.view_paths ?? null) as ViewRecord | null;
   const missing = HAIR_VIEWS.filter((v) => !current?.[v]);
 
+  // 14.10.2026: a refunded pack makes no new pictures (the owner marks it on
+  // /admin/orders). Views already made can still be seen.
+  if (row.order_id && missing.length > 0 && profile?.role !== "ADMIN") {
+    const { data: order } = await admin.from("orders").select("status").eq("id", row.order_id).maybeSingle();
+    if (order?.status === "REFUNDED") {
+      return NextResponse.json({ error: "This pack was refunded, so no more pictures can be made from it." }, { status: 402 });
+    }
+  }
+
   async function links(rec: Paths) {
     const out: Record<HairView, string | null> = { left: null, right: null, back: null };
     await Promise.all(

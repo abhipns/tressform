@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 const ADMIN_LINKS = [
   { href: "/admin/stats", label: "Dashboard" },
+  { href: "/admin/orders", label: "Orders" },
   { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/products", label: "Products" },
   { href: "/admin/studio", label: "Studio" },
