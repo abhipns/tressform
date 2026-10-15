@@ -21,6 +21,13 @@
 // is touching, hovering or using the arrows (and starts again a little
 // later), only runs while the row is on screen, and never runs for
 // visitors whose phone asks for less motion.
+//
+// 15.10.2026: the owner saw it standing still. It was switched off for
+// every device set to "reduce motion" / "remove animations" (common with
+// battery saver), and the browser's own smooth scroll is unreliable on a
+// snapping row (iPhone Safari). It now moves on every device, one photo
+// at a time, left to right and back (not a continuous scroll), with its
+// own gentle slide: snapping is paused while it slides, then put back.
 
 "use client";
 
@@ -95,9 +102,39 @@ export default function WhyItGoesWrong() {
   const pausedUntil = useRef(0);
   const direction = useRef<1 | -1>(1);
 
-  const step = (el: HTMLElement) => {
-    const card = el.querySelector("li");
-    return card ? card.getBoundingClientRect().width + (window.innerWidth >= 1024 ? 24 : 16) : el.clientWidth * 0.8;
+  const sliding = useRef(0);
+
+  /** Where the row must be scrolled to for each photo to sit at the start. */
+  const stops = (el: HTMLElement) => {
+    const cards = Array.from(el.querySelectorAll("li"));
+    const max = el.scrollWidth - el.clientWidth;
+    const first = cards[0]?.offsetLeft ?? 0;
+    return [...new Set(cards.map((c) => Math.min(max, Math.max(0, c.offsetLeft - first))))];
+  };
+  /** Slides to `target` over ~0.7 s, with snapping off so it can't pull the row back mid-slide. */
+  const slideTo = (el: HTMLElement, target: number) => {
+    cancelAnimationFrame(sliding.current);
+    const from = el.scrollLeft;
+    const start = performance.now();
+    el.style.scrollSnapType = "none";
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - start) / 700);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      el.scrollLeft = from + (target - from) * ease;
+      if (t < 1) sliding.current = requestAnimationFrame(frame);
+      else el.style.scrollSnapType = "";
+    };
+    sliding.current = requestAnimationFrame(frame);
+  };
+  /** One photo along in direction `dir`, from wherever the row is now. */
+  const move = (el: HTMLElement, dir: -1 | 1) => {
+    const at = stops(el);
+    if (at.length < 2) return;
+    let i = 0;
+    at.forEach((x, k) => {
+      if (Math.abs(x - el.scrollLeft) < Math.abs(at[i] - el.scrollLeft)) i = k;
+    });
+    slideTo(el, at[Math.min(at.length - 1, Math.max(0, i + dir))]);
   };
   const pause = (ms = 8000) => {
     pausedUntil.current = Date.now() + ms;
@@ -106,20 +143,23 @@ export default function WhyItGoesWrong() {
     const el = row.current;
     if (!el) return;
     pause();
-    el.scrollBy({ left: dir * step(el), behavior: "smooth" });
+    move(el, dir);
   };
 
   // Moves by itself: one photo every 3.5 seconds, to the end and back.
   useEffect(() => {
     const el = row.current;
     if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     let visible = false;
     const seen = new IntersectionObserver(([entry]) => (visible = entry.isIntersecting), { threshold: 0.4 });
     seen.observe(el);
 
-    const hold = () => pause();
+    const hold = () => {
+      cancelAnimationFrame(sliding.current);
+      el.style.scrollSnapType = "";
+      pause();
+    };
     const holdShort = () => pause(4000);
     el.addEventListener("pointerdown", hold);
     el.addEventListener("touchstart", hold, { passive: true });
@@ -133,11 +173,12 @@ export default function WhyItGoesWrong() {
       if (max <= 4) return;
       if (direction.current === 1 && el.scrollLeft >= max - 4) direction.current = -1;
       else if (direction.current === -1 && el.scrollLeft <= 4) direction.current = 1;
-      el.scrollBy({ left: direction.current * step(el), behavior: "smooth" });
+      move(el, direction.current);
     }, 3500);
 
     return () => {
       window.clearInterval(timer);
+      cancelAnimationFrame(sliding.current);
       seen.disconnect();
       el.removeEventListener("pointerdown", hold);
       el.removeEventListener("touchstart", hold);
