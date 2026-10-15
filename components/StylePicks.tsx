@@ -66,9 +66,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CareBox, { useCareProducts } from "@/components/CareBox";
 import RateBox from "@/components/RateBox";
+import WhatsAppOptIn from "@/components/WhatsAppOptIn";
 import RatePopup, { mayAskForRating } from "@/components/RatePopup";
 import { LookCarousel, LockedLooks, type LookItem } from "@/components/LookCarousel";
-import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId } from "@/lib/authClient";
+import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, useSession } from "@/lib/authClient";
+import { supabase } from "@/lib/supabaseClient";
 import { referralLink } from "@/lib/referral";
 import type { FaceShape } from "@/lib/faceShape";
 import {
@@ -191,6 +193,9 @@ const FACE_SHAPES: { shape: FaceShape; hint: string }[] = [
   { shape: "Heart", hint: "Wide forehead, narrow chin" },
   { shape: "Diamond", hint: "Wide cheekbones, narrow forehead and chin" },
 ];
+
+/** Automatic looks per photo on the owner's test account (and with placeholder images). */
+const OWNER_AUTO_LOOKS = 4;
 
 const LENGTH_OPTIONS: Record<HairGender, { value: HairLength; label: string; hint?: string }[]> = {
   men: [
@@ -326,6 +331,28 @@ export default function StylePicks({
   useEffect(() => setLeft(previewsLeftAtStart), [previewsLeftAtStart]);
   const [samples, setSamples] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  // 15.10.2026 (owner's request): the owner's own account has a free
+  // allowance far larger than any pack, so the automatic looks would run
+  // through the whole list on every test photo. For the owner only, at most
+  // OWNER_AUTO_LOOKS are made automatically; more can still be made by tapping.
+  const { session } = useSession();
+  const myId = session?.user.id ?? null;
+  const [isOwner, setIsOwner] = useState(false);
+  useEffect(() => {
+    if (SUPABASE_MOCK_MODE || !myId) return;
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", myId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setIsOwner(data?.role === "ADMIN");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [myId]);
   // 14.10.2026: the one-time rating popup (components/RatePopup.tsx).
   const [askRating, setAskRating] = useState(false);
   // 14.10.2026 (carousel): the full list is one tap away; a tapped look opens its card.
@@ -470,7 +497,8 @@ export default function StylePicks({
     if (!customer || editing) return;
     const loading = Object.values(previews).filter((p) => p.state === "loading").length;
     const started = lookPicks.filter((p) => previews[p.style.id]).length;
-    const room = left === null ? Math.max(0, 4 - started) : left - loading;
+    const capped = left === null || isOwner;
+    const room = capped ? Math.min(Math.max(0, OWNER_AUTO_LOOKS - started), left === null ? Infinity : left - loading) : left - loading;
     const slots = Math.min(room, 2 - loading);
     if (slots <= 0) return;
     const next = lookPicks.filter((p) => !previews[p.style.id]).slice(0, slots);
@@ -479,7 +507,7 @@ export default function StylePicks({
     for (const pick of next) void seeItOnMe(pick.style, true);
     // seeItOnMe is this component's own function; the state it reads is listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customer, editing, left, previews, lookPicks]);
+  }, [customer, editing, left, previews, lookPicks, isOwner]);
 
   // The automatic looks are all in: a few seconds later, ask for a rating (once per customer).
   const looksLoading = Object.values(previews).some((p) => p.state === "loading");
@@ -1253,6 +1281,19 @@ export default function StylePicks({
           )}
 
           {renderShare()}
+
+          {/* 15.10.2026: collect WhatsApp numbers (with consent) for later updates. */}
+          {customer && !samples && (lookItems.length === 0 || (anyLookDone && !looksLoading)) && (
+            <div className="mt-6">
+              <WhatsAppOptIn
+                source="results"
+                gender={customer.gender}
+                faceShape={customer.faceShape}
+                title={`New hairstyles for your ${customer.faceShape.toLowerCase()} face, on WhatsApp`}
+                blurb="When we add cuts that suit you, new hair products or a new blog post, we'll send it to your WhatsApp. No spam."
+              />
+            </div>
+          )}
 
           {!samples && anyLookDone && !looksLoading && <RateBox section="hairstyles" />}
         </section>

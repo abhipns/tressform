@@ -51,6 +51,10 @@ const SECTIONS = [
     body: "Payments for paid plans are handled by our payment partner, PayU (PayU Payments Private Limited). You pay on PayU's own page: your card, UPI and bank details go directly to PayU — we do not see or store them. To start a payment we pass PayU your name, your email address and the mobile number you enter at checkout; we do not keep that mobile number ourselves. We keep a record of your order (the plan, the amount and the payment reference).",
   },
   {
+    heading: "WhatsApp updates",
+    body: "If you choose to, by ticking the box next to it, you can give us your WhatsApp number to receive new hairstyles, hair products and blog posts from us. We keep your number, the words you agreed to and when, where on the site you gave it, and, if you give it on your results, your face shape and whether the hairstyles were men's or women's, so the updates suit you. We send these messages through a WhatsApp messaging provider. We never sell or share your number for anyone else's marketing. You can stop the messages at any time by replying STOP or by contacting us, and we will stop and mark your number as unsubscribed.",
+  },
+  {
     heading: "Product links",
     body: "When you tap a product link, we record which product was tapped and on which page, but not who tapped it, so we can see which suggestions are useful. You then go to the shop's own website, where the shop's privacy policy applies.",
   },
@@ -86,7 +90,7 @@ export default function PrivacyPolicyPage() {
       <div className="mx-auto max-w-[720px] text-justify hyphens-auto [&_h1]:text-left [&_h3]:text-left [&_dd]:text-left">
         <p className="eyebrow">Legal</p>
         <h1 className="mb-2 text-[clamp(26px,4vw,36px)]">Privacy Policy</h1>
-        <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: {BUSINESS.legalLastUpdated}</p>
+        <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: 15 October 2026</p>
 
         <div className="flex flex-col gap-7">
           {SECTIONS.map((s) => (

@@ -35,6 +35,8 @@
 
 "use client";
 
+import { saveWhatsAppNumber } from "@/components/WhatsAppOptIn";
+import { WHATSAPP_CONSENT } from "@/lib/whatsapp";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -90,6 +92,8 @@ function CheckoutContent() {
   const [balancePaise, setBalancePaise] = useState(0);
   const [useCredit, setUseCredit] = useState(true);
   const [phoneError, setPhoneError] = useState(false);
+  // 15.10.2026: an unticked yes to WhatsApp updates on the same number.
+  const [whatsappYes, setWhatsappYes] = useState(false);
 
   // Remember the number on this device only, so a second purchase is one tap.
   useEffect(() => {
@@ -148,6 +152,8 @@ function CheckoutContent() {
     }
     setStatus("paying");
     setError(null);
+    // Saved before PayU takes over the page; a failure here never stops the payment.
+    if (askPhone && whatsappYes) await saveWhatsAppNumber({ phone, source: "checkout" }).catch(() => undefined);
 
     try {
       const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
@@ -318,8 +324,19 @@ function CheckoutContent() {
             <span className={`mt-1.5 block text-[12px] ${phoneError ? "text-danger" : "text-ink-muted"}`}>
               {phoneError
                 ? "Please enter a valid 10-digit mobile number."
-                : "Our payment partner PayU needs it for the payment. We don't use it for anything else."}
+                : "Our payment partner PayU needs it for the payment. We use it for nothing else unless you tick the box below."}
             </span>
+          </label>
+        )}
+        {askPhone && !needsLogin && (
+          <label className="-mt-2 mb-5 flex items-start gap-2.5 text-[13px] leading-[1.45] text-ink-muted">
+            <input
+              type="checkbox"
+              checked={whatsappYes}
+              onChange={(e) => setWhatsappYes(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-mint-deep"
+            />
+            <span>{WHATSAPP_CONSENT}</span>
           </label>
         )}
 

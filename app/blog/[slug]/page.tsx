@@ -7,6 +7,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BLOG_POSTS } from "@/lib/content/blogPosts";
+import WhatsAppOptIn from "@/components/WhatsAppOptIn";
 
 export function generateStaticParams() {
   return BLOG_POSTS.map((post) => ({ slug: post.slug }));
@@ -38,6 +39,14 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
               {p}
             </p>
           ))}
+        </div>
+
+        <div className="mt-10">
+          <WhatsAppOptIn
+            source="blog"
+            title="Get the next post on WhatsApp"
+            blurb="New hairstyles, hair-care tips and products, sent to your WhatsApp now and then. No spam."
+          />
         </div>
       </div>
     </section>
