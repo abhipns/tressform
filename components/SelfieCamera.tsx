@@ -288,10 +288,13 @@ export default function SelfieCamera({
                 )}
                 {!shot && status === "live" && (
                   // 13.10.2026: face oval plus a shoulder line (see GUIDE_OVAL).
+                  // 17.10.2026 (owner): the shoulder line starts just under the
+                  // chin (it was 70 units lower), so the customer holds the phone
+                  // closer and the head and shoulders fill the picture.
                   <svg viewBox="0 0 300 400" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
                     <ellipse cx="150" cy="150" rx="66" ry="86" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" strokeDasharray="9 9" />
                     <path
-                      d="M28 400 C 36 338, 84 306, 150 306 C 216 306, 264 338, 272 400"
+                      d="M18 400 C 28 314, 84 264, 150 260 C 216 264, 272 314, 282 400"
                       fill="none"
                       stroke="rgba(255,255,255,0.85)"
                       strokeWidth="2.5"

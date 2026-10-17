@@ -32,12 +32,26 @@
 // follow it live. The server works the sum out again itself (lib/credit.ts)
 // — this page only shows it. When the credit covers everything, there is no
 // PayU step and no mobile number to give: the order completes straight away.
+//
+// 17.10.2026 (owner):
+//   - Back from PayU's page brought back a saved copy of this page with the
+//     button stuck on "Opening PayU…". The button now resets whenever the
+//     page comes back, and the order is remembered for the tab
+//     (lib/pendingPayment.ts) so the hairstyles screen can offer
+//     "Continue to payment".
+//   - "No UPI app on this phone? Pay from another phone": shows a QR code
+//     (and a link to share) that opens PayU for this same order on another
+//     phone (lib/payHandoff.ts). This page checks the order every few
+//     seconds and moves on to the results once it is paid.
 
 "use client";
 
 import { saveWhatsAppNumber } from "@/components/WhatsAppOptIn";
 import { WHATSAPP_CONSENT } from "@/lib/whatsapp";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
+import { setReloadBlocked } from "@/components/VersionWatch";
+import { clearPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GST_RATE,
@@ -84,6 +98,10 @@ function CheckoutContent() {
   const cameBackFailed = searchParams.get("payment") === "failed";
 
   const [status, setStatus] = useState<"idle" | "paying" | "error">("idle");
+  // "Pay from another phone": the QR code and link, while waiting for the payment.
+  const [other, setOther] = useState<{ orderId: string; url: string; qr: string } | null>(null);
+  const [otherBusy, setOtherBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session, loading: sessionLoading } = useSession();
   const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
@@ -128,6 +146,50 @@ function CheckoutContent() {
     };
   }, [userId, sessionLoading]);
 
+  // Back from PayU can bring back this page as it was when PayU opened, with
+  // the button stuck on "Opening PayU…". Make it usable again.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setStatus("idle");
+        setOtherBusy(false);
+      }
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
+  // Paying from another phone: check the order every few seconds and move on
+  // once it is paid. No automatic site reload meanwhile (VersionWatch).
+  useEffect(() => {
+    if (!other) return;
+    setReloadBlocked(true);
+    let stopped = false;
+    const started = Date.now();
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const res = await fetch(`/api/payment/order/${other.orderId}`, { headers: await authHeaders(), cache: "no-store" });
+        const data = await res.json();
+        if (!stopped && data?.order?.status === "PAID") {
+          stopped = true;
+          clearPendingPayment();
+          router.push(`/results/${other.orderId}`);
+          return;
+        }
+      } catch {
+        /* try again on the next tick */
+      }
+      if (!stopped && Date.now() - started < 30 * 60 * 1000) window.setTimeout(tick, 5000);
+    };
+    const first = window.setTimeout(tick, 5000);
+    return () => {
+      stopped = true;
+      window.clearTimeout(first);
+      setReloadBlocked(false);
+    };
+  }, [other, router]);
+
   const validTier = SELLABLE_TIERS.includes(tierParam) ? tierParam : null;
 
   const pnl = useMemo(() => (validTier ? calculatePackPnl(validTier) : null), [validTier]);
@@ -138,7 +200,7 @@ function CheckoutContent() {
   const gstOnDuePaise = GST_REGISTERED ? Math.round(split.duePaise * GST_RATE) : 0;
   const rupees = (paise: number) => `₹${paiseToRupees(paise).split(".")[0]}`;
 
-  async function handlePay() {
+  async function handlePay(where: "here" | "other" = "here") {
     if (!validTier) return;
     if (askPhone && !phoneOk(phone)) {
       setPhoneError(true);
@@ -150,7 +212,8 @@ function CheckoutContent() {
     } catch {
       /* not remembered — fine */
     }
-    setStatus("paying");
+    if (where === "other") setOtherBusy(true);
+    else setStatus("paying");
     setError(null);
     // Saved before PayU takes over the page; a failure here never stops the payment.
     if (askPhone && whatsappYes) await saveWhatsAppNumber({ phone, source: "checkout" }).catch(() => undefined);
@@ -202,11 +265,33 @@ function CheckoutContent() {
       }
 
       if (!payu?.action || !payu?.fields) throw new Error("Could not start the payment. Please try again.");
+      savePendingPayment(orderId, validTier);
+
+      if (where === "other") {
+        const handoffRes = await fetch("/api/payment/handoff", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ orderId, phone }),
+        });
+        const handoff = await handoffRes.json();
+        if (!handoffRes.ok || !handoff.url) throw new Error(handoff.error || "Could not make the QR code. Please try again.");
+        const qr = await QRCode.toDataURL(handoff.url, {
+          margin: 1,
+          width: 520,
+          errorCorrectionLevel: "M",
+          color: { dark: "#16261C", light: "#FFFFFF" },
+        });
+        setOther({ orderId, url: handoff.url, qr });
+        setOtherBusy(false);
+        return;
+      }
+
       // Leaves this page for PayU's payment page; PayU brings the customer back.
       postToPayu(payu.action, payu.fields);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong starting checkout.");
       setStatus("error");
+      setOtherBusy(false);
     }
   }
 
@@ -349,7 +434,11 @@ function CheckoutContent() {
             Log in to continue
           </a>
         ) : (
-          <button className="btn-primary w-full" disabled={status === "paying" || sessionLoading} onClick={handlePay}>
+          <button
+            className="btn-primary w-full"
+            disabled={status === "paying" || otherBusy || sessionLoading}
+            onClick={() => handlePay("here")}
+          >
             {status === "paying"
               ? free
                 ? "Completing your order…"
@@ -358,6 +447,77 @@ function CheckoutContent() {
                 ? "Get it with my credit"
                 : `Pay ${rupees(split.duePaise)}`}
           </button>
+        )}
+
+        {/* 17.10.2026: for a phone with no UPI app — someone else pays by scanning a QR code. */}
+        {!needsLogin && askPhone && !other && (
+          <button
+            type="button"
+            className="mt-3 w-full rounded-full border border-line bg-surface px-4 py-3 text-[14.5px] font-semibold text-ink-heading transition hover:border-ink-heading disabled:opacity-60"
+            disabled={status === "paying" || otherBusy || sessionLoading}
+            onClick={() => handlePay("other")}
+          >
+            {otherBusy ? "Making your QR code…" : "No UPI app on this phone? Pay from another phone"}
+          </button>
+        )}
+
+        {other && (
+          <div className="mt-5 rounded-lg2 border border-line bg-surface p-5 text-center">
+            <p className="font-heading text-[18px] font-semibold text-ink-heading">Pay from another phone</p>
+            <p className="mt-1.5 text-[13.5px] leading-[1.5] text-ink-muted">
+              Ask someone to scan this with their phone&apos;s camera. PayU opens on their phone for this order, and they
+              pay with their UPI app.
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={other.qr} alt="QR code to pay from another phone" className="mx-auto mt-4 w-[240px] max-w-full rounded-md2" />
+            <p className="mt-3 flex items-center justify-center gap-2 text-[13.5px] font-semibold text-mint-deep" role="status">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-mint-deep" />
+              Waiting for the payment. This page moves on by itself.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                className="rounded-full border border-line px-4 py-2 text-[13.5px] font-semibold text-ink-heading"
+                onClick={async () => {
+                  const text = `Please pay ${rupees(split.duePaise)} for my Tressform hairstyles: ${other.url}`;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: "Tressform payment", text });
+                      return;
+                    }
+                  } catch {
+                    return; // the customer closed the share sheet
+                  }
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+                }}
+              >
+                Send the link instead
+              </button>
+              <button
+                type="button"
+                className="rounded-full border border-line px-4 py-2 text-[13.5px] font-semibold text-ink-heading"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(other.url);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 2500);
+                  } catch {
+                    /* copying blocked: the share button still works */
+                  }
+                }}
+              >
+                {copied ? "Link copied" : "Copy link"}
+              </button>
+            </div>
+            <p className="mt-3 text-[12px] text-ink-muted">The code works for 30 minutes and only for this order.</p>
+            <button
+              type="button"
+              className="mt-3 text-[13px] font-semibold text-ink-muted underline underline-offset-4"
+              onClick={() => setOther(null)}
+            >
+              Pay on this phone instead
+            </button>
+          </div>
         )}
 
         <p className="mt-4 text-center text-[12px] text-ink-muted">

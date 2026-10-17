@@ -8,6 +8,10 @@
 //   failed/cancelled → /checkout?tier=…&payment=failed  (try again)
 //   still pending    → /results/<order>  (that page keeps checking)
 //
+// 17.10.2026: ?h=1 marks a payment made from another phone ("Pay from
+// another phone", lib/payHandoff.ts). That phone is sent to /pay/done
+// instead, since the results belong to the customer on their own phone.
+//
 // No login is needed here: the browser arrives from PayU's site, and the
 // order is found by PayU's transaction id, not by who is asking.
 
@@ -33,14 +37,20 @@ export async function POST(req: NextRequest) {
     console.warn(`[Tressform] PayU return for ${txnid}: hash did not match.`);
   }
 
+  const otherPhone = req.nextUrl.searchParams.get("h") === "1";
   try {
     const r = await confirmPayuTxn(txnid);
+    if (otherPhone) {
+      const s = !r.found ? "unknown" : r.status === "FAILED" ? "failed" : r.status === "PENDING" ? "pending" : "paid";
+      return go(req, `/pay/done?s=${s}`);
+    }
     if (!r.found) return go(req, "/");
     if (r.status === "FAILED") return go(req, `/checkout?tier=${r.tier ?? ""}&payment=failed`);
     return go(req, `/results/${r.orderId}`);
   } catch (err) {
     console.error(`[Tressform] PayU return for ${txnid}: could not confirm.`, err);
     // The results page re-checks with PayU when it loads, so send them there if we know the order.
+    if (otherPhone) return go(req, "/pay/done?s=pending");
     const orderId = (post.udf1 || "").trim();
     return go(req, /^[0-9a-f-]{36}$/i.test(orderId) ? `/results/${orderId}` : "/");
   }

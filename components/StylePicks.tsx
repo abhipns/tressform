@@ -66,6 +66,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CareBox, { useCareProducts } from "@/components/CareBox";
 import RateBox from "@/components/RateBox";
+import PendingPaymentBox from "@/components/PendingPaymentBox";
 import WhatsAppOptIn from "@/components/WhatsAppOptIn";
 import RatePopup, { mayAskForRating } from "@/components/RatePopup";
 import { LookCarousel, LockedLooks, type LookItem } from "@/components/LookCarousel";
@@ -214,6 +215,14 @@ const LENGTH_OPTIONS: Record<HairGender, { value: HairLength; label: string; hin
     { value: "waist", label: "Waist" },
   ],
 };
+
+/**
+ * 17.10.2026 (owner): each question on "About you" sits in its own box, so the
+ * questions, their options and the small helper lines are easy to tell apart.
+ * The title floats so it sits inside the box rather than on its border.
+ */
+const QUESTION_BOX = "rounded-[16px] border border-line bg-bg-soft px-3.5 pb-3.5 pt-3 sm:px-4 sm:pb-4";
+const QUESTION_TITLE = "float-left w-full text-[15.5px] font-semibold text-ink-heading";
 
 const TEXTURE_OPTIONS: { value: HairTexture; label: string }[] = [
   { value: "straight", label: "Straight" },
@@ -1063,6 +1072,9 @@ export default function StylePicks({
     <div>
       <h3 className="text-[26px] font-semibold leading-tight">Your hairstyles</h3>
 
+      {/* 17.10.2026: back from PayU without paying — carry on from here. */}
+      {!samples && <PendingPaymentBox />}
+
       {/* ---------------------------------------------------- About you */}
       <div className="mt-5 rounded-[20px] border border-line p-4 sm:p-5">
         <div className="flex items-center gap-4">
@@ -1099,7 +1111,7 @@ export default function StylePicks({
         )}
 
         {editing && (
-          <div className="mt-4 flex flex-col gap-5 border-t border-line pt-4">
+          <div className="mt-4 flex flex-col gap-4 border-t border-line pt-4">
             {(faceUnsure || hairMissing) && (
               <p className="rounded-sm2 bg-mint-pale px-4 py-3 text-[14.5px] font-medium leading-[1.5] text-ink-heading">
                 {/* 12.10.2026 (owner): say what we read, confidently, and ask for a quick check. */}
@@ -1120,9 +1132,9 @@ export default function StylePicks({
               </p>
             )}
 
-            <fieldset>
-              <legend className="text-[15.5px] font-semibold text-ink-heading">Face shape</legend>
-              <div role="radiogroup" aria-label="Face shape" className="mt-2.5 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <fieldset className={QUESTION_BOX}>
+              <legend className={QUESTION_TITLE}>Face shape</legend>
+              <div role="radiogroup" aria-label="Face shape" className="clear-both mt-2.5 grid grid-cols-3 gap-2 sm:grid-cols-6">
                 {FACE_SHAPES.map(({ shape, hint }) => {
                   const selected = faceShape === shape;
                   return (
@@ -1153,11 +1165,11 @@ export default function StylePicks({
               </p>
             </fieldset>
 
-            <fieldset>
-              <legend className="text-[15.5px] font-semibold text-ink-heading">
+            <fieldset className={QUESTION_BOX}>
+              <legend className={QUESTION_TITLE}>
                 {gender === "men" ? "How long is your hair on top now?" : "Where does your hair reach when it is left open?"}
               </legend>
-              <div role="radiogroup" aria-label="Hair length now" className="mt-2.5 flex flex-wrap gap-2">
+              <div role="radiogroup" aria-label="Hair length now" className="clear-both mt-2.5 flex flex-wrap gap-2">
                 {LENGTH_OPTIONS[gender].map((option) => (
                   <OptionPill key={option.value} selected={length === option.value} onClick={() => setLength(option.value)}>
                     {option.label}
@@ -1167,9 +1179,9 @@ export default function StylePicks({
               </div>
             </fieldset>
 
-            <fieldset>
-              <legend className="text-[15.5px] font-semibold text-ink-heading">Your natural hair type</legend>
-              <div role="radiogroup" aria-label="Hair type" className="mt-2.5 flex flex-wrap gap-2">
+            <fieldset className={QUESTION_BOX}>
+              <legend className={QUESTION_TITLE}>Your natural hair type</legend>
+              <div role="radiogroup" aria-label="Hair type" className="clear-both mt-2.5 flex flex-wrap gap-2">
                 {TEXTURE_OPTIONS.map((option) => (
                   <OptionPill key={option.value} selected={texture === option.value} onClick={() => setTexture(option.value)}>
                     {option.label}
@@ -1179,9 +1191,9 @@ export default function StylePicks({
             </fieldset>
 
             {gender === "men" && (
-              <fieldset>
-                <legend className="text-[15.5px] font-semibold text-ink-heading">Your facial hair now</legend>
-                <div role="radiogroup" aria-label="Facial hair" className="mt-2.5 flex flex-wrap gap-2">
+              <fieldset className={QUESTION_BOX}>
+                <legend className={QUESTION_TITLE}>Your facial hair now</legend>
+                <div role="radiogroup" aria-label="Facial hair" className="clear-both mt-2.5 flex flex-wrap gap-2">
                   {FACIAL_HAIR_OPTIONS.map((option) => (
                     <OptionPill key={option} selected={facialHair === option} onClick={() => setFacialHair(option)}>
                       {FACIAL_HAIR_LABELS[option]}
