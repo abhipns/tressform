@@ -9,7 +9,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { BACKGROUND_OFF, removeBackground } from "@/lib/integrations/background";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { takeDailyUse } from "@/lib/usageLimits";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -32,6 +33,13 @@ export async function POST(req: NextRequest) {
   const photo = typeof body.photo === "string" ? body.photo : "";
   if (!/^data:image\/(jpeg|png|webp);base64,/.test(photo) || photo.length > MAX_CHARS) {
     return NextResponse.json({ error: "Please add your selfie first." }, { status: 400 });
+  }
+
+  // 20.10.2026: at most DAILY_LIMITS.background removals per account per day (lib/usageLimits.ts).
+  if (!SUPABASE_MOCK_MODE) {
+    const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
+    const limited = await takeDailyUse(getSupabaseAdmin(), "background", auth.userId);
+    if (limited) return NextResponse.json({ error: limited, limitReached: true }, { status: 429 });
   }
 
   try {

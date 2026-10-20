@@ -108,21 +108,126 @@ async function loadImage(src: string): Promise<ImageBitmap | HTMLImageElement> {
   return createImageBitmap(await res.blob());
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: ImageBitmap | HTMLImageElement, x: number, y: number, w: number, h: number, r: number) {
+type Pic = ImageBitmap | HTMLImageElement;
+
+/**
+ * 20.10.2026 (owner: "make sure the cropping is done properly"): where the
+ * person is in a picture, as a box in the picture's own pixels, plus the
+ * colour of its background. Works on plain backgrounds — every AI picture
+ * now has the light-grey studio backdrop — by marking what differs from the
+ * colour along the picture's edges. Returns no box for a busy background
+ * (a room behind the person), where nothing can be told apart this way.
+ */
+function findSubject(img: Pic): { box: { x: number; y: number; w: number; h: number } | null; bg: string } {
+  const sw = 72;
+  const sh = Math.max(1, Math.round((sw * img.height) / img.width));
+  const c = document.createElement("canvas");
+  c.width = sw;
+  c.height = sh;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  if (!g) return { box: null, bg: "#E9E7E0" };
+  g.drawImage(img, 0, 0, sw, sh);
+  const d = g.getImageData(0, 0, sw, sh).data;
+  const at = (x: number, y: number) => (y * sw + x) * 4;
+  // The edges: left, right and top rows (the bottom is usually clothes).
+  const edge: number[] = [];
+  for (let y = 0; y < sh; y++) edge.push(at(0, y), at(sw - 1, y));
+  for (let x = 0; x < sw; x++) edge.push(at(x, 0));
+  let r = 0, gg = 0, b = 0;
+  for (const i of edge) {
+    r += d[i];
+    gg += d[i + 1];
+    b += d[i + 2];
+  }
+  r /= edge.length;
+  gg /= edge.length;
+  b /= edge.length;
+  const bg = `rgb(${Math.round(r)},${Math.round(gg)},${Math.round(b)})`;
+  const dist = (i: number) => Math.abs(d[i] - r) + Math.abs(d[i + 1] - gg) + Math.abs(d[i + 2] - b);
+  // A busy background: the edges themselves vary a lot.
+  const spread = edge.reduce((s, i) => s + dist(i), 0) / edge.length;
+  if (spread > 40) return { box: null, bg };
+  let x0 = sw, y0 = sh, x1 = -1, y1 = -1;
+  for (let y = 0; y < sh; y++)
+    for (let x = 0; x < sw; x++)
+      if (dist(at(x, y)) > 70) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+  if (x1 < 0 || (x1 - x0) * (y1 - y0) < sw * sh * 0.04) return { box: null, bg };
+  // The head: how wide the person is in the top part only (hair and face,
+  // and the nose on a side view), so the shoulders don't count.
+  const headBottom = Math.min(y1, y0 + Math.round((y1 - y0) * 0.45));
+  let hx0 = sw, hx1 = -1;
+  for (let y = y0; y <= headBottom; y++)
+    for (let x = 0; x < sw; x++)
+      if (dist(at(x, y)) > 70) {
+        if (x < hx0) hx0 = x;
+        if (x > hx1) hx1 = x;
+      }
+  if (hx1 < 0) return { box: null, bg };
+  const k = img.width / sw;
+  return { box: { x: hx0 * k, y: y0 * k, w: (hx1 - hx0 + 1) * k, h: (headBottom - y0 + 1) * k }, bg };
+}
+
+/**
+ * Fill the frame with the picture without cutting into the person: the
+ * crop follows the person (head kept whole, a little room above the hair,
+ * centred left to right on them). When the person can't be found, or can't
+ * fit whole, the whole picture is shown and the space around it filled with
+ * its own background colour — nothing is ever cut off.
+ */
+function drawSmart(ctx: CanvasRenderingContext2D, img: Pic, x: number, y: number, w: number, h: number, r: number) {
   const iw = img.width;
   const ih = img.height;
-  const scale = Math.max(w / iw, h / ih);
-  const sw = w / scale;
-  const sh = h / scale;
-  // Keep the face: crop from the top third rather than the middle on tall pictures.
-  const sx = (iw - sw) / 2;
-  const sy = Math.max(0, Math.min(ih - sh, (ih - sh) * 0.3));
+  const { box, bg } = findSubject(img);
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
   ctx.clip();
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  const aspect = w / h;
+  // The largest crop of the frame's shape that the picture allows.
+  let cw = iw;
+  let ch = iw / aspect;
+  if (ch > ih) {
+    ch = ih;
+    cw = ih * aspect;
+  }
+  const exact = Math.abs(iw / ih - aspect) < 0.01;
+  let cropped = false;
+  if (exact) {
+    ctx.drawImage(img, 0, 0, iw, ih, x, y, w, h);
+    cropped = true;
+  } else if (box) {
+    // Some room around the head: above the hair especially, and at the sides.
+    const top = Math.max(0, box.y - box.h * 0.15);
+    const left = box.x - box.w * 0.06;
+    const right = box.x + box.w * 1.06;
+    if (right - left <= cw) {
+      // Centred on the head left to right; starting just above the hair.
+      const cx = Math.min(Math.max(0, (left + right) / 2 - cw / 2), iw - cw);
+      const cy = Math.min(Math.max(0, top), ih - ch);
+      ctx.drawImage(img, cx, cy, cw, ch, x, y, w, h);
+      cropped = true;
+    }
+  }
+  if (!cropped) {
+    // Show it all, centred, on its own background colour.
+    ctx.fillStyle = bg;
+    ctx.fillRect(x, y, w, h);
+    const s = Math.min(w / iw, h / ih);
+    const dw = iw * s;
+    const dh = ih * s;
+    ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  }
   ctx.restore();
+}
+
+/** The old centred crop, kept for anything not yet moved to drawSmart. */
+function drawCover(ctx: CanvasRenderingContext2D, img: Pic, x: number, y: number, w: number, h: number, r: number) {
+  drawSmart(ctx, img, x, y, w, h, r);
 }
 
 function chip(ctx: CanvasRenderingContext2D, text: string, x: number, y: number) {
@@ -245,4 +350,208 @@ export async function makeSharePicture(
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("canvas"))), "image/jpeg", 0.9)
   );
   return new File([blob], "my-hairstyles-tressform.jpg", { type: "image/jpeg" });
+}
+
+// ------------------------------------------------------------ barber sheet
+
+/** Break text into lines that fit `maxWidth` in the context's current font. */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const tryLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(tryLine).width <= maxWidth || !line) line = tryLine;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+export interface BarberSheetInput {
+  styleName: string;
+  /** "a short textured quiff" — what to ask for. */
+  cutName: string;
+  /** "Sides: low taper, #2 to #0.5" … (lib/content/barberPoints.ts). */
+  points: string[];
+  /** The clipper guard key printed under the points. */
+  guide?: string;
+  /** The customer's own photo, shown as "Before". */
+  before: string | null;
+  /** Front first, then left, right, back — whichever exist. */
+  pictures: { label: string; url: string; estimate?: boolean }[];
+}
+
+const FONT = "system-ui, -apple-system, Segoe UI, sans-serif";
+const SHEET = { green: "#2F6B4F", gold: "#C79A3D", paper: "#F4F1E4", ink: "#16261C", muted: "#5B6B60" };
+
+/**
+ * 20.10.2026, owner's request: the "barber sheet" — ONE picture with
+ * everything a barber needs for one look: the customer's photo before, the
+ * front, both sides and the back, and the cutting instructions with clipper
+ * guard numbers. Portrait, so it reads well on a barber's phone in WhatsApp.
+ * Made on the customer's own device.
+ */
+export async function makeBarberSheet(input: BarberSheetInput): Promise<File> {
+  const W = 1200;
+  const pad = 48;
+  const gap = 24;
+  const inner = W - pad * 2;
+
+  const front = input.pictures[0];
+  const sides = input.pictures.slice(1, 4);
+  const topTiles = [...(input.before ? [{ label: "Before", url: input.before, estimate: false }] : []), ...(front ? [front] : [])];
+  const topW = topTiles.length === 2 ? (inner - gap) / 2 : 640;
+  const topH = Math.round((topW * 4) / 3);
+  const sideW = (inner - gap * 2) / 3;
+  const sideH = Math.round((sideW * 4) / 3);
+
+  // Measure the instructions first, to know how tall the picture is.
+  const measure = document.createElement("canvas").getContext("2d")!;
+  const textW = inner - 64;
+  measure.font = `400 30px ${FONT}`;
+  const pointLines = input.points.map((p) => {
+    const i = p.indexOf(": ");
+    const label = i > 0 && i <= 20 ? `${p.slice(0, i)}:` : "";
+    const rest = label ? p.slice(i + 2) : p;
+    measure.font = `700 30px ${FONT}`;
+    const labelW = label ? measure.measureText(`${label} `).width : 0;
+    measure.font = `400 30px ${FONT}`;
+    // The first line starts after the label; later lines start at the left edge.
+    const first = wrapText(measure, rest, textW - 28 - labelW);
+    const firstLine = first[0] ?? "";
+    const remaining = rest.slice(firstLine.length).trim();
+    const more = remaining ? wrapText(measure, remaining, textW - 28) : [];
+    return { label, labelW, lines: [firstLine, ...more] };
+  });
+  measure.font = `700 32px ${FONT}`;
+  const askLines = wrapText(measure, `Ask for ${input.cutName}`, textW);
+  const lineH = 44;
+  const cardH =
+    40 + 40 + 20 + askLines.length * 44 + 16 + pointLines.reduce((s, p) => s + p.lines.length * lineH + 10, 0) + 20 + (input.guide ? 44 : 0) + 24;
+
+  const headerH = 150;
+  const footerH = 96;
+  const H =
+    headerH + pad + (topTiles.length ? topH + gap : 0) + (sides.length ? sideH + gap : 0) + cardH + pad + footerH;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = SHEET.paper;
+  ctx.fillRect(0, 0, W, H);
+
+  // Header: the style's name.
+  ctx.fillStyle = SHEET.green;
+  ctx.fillRect(0, 0, W, headerH);
+  ctx.fillStyle = SHEET.gold;
+  ctx.fillRect(0, headerH - 8, W, 8);
+  ctx.fillStyle = "#fff";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `800 46px ${FONT}`;
+  const title = input.styleName.toUpperCase();
+  ctx.fillText(title.length > 40 ? `${title.slice(0, 39)}…` : title, pad, 78);
+  ctx.fillStyle = "#DDE9DF";
+  ctx.font = `500 26px ${FONT}`;
+  ctx.fillText("Barber sheet · show this to your barber", pad, 120);
+
+  const images = await Promise.all([...topTiles, ...sides].map((t) => loadImage(t.url).catch(() => null)));
+
+  const tile = (img: ImageBitmap | HTMLImageElement | null, label: string, estimate: boolean, x: number, y: number, w: number, h: number) => {
+    ctx.fillStyle = "#E4E0D0";
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 18);
+    ctx.fill();
+    if (img) drawCover(ctx, img, x, y, w, h, 18);
+    ctx.font = `700 24px ${FONT}`;
+    const text = estimate ? `${label} · AI estimate` : label;
+    const cw = ctx.measureText(text).width + 28;
+    ctx.fillStyle = "rgba(255,255,255,0.94)";
+    ctx.beginPath();
+    ctx.roundRect(x + 12, y + 12, cw, 42, 21);
+    ctx.fill();
+    ctx.fillStyle = SHEET.ink;
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x + 26, y + 34);
+    ctx.textBaseline = "alphabetic";
+  };
+
+  let y = headerH + pad;
+  if (topTiles.length) {
+    const rowW = topTiles.length * topW + (topTiles.length - 1) * gap;
+    const x0 = (W - rowW) / 2;
+    topTiles.forEach((t, i) => tile(images[i], t.label, Boolean(t.estimate), x0 + i * (topW + gap), y, topW, topH));
+    y += topH + gap;
+  }
+  if (sides.length) {
+    const rowW = sides.length * sideW + (sides.length - 1) * gap;
+    const x0 = (W - rowW) / 2;
+    sides.forEach((t, i) => tile(images[topTiles.length + i], t.label, Boolean(t.estimate), x0 + i * (sideW + gap), y, sideW, sideH));
+    y += sideH + gap;
+  }
+
+  // The instructions card.
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.roundRect(pad, y, inner, cardH, 22);
+  ctx.fill();
+  let ty = y + 40 + 32;
+  const tx = pad + 32;
+  ctx.fillStyle = SHEET.green;
+  ctx.font = `800 30px ${FONT}`;
+  ctx.fillText("HAIRCUT INSTRUCTIONS", tx, ty);
+  ty += 20 + 44;
+  ctx.fillStyle = SHEET.ink;
+  ctx.font = `700 32px ${FONT}`;
+  for (const l of askLines) {
+    ctx.fillText(l, tx, ty);
+    ty += 44;
+  }
+  ty += 16;
+  for (const p of pointLines) {
+    ctx.fillStyle = SHEET.gold;
+    ctx.beginPath();
+    ctx.arc(tx + 7, ty - 10, 7, 0, Math.PI * 2);
+    ctx.fill();
+    p.lines.forEach((line, i) => {
+      let lx = tx + 28;
+      if (i === 0 && p.label) {
+        ctx.fillStyle = SHEET.ink;
+        ctx.font = `700 30px ${FONT}`;
+        ctx.fillText(p.label, lx, ty);
+        lx += p.labelW;
+      }
+      ctx.fillStyle = SHEET.ink;
+      ctx.font = `400 30px ${FONT}`;
+      ctx.fillText(line, lx, ty);
+      ty += lineH;
+    });
+    ty += 10;
+  }
+  if (input.guide) {
+    ty += 20;
+    ctx.fillStyle = SHEET.muted;
+    ctx.font = `500 23px ${FONT}`;
+    ctx.fillText(input.guide, tx, ty);
+  }
+
+  // Footer.
+  ctx.fillStyle = SHEET.ink;
+  ctx.fillRect(0, H - footerH, W, footerH);
+  ctx.fillStyle = "#fff";
+  ctx.font = `700 32px ${FONT}`;
+  ctx.fillText("Tressform", pad, H - footerH / 2 + 11);
+  ctx.fillStyle = "#B9DFCB";
+  ctx.font = `500 24px ${FONT}`;
+  const site = "Find the haircut that suits you · tressform.co.in";
+  ctx.fillText(site, W - pad - ctx.measureText(site).width, H - footerH / 2 + 9);
+
+  const blob: Blob = await new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("canvas"))), "image/jpeg", 0.9)
+  );
+  return new File([blob], `${slug(input.styleName)}-barber-sheet.jpg`, { type: "image/jpeg" });
 }

@@ -16,11 +16,11 @@ function everyCustomer(): CustomerHair[] {
 }
 
 describe("the hairstyle lists", () => {
-  it("has 30 men's and 30 women's styles with unique ids and names", () => {
-    expect(hairstylesFor("men")).toHaveLength(30);
+  it("has 31 men's and 30 women's styles with unique ids and names", () => {
+    expect(hairstylesFor("men")).toHaveLength(31);
     expect(hairstylesFor("women")).toHaveLength(30);
-    expect(new Set(HAIRSTYLES.map((s) => s.id)).size).toBe(60);
-    expect(new Set(HAIRSTYLES.map((s) => `${s.gender}:${s.name}`)).size).toBe(60);
+    expect(new Set(HAIRSTYLES.map((s) => s.id)).size).toBe(61);
+    expect(new Set(HAIRSTYLES.map((s) => `${s.gender}:${s.name}`)).size).toBe(61);
   });
   it("never lists a face shape as both best and avoid, and every style suits some hair type", () => {
     for (const style of HAIRSTYLES) {

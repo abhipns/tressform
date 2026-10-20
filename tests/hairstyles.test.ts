@@ -15,9 +15,9 @@ describe("front-view descriptions", () => {
     }
   });
 
-  it("are what the Studio sends for all 60 styles", () => {
+  it("are what the Studio sends for all 61 styles", () => {
     const all = [...STUDIO_STYLES.men, ...STUDIO_STYLES.women];
-    expect(all).toHaveLength(60);
+    expect(all).toHaveLength(61);
     for (const studio of all) expect(studio.prompt, studio.label).not.toMatch(BACK_OF_HEAD);
   });
 

@@ -148,12 +148,12 @@ export interface GenerateHairstyleParams {
   /**
    * 13.10.2026, Studio test only (owner): replace the room behind the person
    * with a plain, soft light-grey backdrop, so a messy room is hidden and the
-   * hair's outline is easy to judge. Not used for customers until the
-   * owner's test photos come out true to the person.
+   * hair's outline is easy to judge. 20.10.2026: switched on for every
+   * customer picture (/api/generate), owner's decision.
    */
   greyBackground?: boolean;
   /**
-   * 13.10.2026, Studio test only (owner): light the face evenly from both
+   * 13.10.2026 (Studio test; for customers from 20.10.2026): light the face evenly from both
    * sides, for selfies taken in poor light, with the skin tone kept exactly
    * as it is (the models tend to make skin fairer when asked to relight).
    */
@@ -184,7 +184,15 @@ export interface GenerateHairstyleResult {
   providerRequestId: string;
   model: string;
   errorMessage?: string;
+  /** 20.10.2026: fal.ai's HTTP status when it refused the request (401/403 = account locked or out of credit). */
+  providerStatus?: number;
   mock: boolean;
+}
+
+/** fal.ai's HTTP status on a failed request, if it gave one. */
+function falStatus(err: unknown): number | undefined {
+  const s = (err as { status?: unknown })?.status;
+  return typeof s === "number" ? s : undefined;
 }
 
 // What each catalogue style actually looks like, in barber's terms — the
@@ -391,7 +399,7 @@ function mockPlaceholderImage(seed: string): string {
   return `https://placehold.co/768x1024/png?text=${encoded}`;
 }
 
-function failure(model: string, message: string, requestId = ""): GenerateHairstyleResult {
+function failure(model: string, message: string, requestId = "", providerStatus?: number): GenerateHairstyleResult {
   return {
     status: "FAILED",
     resultImageUrl: null,
@@ -400,6 +408,7 @@ function failure(model: string, message: string, requestId = ""): GenerateHairst
     providerRequestId: requestId,
     model,
     errorMessage: message,
+    providerStatus,
     mock: false,
   };
 }
@@ -445,7 +454,7 @@ export async function generateHairstyle(params: GenerateHairstyleParams): Promis
       requestId: string;
     };
   } catch (err) {
-    return failure(model, describeFalError(err));
+    return failure(model, describeFalError(err), "", falStatus(err));
   }
 
   const data = (response.data ?? {}) as {
@@ -554,7 +563,7 @@ export async function generateView(params: GenerateViewParams): Promise<Generate
       logs: false,
     })) as { data: unknown; requestId: string };
   } catch (err) {
-    return failure(model, describeFalError(err));
+    return failure(model, describeFalError(err), "", falStatus(err));
   }
   const data = (response.data ?? {}) as { images?: { url?: string; content_type?: string }[]; has_nsfw_concepts?: boolean[] };
   if (data.has_nsfw_concepts?.some(Boolean)) return failure(model, "The model refused this picture.", response.requestId);

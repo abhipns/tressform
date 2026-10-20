@@ -168,6 +168,22 @@ const MEN: Row[] = [
       "a short textured crop: choppy, textured hair on top about 3–4 cm pushed slightly forward with a short uneven fringe, and a clean mid skin fade on the sides and back",
   },
   {
+    // 20.10.2026, owner's request: the softer cousin of the textured crop —
+    // more hair on top, a full fringe, and a low taper instead of a skin
+    // fade, which looks more natural on thick dark hair.
+    id: "m-french-crop",
+    name: "Textured French crop, low taper",
+    family: "crop",
+    needs: "medium",
+    texture: [2, 2, 1],
+    best: ["Long", "Oval", "Heart", "Diamond", "Square"],
+    avoid: ["Round"],
+    upkeep: "low",
+    line: "Choppy hair on top with a full textured fringe, and softly tapered sides.",
+    prompt:
+      "a textured French crop: choppy, textured hair on top about 5–6 cm, a full textured fringe about 4–5 cm falling straight forward onto the forehead, and a low taper on the sides and at the nape blended naturally with no harsh lines",
+  },
+  {
     id: "m-crew-cut",
     name: "Crew cut",
     family: "clipper",
@@ -929,6 +945,8 @@ const FRONT_VIEW: Record<string, string> = {
     "a classic side part: hair on top about 5–6 cm, combed neatly to one side from a clear parting, with the sides tapered short",
   "m-textured-crop":
     "a short textured crop: choppy, textured hair on top about 3–4 cm pushed slightly forward with a short uneven fringe, and a clean mid skin fade on the sides",
+  "m-french-crop":
+    "a textured French crop: choppy, textured hair on top about 5–6 cm, a full textured fringe about 4–5 cm falling straight forward onto the forehead, and a low taper on the sides blended naturally with no harsh lines",
   "m-crew-cut": "a crew cut: short hair on top about 2–3 cm, slightly longer at the front hairline, with short tapered sides",
   "m-slick-back-undercut":
     "a slicked-back undercut: hair on top about 8–10 cm combed straight back off the forehead with a slight shine, and short clipped sides disconnected from the top",
@@ -1020,6 +1038,7 @@ const EFFECTS: Record<string, StyleEffect[]> = {
   "m-textured-quiff": ["height", "soft-texture"],
   "m-side-part": ["sharp", "low-top", "side-sweep"],
   "m-textured-crop": ["fringe", "low-top"],
+  "m-french-crop": ["fringe", "soft-texture"],
   "m-crew-cut": ["show-face", "sharp"],
   "m-buzz-cut": ["show-face"],
   "m-slick-back-undercut": ["sharp"],

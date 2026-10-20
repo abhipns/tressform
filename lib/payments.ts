@@ -114,7 +114,12 @@ async function settleReferral(admin: any, order: { id: string; user_id: string; 
     const cumulative = ((priorCredits ?? []) as { credits_paise: number | null }[]).reduce((s, r) => s + (r.credits_paise ?? 0), 0);
     const creditsPaise = calculateReferralCreditsPaiseWithCap(order.tier as PackTier, true, cumulative);
 
-    await admin
+    // 20.10.2026: only the FIRST paid order settles the referral. Two orders
+    // made before either was paid are both flagged "first purchase" (a
+    // customer paid twice by QR code), so the update only goes through while
+    // no order has claimed the referral yet; the second finds it taken and
+    // pays the referrer nothing more.
+    const { data: claimed } = await admin
       .from("referrals")
       .update({
         first_purchase_order_id: order.id,
@@ -123,7 +128,10 @@ async function settleReferral(admin: any, order: { id: string; user_id: string; 
         payout_status: creditsPaise > 0 ? "PAID" : "INELIGIBLE",
         paid_at: creditsPaise > 0 ? new Date().toISOString() : null,
       })
-      .eq("id", referral.id);
+      .eq("id", referral.id)
+      .is("first_purchase_order_id", null)
+      .select("id");
+    if (!claimed || claimed.length === 0) return;
     if (creditsPaise > 0) {
       await admin.rpc("increment_credit_balance", { profile_id: referral.referrer_id, amount_paise: creditsPaise }).then(
         () => {},

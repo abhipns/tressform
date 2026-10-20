@@ -97,9 +97,12 @@ import {
 } from "@/lib/recommend";
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
 import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
+import BarberPointText from "./BarberPointText";
+import { CLIPPER_GUIDE } from "@/lib/content/barberPoints";
 import {
   barberMessage,
   friendsMessage,
+  makeBarberSheet,
   makeSharePicture,
   pictureFile,
   saveFile,
@@ -573,30 +576,56 @@ export default function StylePicks({
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ styleId: string; text: string } | null>(null);
 
+  /** 20.10.2026: one picture with the before photo, the four views and the cutting instructions. */
+  function barberSheet(preview: PreviewState): Promise<File> {
+    const style = preview.style;
+    return makeBarberSheet({
+      styleName: style.name,
+      cutName: barberName(style),
+      points: barberPoints(style),
+      guide: style.gender === "men" ? CLIPPER_GUIDE : undefined,
+      before: frontPhoto,
+      pictures: pictures(preview)
+        .filter((p) => p.url)
+        .map((p) => ({ label: p.label, url: p.url!, estimate: p.key !== "front" })),
+    });
+  }
+
+  async function downloadSheet(preview: PreviewState) {
+    const style = preview.style;
+    setBusy(`sheet-${style.id}`);
+    try {
+      const file = await barberSheet(preview);
+      saveFile(file, file.name);
+      setNotice({ styleId: style.id, text: "Barber sheet saved. Show it to your barber, or send it on WhatsApp." });
+    } catch {
+      setNotice({ styleId: style.id, text: "The barber sheet couldn't be made. Try “Save the pictures” instead." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function sendToBarber(preview: PreviewState) {
     const style = preview.style;
     const text = barberMessage(style.name, barberName(style), barberPoints(style));
     setBusy(`barber-${style.id}`);
     try {
-      const pics = pictures(preview).filter((p) => p.url);
-      const files = await Promise.all(pics.map((p) => pictureFile(p.url!, `${slug(style.name)}-${slug(p.label)}.jpg`)));
-      const result = await shareFiles(files, text, style.name);
+      // 20.10.2026: the barber gets ONE picture with everything on it.
+      const sheet = await barberSheet(preview);
+      const result = await shareFiles([sheet], text, style.name);
       if (result === "unsupported") {
-        // Computers: save the pictures, copy the words, open WhatsApp with them.
-        for (const f of files) {
-          saveFile(f, f.name);
-          await new Promise((r) => window.setTimeout(r, 350));
-        }
+        // Computers: save the sheet, copy the words, open WhatsApp with them.
+        saveFile(sheet, sheet.name);
         try {
           await navigator.clipboard.writeText(text);
         } catch {
           /* not allowed here — WhatsApp still gets the words below */
         }
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
-        setNotice({ styleId: style.id, text: "The 4 pictures are saved and the words are in WhatsApp. Attach the pictures there." });
+        setNotice({ styleId: style.id, text: "The barber sheet is saved and the words are in WhatsApp. Attach the sheet there." });
       }
     } catch {
-      setNotice({ styleId: style.id, text: "That didn't work. Try “Download all 4” and send them yourself." });
+      setNotice({ styleId: style.id, text: "That didn't work. Try “Barber sheet” and send it yourself." });
     } finally {
       setBusy(null);
     }
@@ -637,7 +666,8 @@ export default function StylePicks({
                 {pic.url ? (
                   <a href={pic.url} target="_blank" rel="noreferrer" title="Open the full picture">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={pic.url} alt={`${style.name}, ${pic.label.toLowerCase()}`} className="absolute inset-0 h-full w-full object-cover" />
+                    {/* 20.10.2026: shown whole, never trimmed — the side and back views come back square, and trimming them to this 3:4 frame could cut off a nose or the back of the head. The grey matches the studio backdrop. */}
+                    <img src={pic.url} alt={`${style.name}, ${pic.label.toLowerCase()}`} className="absolute inset-0 h-full w-full bg-[#ECEBE7] object-contain" />
                   </a>
                 ) : pic.waiting ? (
                   <>
@@ -702,10 +732,16 @@ export default function StylePicks({
           </button>
         )}
 
+        {/* 20.10.2026: the barber sheet first — one picture with everything on it. */}
         <div className="mt-4 flex flex-wrap gap-3">
-          <button type="button" className="btn-primary gap-2 !px-5 !py-2.5 !text-[15px]" onClick={() => downloadAll(preview)}>
+          <button
+            type="button"
+            className="btn-primary gap-2 !px-5 !py-2.5 !text-[15px]"
+            disabled={busy === `sheet-${style.id}`}
+            onClick={() => downloadSheet(preview)}
+          >
             <DownloadIcon />
-            {single ? "Download" : `Download all ${pics.filter((p) => p.url).length}`}
+            {busy === `sheet-${style.id}` ? "Making it…" : "Barber sheet"}
           </button>
           <button
             type="button"
@@ -732,6 +768,13 @@ export default function StylePicks({
             </button>
           )}
         </div>
+        <button
+          type="button"
+          className="mt-2.5 text-[13.5px] font-semibold text-ink-muted underline underline-offset-4"
+          onClick={() => downloadAll(preview)}
+        >
+          {single ? "Save the picture" : `Save the ${pics.filter((p) => p.url).length} pictures separately`}
+        </button>
         {notice?.styleId === style.id && <p className="mt-2 text-[13.5px] text-ink-muted">{notice.text}</p>}
 
         {reasons.length > 0 && (
@@ -755,7 +798,7 @@ export default function StylePicks({
             {barberPoints(style).map((point) => (
               <li key={point} className="flex gap-2.5">
                 <span className="mt-[8px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
-                <span>{point}</span>
+                <BarberPointText point={point} />
               </li>
             ))}
           </ul>
@@ -957,7 +1000,7 @@ export default function StylePicks({
                   {barberPoints(pick.style).map((point) => (
                     <li key={point} className="flex gap-2.5">
                       <span className="mt-[8px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
-                      <span>{point}</span>
+                      <BarberPointText point={point} />
                     </li>
                   ))}
                 </ul>

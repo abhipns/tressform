@@ -100,6 +100,7 @@ function CheckoutContent() {
   const [status, setStatus] = useState<"idle" | "paying" | "error">("idle");
   // "Pay from another phone": the QR code and link, while waiting for the payment.
   const [other, setOther] = useState<{ orderId: string; url: string; qr: string } | null>(null);
+  const [otherSlow, setOtherSlow] = useState(false);
   const [otherBusy, setOtherBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,9 +184,14 @@ function CheckoutContent() {
       if (!stopped && Date.now() - started < 30 * 60 * 1000) window.setTimeout(tick, 5000);
     };
     const first = window.setTimeout(tick, 5000);
+    // 20.10.2026: UPI can take a few minutes to confirm. After two minutes,
+    // say so — a customer once paid twice because the page seemed stuck.
+    setOtherSlow(false);
+    const slow = window.setTimeout(() => setOtherSlow(true), 2 * 60 * 1000);
     return () => {
       stopped = true;
       window.clearTimeout(first);
+      window.clearTimeout(slow);
       setReloadBlocked(false);
     };
   }, [other, router]);
@@ -232,6 +238,12 @@ function CheckoutContent() {
       const createData = await createRes.json();
       if (createRes.status === 401) {
         window.location.assign(loginUrl(`/checkout?tier=${validTier}`));
+        return;
+      }
+      // 20.10.2026: an earlier payment of theirs has just been confirmed — no second payment.
+      if (createRes.status === 409 && createData.alreadyPaid && createData.orderId) {
+        clearPendingPayment();
+        router.push(`/results/${createData.orderId}`);
         return;
       }
       if (!createRes.ok) {
@@ -474,6 +486,12 @@ function CheckoutContent() {
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-mint-deep" />
               Waiting for the payment. This page moves on by itself.
             </p>
+            {otherSlow && (
+              <p className="mx-auto mt-3 max-w-[40ch] rounded-md2 bg-lilac/15 px-3 py-2 text-[13px] leading-[1.5] text-ink-heading">
+                Already paid? UPI can take a few minutes to confirm. <strong>Please don&apos;t pay again.</strong> Your
+                hairstyles open here, and under My hairstyles, as soon as PayU confirms.
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <button
                 type="button"

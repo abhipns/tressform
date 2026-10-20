@@ -18,6 +18,7 @@
 import { Band, Rail } from "./Section";
 import { barberName, barberPoints, hairstyleById } from "@/lib/content/hairstyles";
 import FourViews from "./FourViews";
+import BarberPointText from "./BarberPointText";
 
 const PROFILE = [
   { label: "Face shape", value: "Round" },
@@ -88,7 +89,7 @@ export default function WhatYouGet() {
                   {barberPoints(EXAMPLE_STYLE).map((point) => (
                     <li key={point} className="flex gap-2.5">
                       <span className="mt-[8px] h-[6px] w-[6px] shrink-0 rounded-full bg-mint" aria-hidden="true" />
-                      <span>{point}</span>
+                      <BarberPointText point={point} />
                     </li>
                   ))}
                 </ul>

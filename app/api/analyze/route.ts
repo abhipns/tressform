@@ -60,6 +60,7 @@ import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
 import { mockPreviewsLeft, previewsLeft as countPreviewsLeft } from "@/lib/allowance";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { takeDailyUse } from "@/lib/usageLimits";
 import { tooClose } from "@/lib/photoFraming";
 
 const NOT_FOUND_MESSAGE = "We couldn't find your uploaded photos — please upload them again.";
@@ -211,6 +212,16 @@ export async function POST(req: NextRequest) {
     const paths = [storagePath!, ...(extraPaths ?? [])];
     const { error } = await admin.storage.from("photos").remove(paths);
     if (error) console.error("[Tressform] Could not remove rejected uploads:", error.message);
+  }
+
+  // 20.10.2026: at most DAILY_LIMITS.photo_read photos read per account per
+  // day (lib/usageLimits.ts) — each one costs a face check and a vision read.
+  if (admin) {
+    const limited = await takeDailyUse(admin, "photo_read", userId);
+    if (limited) {
+      await discardUploads();
+      return NextResponse.json({ error: limited, limitReached: true }, { status: 429 });
+    }
   }
 
   // The front photo's bytes: from private storage in real mode (which also

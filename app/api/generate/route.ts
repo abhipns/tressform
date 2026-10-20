@@ -57,6 +57,8 @@ import {
   type Reservation,
 } from "@/lib/allowance";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { alertFalRefused, watchFalBalance } from "@/lib/falBalance";
+import { failedPicturesToday, isOwnerAccount, LIMIT_MESSAGES, overLimit } from "@/lib/usageLimits";
 
 // A real generation takes roughly 10–30 seconds; give the function room.
 export const maxDuration = 60;
@@ -294,6 +296,15 @@ export async function POST(req: NextRequest) {
   // atomic step (a free one first, then one from a pack) and handed back if
   // anything below fails. Placeholder generations (FAL still in mock mode)
   // are free and never counted.
+  // 20.10.2026: a picture that fails the check isn't counted, but fal.ai still
+  // charged for it — so an account gets at most DAILY_LIMITS.failed_pictures
+  // of those a day (lib/usageLimits.ts). The owner's account is exempt.
+  if (!FALAI_MOCK_MODE && !(await isOwnerAccount(admin, userId))) {
+    if (overLimit("failed_pictures", await failedPicturesToday(admin, userId))) {
+      return NextResponse.json({ error: LIMIT_MESSAGES.failed_pictures, limitReached: true }, { status: 429 });
+    }
+  }
+
   let reservation: Reservation | null = null;
   if (FALAI_MOCK_MODE) {
     if ((await countPreviewsLeft(admin, userId)).total <= 0) return limitReached();
@@ -347,6 +358,12 @@ export async function POST(req: NextRequest) {
         facialHair,
         gender,
         lengthNow,
+        // 20.10.2026, owner's decision: every customer picture gets the
+        // plain light-grey studio backdrop and soft even light tried in the
+        // Studio since 13.10.2026 — the face and skin tone stay as they are.
+        // The side and back views are made from this picture, so they match.
+        greyBackground: true,
+        evenLight: true,
       });
     } catch (err) {
       await giveBack();
@@ -355,6 +372,9 @@ export async function POST(req: NextRequest) {
 
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
       await giveBack();
+      // 20.10.2026: fal.ai refusing because of the account (out of credit,
+      // locked, bad key) — tell the owner at once (lib/falBalance.ts).
+      if (result.providerStatus === 401 || result.providerStatus === 403) await alertFalRefused(admin, result.providerStatus);
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
     }
     if (result.mock) break; // a placeholder image: nothing to fetch or check
@@ -455,6 +475,10 @@ export async function POST(req: NextRequest) {
     // for; the missing record is ours to chase.
     console.error("[Tressform] style_results insert failed:", insertError.message);
   }
+
+  // 20.10.2026: a picture was just paid for — look at the fal.ai balance (at
+  // most every 10 minutes) and warn the owner if it is getting low.
+  if (!result.mock) await watchFalBalance(admin, { reason: "after a picture" });
 
   const left = await countPreviewsLeft(admin, userId);
   const used = Math.max(0, profile.free_previews_limit - left.free);

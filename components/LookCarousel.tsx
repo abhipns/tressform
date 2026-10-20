@@ -71,7 +71,7 @@ export function LookCarousel({
               aria-label={`Look ${item.rank}: ${item.name}. Open it`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover transition group-hover:scale-[1.02]" />
+              <img src={item.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover object-top transition group-hover:scale-[1.02]" />
               <Number n={item.rank} />
               <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2.5 pt-8 text-[13px] font-semibold text-white">
                 Tap to see all sides

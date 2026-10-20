@@ -43,8 +43,39 @@ import { CREDIT_ONLY_TXN_PREFIX, splitWithCredit } from "@/lib/credit";
 import { PAYU_LIVE, PAYU_MOCK_MODE, buildPaymentForm, cleanFirstName, newTxnId } from "@/lib/integrations/payu";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { confirmPayuTxn } from "@/lib/payments";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
+
+/**
+ * 20.10.2026: the id of one of this customer's orders from the last two hours
+ * that was still unpaid here but that PayU now says is paid (it is marked
+ * PAID on the way), or null. At most three are checked; a PayU error never
+ * stops the new order.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function recentlyPaidOrder(admin: any, userId: string): Promise<string | null> {
+  const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { data: open } = await admin
+    .from("orders")
+    .select("id, razorpay_order_id")
+    .eq("user_id", userId)
+    .eq("status", "CREATED")
+    .gte("created_at", since)
+    .not("razorpay_order_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(3);
+  for (const o of (open ?? []) as { id: string; razorpay_order_id: string }[]) {
+    if (o.razorpay_order_id.startsWith(CREDIT_ONLY_TXN_PREFIX)) continue;
+    try {
+      const r = await confirmPayuTxn(o.razorpay_order_id);
+      if (r.found && r.status === "PAID") return r.orderId;
+    } catch (err) {
+      console.error(`[Tressform] re-check of order ${o.id} before a new order failed:`, (err as Error)?.message ?? err);
+    }
+  }
+  return null;
+}
 
 interface CreateOrderBody {
   userId?: string; // mock mode only — ignored when a real project is connected
@@ -163,6 +194,22 @@ export async function POST(req: NextRequest) {
     if (me?.role !== "ADMIN") {
       return NextResponse.json({ error: "Payments aren't switched on yet — please check back soon.", paymentsOff: true }, { status: 503 });
     }
+  }
+
+  // 20.10.2026: a customer paid by QR code, the page didn't move on (UPI can
+  // take minutes to confirm), so he started again and paid twice. Before a
+  // new order is made, the customer's unpaid orders from the last two hours
+  // are checked with PayU; if one has been paid, they're sent to it instead.
+  const alreadyPaidId = await recentlyPaidOrder(admin, userId);
+  if (alreadyPaidId) {
+    return NextResponse.json(
+      {
+        error: "Your earlier payment has come through, so there's no need to pay again. Taking you to your hairstyles…",
+        alreadyPaid: true,
+        orderId: alreadyPaidId,
+      },
+      { status: 409 }
+    );
   }
 
   const { data: existingPaid } = await admin
