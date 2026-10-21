@@ -159,6 +159,7 @@ function Dashboard() {
         Your own test activity (the owner account) is left out of every number. Visit counting started on 13 October
         2026, so earlier sign-ups have no visit before them.
       </p>
+      <TestAlert />
 
       <div role="tablist" aria-label="Period" className="mt-6 flex flex-wrap gap-2">
         {PERIODS.map((p) => (
@@ -436,6 +437,46 @@ function Dashboard() {
         </>
       )}
     </>
+  );
+}
+
+// 21.10.2026: check that alerts (email, Telegram, WhatsApp) reach the owner.
+const ALERT_WORD: Record<string, string> = { sent: "sent ✓", off: "not set up", failed: "failed ✗" };
+
+function TestAlert() {
+  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [result, setResult] = useState<Record<string, string> | null>(null);
+  async function send() {
+    setState("sending");
+    try {
+      const res = await fetch("/api/admin/test-alert", { method: "POST", headers: await authHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setResult({ Email: data.email, Telegram: data.telegram, WhatsApp: data.whatsapp });
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  }
+  return (
+    <div className="mt-5 flex flex-wrap items-center gap-3 text-[14.5px]">
+      <button
+        type="button"
+        onClick={send}
+        disabled={state === "sending"}
+        className="rounded-full border-[1.5px] border-line bg-surface px-4 py-2 font-semibold text-ink-heading transition hover:border-ink-heading disabled:opacity-60"
+      >
+        {state === "sending" ? "Sending…" : "Send test alert"}
+      </button>
+      {state === "done" && result && (
+        <span className="text-ink-body">
+          {Object.entries(result)
+            .map(([k, v]) => `${k}: ${ALERT_WORD[v] ?? v}`)
+            .join(" · ")}
+        </span>
+      )}
+      {state === "error" && <span className="text-danger">Couldn&apos;t send. Please try again.</span>}
+    </div>
   );
 }
 

@@ -1,9 +1,9 @@
 // Tressform — messages to the site owner (20.10.2026, owner's request).
 //
 // Used for things the owner must act on quickly, such as the fal.ai balance
-// running low (lib/falBalance.ts). Each message goes out by email and by
-// WhatsApp; either one may be left unset, and a failure on one never stops
-// the other.
+// running low (lib/falBalance.ts). Each message goes out by email, Telegram
+// and WhatsApp — whichever are set up; any may be left unset, and a failure
+// on one never stops the others.
 //
 // Settings (Vercel → Settings → Environment Variables). The owner's email
 // address and phone number live ONLY here, never in the code, because the
@@ -15,6 +15,19 @@
 //     GMAIL_APP_PASSWORD    a Gmail "app password" (Google account →
 //                           Security → 2-Step Verification → App passwords).
 //                           Not the normal Gmail password.
+//
+//   TELEGRAM — 21.10.2026, owner's request: free and official. A Telegram
+//   bot the owner makes himself sends the alerts to his own Telegram chat,
+//   and they ring like any message. One-time set-up:
+//     1. In Telegram, open @BotFather, send /newbot, give it a name (e.g.
+//        "Tressform alerts") and a username ending in "bot". BotFather
+//        replies with the bot's token.
+//     2. Open the new bot and press Start (a bot may only message people
+//        who have started it).
+//     3. Open @userinfobot and press Start: it replies with your Id (digits).
+//   Then set:
+//     TELEGRAM_BOT_TOKEN    the token from BotFather
+//     TELEGRAM_CHAT_ID      your Id from @userinfobot
 //
 //   WHATSAPP — through CallMeBot, a free service for sending WhatsApp
 //   messages to your OWN number (https://www.callmebot.com/blog/free-api-whatsapp-messages/).
@@ -30,14 +43,21 @@
 //
 // Server-only.
 
+type Outcome = "sent" | "off" | "failed";
+
 export interface AlertResult {
-  email: "sent" | "off" | "failed";
-  whatsapp: "sent" | "off" | "failed";
+  email: Outcome;
+  telegram: Outcome;
+  whatsapp: Outcome;
 }
 
 /** Whether any way of reaching the owner is set up. */
 export function ownerAlertsConfigured(): boolean {
-  return emailConfigured() || whatsappConfigured();
+  return emailConfigured() || telegramConfigured() || whatsappConfigured();
+}
+
+function telegramConfigured(): boolean {
+  return Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim() && process.env.TELEGRAM_CHAT_ID?.trim());
 }
 
 function emailConfigured(): boolean {
@@ -50,11 +70,15 @@ function whatsappConfigured(): boolean {
 
 /** Send one alert to the owner by every channel that is set up. Never throws. */
 export async function sendOwnerAlert(subject: string, text: string): Promise<AlertResult> {
-  const [email, whatsapp] = await Promise.all([sendEmail(subject, text), sendWhatsApp(`${subject}\n\n${text}`)]);
-  if (email === "off" && whatsapp === "off") {
-    console.warn(`[Tressform] Owner alert not sent (no email or WhatsApp set up in Vercel): ${subject}`);
+  const [email, telegram, whatsapp] = await Promise.all([
+    sendEmail(subject, text),
+    sendTelegram(`${subject}\n\n${text}`),
+    sendWhatsApp(`${subject}\n\n${text}`),
+  ]);
+  if (email === "off" && telegram === "off" && whatsapp === "off") {
+    console.warn(`[Tressform] Owner alert not sent (no email, Telegram or WhatsApp set up in Vercel): ${subject}`);
   }
-  return { email, whatsapp };
+  return { email, telegram, whatsapp };
 }
 
 async function sendEmail(subject: string, text: string): Promise<AlertResult["email"]> {
@@ -75,6 +99,30 @@ async function sendEmail(subject: string, text: string): Promise<AlertResult["em
     return "sent";
   } catch (err) {
     console.error("[Tressform] Owner alert email failed:", (err as Error)?.message ?? err);
+    return "failed";
+  }
+}
+
+async function sendTelegram(text: string): Promise<Outcome> {
+  if (!telegramConfigured()) return "off";
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN!.trim();
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID!.trim(), text: `🔔 Tressform\n${text}`.slice(0, 4000), disable_web_page_preview: true }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+    if (!res.ok || body.ok !== true) {
+      // e.g. "chat not found" (the bot wasn't started) or "Unauthorized" (wrong token)
+      console.error(`[Tressform] Owner alert Telegram failed (HTTP ${res.status}): ${body.description ?? ""}`);
+      return "failed";
+    }
+    return "sent";
+  } catch (err) {
+    console.error("[Tressform] Owner alert Telegram failed:", (err as Error)?.message ?? err);
     return "failed";
   }
 }
