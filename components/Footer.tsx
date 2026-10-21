@@ -114,8 +114,8 @@ export default function Footer() {
             <a href="/#pricing" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Pricing
             </a>
-            <a href="/#salons" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
-              For salons (soon)
+            <a href="/salons/join" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
+              List your salon (free)
             </a>
             <a href="/#faq" className="mb-2.5 block text-[13.5px] text-white/65 hover:text-white">
               Questions

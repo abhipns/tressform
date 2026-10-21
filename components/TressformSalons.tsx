@@ -22,6 +22,16 @@ export default function TressformSalons() {
               Style Match reads the technique your chosen haircut actually needs, not just its name, and points you to
               a partner salon whose stylists can do it.
             </p>
+            {/* 21.10.2026: salons can list themselves now (app/salons/join). */}
+            <div className="mt-6 rounded-[18px] bg-surface/80 p-4">
+              <p className="text-[15px] font-semibold text-ink-heading">Own a salon?</p>
+              <p className="mt-1 text-[14px] leading-[1.5] text-ink-body">
+                List it on Tressform. Free during our launch period, in under 5 minutes.
+              </p>
+              <a href="/salons/join" className="btn-primary mt-3 !px-6 !py-2.5 !text-[15px]">
+                List your salon free
+              </a>
+            </div>
           </div>
           <div className="aspect-[16/9] h-full w-full lg:aspect-auto lg:min-h-[340px]">
             <Image
