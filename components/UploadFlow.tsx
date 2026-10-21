@@ -122,6 +122,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
+import { trackMeta } from "@/lib/metaPixel";
 import SelfieCamera from "./SelfieCamera";
 import { setReloadBlocked } from "./VersionWatch";
 import { readLight } from "@/lib/photoLight";
@@ -628,6 +629,7 @@ export default function UploadFlow() {
         return;
       }
       if (!analyzeRes.ok) throw new Error(analyzeData.error || "Analysis failed.");
+      trackMeta("Lead"); // 21.10.2026: the photo was read — the hairstyle list is next.
       await nextStage(2);
       await pause(STAGE_MIN_MS);
 

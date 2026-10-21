@@ -138,6 +138,8 @@ export interface VerifiedPayment {
   paymentId: string | null;
   /** Our order id, as sent in udf1. */
   orderId: string | null;
+  /** 21.10.2026: PayU's finer status and message, kept for checking a payment that wasn't confirmed. */
+  detail?: string;
 }
 
 /** Ask PayU, server to server, what happened to a transaction. */
@@ -164,13 +166,14 @@ export async function verifyPayment(txnid: string): Promise<VerifiedPayment> {
     throw new Error(`PayU verify_payment did not return JSON (HTTP ${res.status}).`);
   }
   const t = data.transaction_details?.[txnid];
-  if (!t) return { status: "not found", amountPaise: 0, paymentId: null, orderId: null };
+  if (!t) return { status: "not found", amountPaise: 0, paymentId: null, orderId: null, detail: `HTTP ${res.status}, api status ${data.status ?? "?"}` };
   const amount = Number(t.amt ?? t.transaction_amount ?? t.amount ?? "0");
   return {
     status: String(t.status ?? "").toLowerCase(),
     amountPaise: Number.isFinite(amount) ? Math.round(amount * 100) : 0,
     paymentId: t.mihpayid ? String(t.mihpayid) : null,
     orderId: t.udf1 ? String(t.udf1) : null,
+    ...(t.unmappedstatus || t.field9 || t.error_Message ? { detail: [t.unmappedstatus, t.field9, t.error_Message].filter(Boolean).join(" · ").slice(0, 300) } : {}),
   };
 }
 

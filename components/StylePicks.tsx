@@ -94,6 +94,9 @@ import {
   type FacialHair,
   type LengthBand,
   type StylePick,
+  WANT_LABELS,
+  WANT_LENGTHS,
+  type WantLength,
 } from "@/lib/recommend";
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
 import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
@@ -378,7 +381,28 @@ export default function StylePicks({
     if (askTimer.current) window.clearTimeout(askTimer.current);
   }, []);
   // 13.10.2026 (owner): Short / Medium / Long filter on the list; null = all lengths.
-  const [band, setBand] = useState<LengthBand | null>(null);
+  // 21.10.2026: replaced on screen by "How do you want it?" (wish, below); kept as null.
+  const band: LengthBand | null = null;
+  // 21.10.2026 (owner): the barber's first question. Asked before the list
+  // and before any look is made; remembered for this visit.
+  const [wish, setWishState] = useState<WantLength | null>(null);
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem("tf_wish") as WantLength | null;
+      if (saved && WANT_LENGTHS.includes(saved)) setWishState(saved);
+    } catch {
+      /* not remembered */
+    }
+  }, []);
+  const setWish = (w: WantLength | null) => {
+    setWishState(w);
+    try {
+      if (w) window.sessionStorage.setItem("tf_wish", w);
+      else window.sessionStorage.removeItem("tf_wish");
+    } catch {
+      /* fine */
+    }
+  };
 
   const customer: CustomerHair | null = useMemo(
     () =>
@@ -395,7 +419,7 @@ export default function StylePicks({
         : null,
     [gender, faceShape, faceChanged, initial.sure, initial.secondFaceShape, length, texture, facialHair]
   );
-  const picks = useMemo(() => (customer ? pickStyles(customer, band) : null), [customer, band]);
+  const picks = useMemo(() => (customer ? pickStyles(customer, band, wish) : null), [customer, band, wish]);
 
   useEffect(() => {
     if (length && texture) onDetails?.({ faceShape, length, texture, facialHair });
@@ -497,10 +521,10 @@ export default function StylePicks({
   // The carousel's order: the full list for this customer (not narrowed by
   // the length filter), cut-today styles first, then the ones to grow into.
   const lookPicks = useMemo(() => {
-    if (!customer) return [] as StylePick[];
-    const all = pickStyles(customer, null);
+    if (!customer || !wish) return [] as StylePick[];
+    const all = pickStyles(customer, null, wish);
     return [...all.top, ...all.more];
-  }, [customer]);
+  }, [customer, wish]);
 
   // With a pack, make the best-matched looks automatically: as many as the
   // pack holds, two at a time. Waits while the customer is still checking
@@ -508,7 +532,8 @@ export default function StylePicks({
   // A look that failed is not retried on its own (the tile offers "Try
   // again"). With previews uncounted (placeholder images), four are made.
   useEffect(() => {
-    if (!customer || editing) return;
+    // 21.10.2026: nothing is made until the customer has said how short they want to go.
+    if (!customer || editing || !wish) return;
     const loading = Object.values(previews).filter((p) => p.state === "loading").length;
     const started = lookPicks.filter((p) => previews[p.style.id]).length;
     const capped = left === null || isOwner;
@@ -589,6 +614,7 @@ export default function StylePicks({
       cutName: barberName(style),
       points: barberPoints(style),
       guide: style.gender === "men" ? CLIPPER_GUIDE : undefined,
+      wish: wish && wish !== "all" ? WANT_LABELS[wish].label : null,
       before: frontPhoto,
       pictures: pictures(preview)
         .filter((p) => p.url)
@@ -612,7 +638,7 @@ export default function StylePicks({
 
   async function sendToBarber(preview: PreviewState) {
     const style = preview.style;
-    const text = barberMessage(style.name, barberName(style), barberPoints(style));
+    const text = barberMessage(style.name, barberName(style), barberPoints(style), wish && wish !== "all" ? WANT_LABELS[wish].label : null);
     setBusy(`barber-${style.id}`);
     try {
       // 20.10.2026: the barber gets ONE picture with everything on it.
@@ -1272,6 +1298,43 @@ export default function StylePicks({
         )}
       </div>
 
+      {/* ------------------------------ 21.10.2026: "How do you want it?" */}
+      {customer && !editing && !samples && (
+        wish === null ? (
+          <section className="mt-7 rounded-[20px] border-[1.5px] border-mint bg-mint-pale/60 p-5" aria-labelledby="want-q">
+            <h4 id="want-q" className="text-[22px] font-semibold leading-tight">How do you want it?</h4>
+            <p className="mt-1 text-[14.5px] text-ink-body">Just like your barber would ask. Your hairstyles follow your answer.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2.5" role="radiogroup" aria-labelledby="want-q">
+              {WANT_LENGTHS.map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="radio"
+                  aria-checked={false}
+                  onClick={() => setWish(w)}
+                  className="rounded-[16px] border-[1.5px] border-line bg-surface px-4 py-3.5 text-left transition hover:border-mint"
+                >
+                  <span className="block text-[15.5px] font-semibold text-ink-heading">
+                    <span aria-hidden="true">{WANT_LABELS[w].icon} </span>
+                    {WANT_LABELS[w].label}
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] text-ink-muted">{WANT_LABELS[w].hint}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <p className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14.5px] text-ink-body">
+            <span>
+              You want: <strong className="text-ink-heading">{WANT_LABELS[wish].label}</strong>
+            </span>
+            <button type="button" onClick={() => setWish(null)} className="font-semibold text-mint-deep underline underline-offset-4">
+              Change
+            </button>
+          </p>
+        )
+      )}
+
       {/* ------------------------------------- 14.10.2026: your looks (carousel) */}
       {customer && !editing && picks && (lookItems.length > 0 || allowanceSpent) && (
         <section className="mt-7" aria-labelledby="your-looks">
@@ -1358,8 +1421,16 @@ export default function StylePicks({
                 source="results"
                 gender={customer.gender}
                 faceShape={customer.faceShape}
-                title={`New hairstyles for your ${customer.faceShape.toLowerCase()} face, on WhatsApp`}
-                blurb="When we add cuts that suit you, new hair products or a new blog post, we'll send it to your WhatsApp. No spam."
+                title={
+                  lookItems.length === 0
+                    ? "Not buying today? Get our offers on WhatsApp"
+                    : `New hairstyles for your ${customer.faceShape.toLowerCase()} face, on WhatsApp`
+                }
+                blurb={
+                  lookItems.length === 0
+                    ? `We'll send you Tressform offers, like a lower price to see your face with a new cut, and new hairstyles that suit a ${customer.faceShape.toLowerCase()} face. No spam.`
+                    : "When we add cuts that suit you, new hair products or a new blog post, we'll send it to your WhatsApp. No spam."
+                }
               />
             </div>
           )}
@@ -1369,7 +1440,7 @@ export default function StylePicks({
       )}
 
       {/* ---------------------------------------------------- The picks */}
-      {picks && customer && !showList && !editing && (
+      {picks && customer && !showList && !editing && (wish !== null || samples) && (
         <button
           type="button"
           className="btn-secondary mt-7 w-full !py-3 !text-[15.5px]"
@@ -1386,7 +1457,7 @@ export default function StylePicks({
         </p>
       )}
 
-      {picks && customer && (showList || editing) && (
+      {picks && customer && (showList || editing) && (wish !== null || samples || editing) && (
         <div className="mt-7">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
             <div>
@@ -1414,34 +1485,6 @@ export default function StylePicks({
             )}
           </div>
 
-          <div className="mt-4" role="radiogroup" aria-label="Hair length">
-            <p className="mb-2 text-[14px] font-semibold text-ink-heading">Length you want</p>
-            <div className="flex flex-wrap gap-2">
-              {([null, ...LENGTH_BANDS] as (LengthBand | null)[]).map((b) => {
-                const selected = band === b;
-                const info = b ? LENGTH_BAND_LABELS[customer.gender][b] : null;
-                return (
-                  <button
-                    key={b ?? "all"}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => {
-                      setBand(b);
-                      setShowMore(false);
-                    }}
-                    className={`rounded-full border-[1.5px] px-4 py-2 text-left text-[14.5px] font-semibold leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint-deep ${
-                      selected ? "border-mint bg-mint text-white" : "border-line bg-surface text-ink-heading hover:border-ink-heading"
-                    }`}
-                  >
-                    {info ? info.label : "All"}
-                    {info && <span className={`ml-1.5 text-[12.5px] font-medium ${selected ? "text-white/85" : "text-ink-muted"}`}>{info.hint}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {picks.top.length > 0 && picks.top.length < 5 && (
             <p className="mt-3 text-[14.5px] leading-[1.5] text-ink-muted">
               With your hair as it is now, {picks.top.length === 1 ? "this is the one cut" : `these are the ${picks.top.length} cuts`} that
@@ -1456,7 +1499,14 @@ export default function StylePicks({
           )}
           {picks.top.length === 0 && picks.more.length === 0 && (
             <p className="mt-3 text-[15px] leading-[1.5]">
-              None of our {band ?? ""} styles suit your face shape and hair type. Try another length.
+              {wish && wish !== "all"
+                ? `None of our styles for “${WANT_LABELS[wish].label.toLowerCase()}” suit your face shape and hair type. `
+                : "None of our styles suit your face shape and hair type. "}
+              {wish && wish !== "all" && (
+                <button type="button" onClick={() => setWish(null)} className="font-semibold text-mint-deep underline underline-offset-4">
+                  Choose another length
+                </button>
+              )}
             </p>
           )}
 

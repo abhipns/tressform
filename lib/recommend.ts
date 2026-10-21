@@ -99,6 +99,35 @@ export interface StylePicks {
   cutsPossibleToday: number;
 }
 
+/**
+ * 21.10.2026 (owner: the barber's first question is "how do you want it?"):
+ * the customer says how much shorter they want to go, before seeing their
+ * list. "keep" = the length they have (a shape-up), "little" = one length
+ * step shorter, "short" = a short cut, "all" = no limit.
+ */
+export type WantLength = "keep" | "little" | "short" | "all";
+export const WANT_LENGTHS: WantLength[] = ["keep", "little", "short", "all"];
+export const WANT_LABELS: Record<WantLength, { label: string; hint: string; icon: string }> = {
+  keep: { label: "Keep my length", hint: "Just a new shape", icon: "✂️" },
+  little: { label: "A little shorter", hint: "Trim it down a bit", icon: "✂️" },
+  short: { label: "Go short", hint: "A properly short cut", icon: "✂️" },
+  all: { label: "Show me everything", hint: "Any length", icon: "👀" },
+};
+
+/** Whether a pick fits what the customer wants. */
+export function fitsWish(pick: StylePick, wish: WantLength | null | undefined): boolean {
+  switch (wish) {
+    case "keep":
+      return pick.cutToday && pick.stepsShorter === 0;
+    case "little":
+      return pick.cutToday && pick.stepsShorter === 1;
+    case "short":
+      return pick.cutToday && lengthBand(pick.style) === "short";
+    default:
+      return true;
+  }
+}
+
 /** How long a cut is once finished, for the customer's Short / Medium / Long filter. */
 export type LengthBand = "short" | "medium" | "long";
 export const LENGTH_BANDS: LengthBand[] = ["short", "medium", "long"];
@@ -247,12 +276,13 @@ function rate(style: Hairstyle, customer: CustomerHair): StylePick | null {
   };
 }
 
-export function pickStyles(customer: CustomerHair, band: LengthBand | null = null): StylePicks {
+export function pickStyles(customer: CustomerHair, band: LengthBand | null = null, wish: WantLength | null = null): StylePicks {
   // HAIRSTYLES is in tie-break order and Array.sort is stable, so equal
   // scores keep the list's order.
   const rated = HAIRSTYLES.filter((style) => style.gender === customer.gender && (!band || lengthBand(style) === band))
     .map((style) => rate(style, customer))
     .filter((pick): pick is StylePick => pick !== null)
+    .filter((pick) => fitsWish(pick, wish))
     // Equal scores: the cut closer to the hair they have now goes first.
     .sort((a, b) => b.score - a.score || a.stepsShorter - b.stepsShorter);
 

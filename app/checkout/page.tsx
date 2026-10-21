@@ -64,6 +64,8 @@ import {
 } from "@/lib/pricing";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import { splitWithCredit } from "@/lib/credit";
+import { trackMeta } from "@/lib/metaPixel";
+import { currentCampaign } from "@/lib/campaign";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
@@ -220,6 +222,8 @@ function CheckoutContent() {
     }
     if (where === "other") setOtherBusy(true);
     else setStatus("paying");
+    // 21.10.2026: Meta Pixel — checkout started, with the amount to pay.
+    trackMeta("InitiateCheckout", { value: Math.round(split.duePaise / 100), currency: "INR", content_name: pack?.label });
     setError(null);
     // Saved before PayU takes over the page; a failure here never stops the payment.
     if (askPhone && whatsappYes) await saveWhatsAppNumber({ phone, source: "checkout" }).catch(() => undefined);
@@ -232,7 +236,7 @@ function CheckoutContent() {
         body: JSON.stringify(
           SUPABASE_MOCK_MODE
             ? { userId: getMockUserId(), tier: validTier, useCredit }
-            : { tier: validTier, phone: free ? undefined : phone, useCredit }
+            : { tier: validTier, phone: free ? undefined : phone, useCredit, campaign: currentCampaign() }
         ),
       });
       const createData = await createRes.json();

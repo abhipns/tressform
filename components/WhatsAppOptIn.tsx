@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { SUPABASE_MOCK_MODE, authHeaders } from "@/lib/authClient";
+import { trackMeta } from "@/lib/metaPixel";
 import { WHATSAPP_CONSENT, cleanIndianMobile, type WhatsAppSource } from "@/lib/whatsapp";
 
 const DONE_KEY = "tf_whatsapp_done";
@@ -31,6 +32,7 @@ export async function saveWhatsAppNumber(input: {
     } catch {
       /* fine */
     }
+    trackMeta("Contact");
     return { ok: true };
   } catch {
     return { ok: false, error: "Couldn't save your number. Please check your connection." };

@@ -176,3 +176,25 @@ describe("beard factor (men)", () => {
     expect(heights(man("Long", "beard"))).toBeLessThanOrEqual(heights(man("Long", "clean")));
   });
 });
+
+import { fitsWish as _fitsWish, pickStyles as _pick } from "../lib/recommend";
+describe("how do you want it? (21.10.2026)", () => {
+  const man = { gender: "men" as const, faceShape: "Oval" as const, length: "medium-long" as const, texture: "straight" as const };
+  it("keep my length: only cuts that keep the length", () => {
+    const p = _pick(man, null, "keep");
+    expect(p.top.length).toBeGreaterThan(0);
+    for (const x of p.top) expect(x.stepsShorter).toBe(0);
+  });
+  it("a little shorter: one step shorter", () => {
+    for (const x of _pick(man, null, "little").top) expect(x.stepsShorter).toBe(1);
+  });
+  it("go short: only short cuts, and nothing that needs growing", () => {
+    const p = _pick(man, null, "short");
+    expect(p.top.length).toBeGreaterThan(0);
+    for (const x of [...p.top, ...p.more]) expect(x.cutToday && ["very-short", "short"].includes(x.style.needs)).toBe(true);
+  });
+  it("show me everything: same as no answer", () => {
+    expect(_pick(man, null, "all").top.map((x) => x.style.id)).toEqual(_pick(man).top.map((x) => x.style.id));
+    expect(_fitsWish).toBeTypeOf("function");
+  });
+});

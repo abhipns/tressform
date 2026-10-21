@@ -78,10 +78,11 @@ export async function shareFiles(files: File[], text: string, title: string): Pr
 }
 
 /** The message that goes to the barber with the four pictures. */
-export function barberMessage(styleName: string, cutName: string, points: string[]): string {
+export function barberMessage(styleName: string, cutName: string, points: string[], wish?: string | null): string {
   return [
     `Hi, I'd like this haircut: ${styleName}`,
     `(${cutName.charAt(0).toUpperCase()}${cutName.slice(1)})`,
+    ...(wish ? [`Length: ${wish}`] : []),
     ...points.map((p) => `• ${p}`),
     "Pictures of the front, both sides and the back are attached.",
   ].join("\n");
@@ -379,6 +380,8 @@ export interface BarberSheetInput {
   points: string[];
   /** The clipper guard key printed under the points. */
   guide?: string;
+  /** 21.10.2026: what the customer said about length ("Keep my length"…). */
+  wish?: string | null;
   /** The customer's own photo, shown as "Before". */
   before: string | null;
   /** Front first, then left, right, back — whichever exist. */
@@ -429,9 +432,10 @@ export async function makeBarberSheet(input: BarberSheetInput): Promise<File> {
   });
   measure.font = `700 32px ${FONT}`;
   const askLines = wrapText(measure, `Ask for ${input.cutName}`, textW);
+  const wishH = input.wish ? 46 : 0;
   const lineH = 44;
   const cardH =
-    40 + 40 + 20 + askLines.length * 44 + 16 + pointLines.reduce((s, p) => s + p.lines.length * lineH + 10, 0) + 20 + (input.guide ? 44 : 0) + 24;
+    40 + 40 + 20 + askLines.length * 44 + wishH + 16 + pointLines.reduce((s, p) => s + p.lines.length * lineH + 10, 0) + 20 + (input.guide ? 44 : 0) + 24;
 
   const headerH = 150;
   const footerH = 96;
@@ -510,6 +514,12 @@ export async function makeBarberSheet(input: BarberSheetInput): Promise<File> {
   for (const l of askLines) {
     ctx.fillText(l, tx, ty);
     ty += 44;
+  }
+  if (input.wish) {
+    ctx.font = `600 28px ${FONT}`;
+    ctx.fillStyle = SHEET.green;
+    ctx.fillText(`Customer wants: ${input.wish}`, tx, ty + 2);
+    ty += wishH;
   }
   ty += 16;
   for (const p of pointLines) {

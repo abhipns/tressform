@@ -16,7 +16,8 @@
 
 import { useEffect, useState } from "react";
 import { paiseToRupees } from "@/lib/pricing";
-import { authHeaders, loginUrl } from "@/lib/authClient";
+import { SUPABASE_MOCK_MODE, authHeaders, loginUrl } from "@/lib/authClient";
+import { trackPurchaseOnce } from "@/lib/metaPixel";
 
 interface OrderSummary {
   id: string;
@@ -37,6 +38,11 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
   const [error, setError] = useState<string | null>(null);
   const [checks, setChecks] = useState(0);
   const MAX_CHECKS = 12; // about a minute at 5 seconds apart
+
+  // 21.10.2026: Meta Pixel — a confirmed payment, once per order on this device.
+  useEffect(() => {
+    if (order?.status === "PAID" && !SUPABASE_MOCK_MODE) trackPurchaseOnce(order.id, Math.round((order.pricePaise ?? 0) / 100), order.tierLabel ?? null);
+  }, [order]);
 
   // Still waiting for PayU: check again shortly.
   useEffect(() => {

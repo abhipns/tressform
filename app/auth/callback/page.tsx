@@ -10,6 +10,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, safeNext } from "@/lib/authClient";
+import { trackMeta } from "@/lib/metaPixel";
 
 function readUrlError(): string | null {
   if (typeof window === "undefined") return null;
@@ -38,6 +39,12 @@ function CallbackContent() {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       if (data.session) {
+        // 21.10.2026: a brand-new account (made in the last 10 minutes) → Meta's CompleteRegistration.
+        const made = Date.parse(data.session.user.created_at ?? "");
+        if (Number.isFinite(made) && Date.now() - made < 10 * 60 * 1000) {
+          trackMeta("CompleteRegistration", undefined, `reg-${data.session.user.id}`);
+          await new Promise((r) => setTimeout(r, 400)); // let it send before leaving the page
+        }
         window.location.replace(next);
         return;
       }

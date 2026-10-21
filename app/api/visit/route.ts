@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { VISITS_PER_VISITOR_PER_DAY, shouldCountVisit } from "@/lib/stats";
+import { campaignColumns } from "@/lib/campaign";
 
 export const dynamic = "force-dynamic";
 
@@ -37,8 +38,10 @@ export async function POST(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(VISITS_PER_VISITOR_PER_DAY);
   if (!shouldCountVisit(path, recent ?? [], new Date())) return new NextResponse(null, { status: 204 });
-  await db
-    .from("site_visits")
-    .insert({ visitor, path, referrer_host: /^[a-z0-9.-]+$/.test(ref) && ref !== "tressform.co.in" ? ref : null });
+  const row = { visitor, path, referrer_host: /^[a-z0-9.-]+$/.test(ref) && ref !== "tressform.co.in" ? ref : null };
+  // 21.10.2026: with the ad campaign that brought this visitor, if any —
+  // or without it, if the database doesn't have the campaign columns yet.
+  const { error } = await db.from("site_visits").insert({ ...row, ...campaignColumns(body.campaign) });
+  if (error && /utm_|column/i.test(error.message ?? "")) await db.from("site_visits").insert(row);
   return new NextResponse(null, { status: 204 });
 }

@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (!txnid) return NextResponse.json({ ok: true, ignored: "no txnid" });
 
   try {
-    const r = await confirmPayuTxn(txnid);
+    const r = await confirmPayuTxn(txnid, "webhook");
     return NextResponse.json({ ok: true, status: r.found ? r.status : "unknown order" });
   } catch (err) {
     console.error(`[Tressform] PayU webhook for ${txnid}: could not confirm.`, err);

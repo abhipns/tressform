@@ -9,8 +9,11 @@
 // from it, so the box is never ticked in advance and the exact words the
 // person agreed to are saved with their number.
 
+// 21.10.2026: "offers" added (the owner plans to offer a single look at a
+// lower price to people who didn't buy a pack). Each number keeps the exact
+// words its owner agreed to, so earlier sign-ups keep their earlier wording.
 export const WHATSAPP_CONSENT =
-  "Send me new hairstyles, hair products and blog posts from Tressform on WhatsApp. I can stop them at any time.";
+  "Send me offers, new hairstyles, hair products and blog posts from Tressform on WhatsApp. I can stop them at any time.";
 
 export const WHATSAPP_SOURCES = ["results", "checkout", "blog", "trivia"] as const;
 export type WhatsAppSource = (typeof WHATSAPP_SOURCES)[number];

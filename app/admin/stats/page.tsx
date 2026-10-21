@@ -178,6 +178,8 @@ function Dashboard() {
         ))}
       </div>
 
+      <Campaigns period={period} />
+
       {error && <p className="mt-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[14.5px] font-medium text-danger">{error}</p>}
       {!s && !error && <p className="mt-8 text-ink-muted">Loading…</p>}
 
@@ -437,6 +439,68 @@ function Dashboard() {
         </>
       )}
     </>
+  );
+}
+
+// 21.10.2026: visits, sales and money by ad campaign (/api/admin/campaigns).
+function Campaigns({ period }: { period: Period }) {
+  const [rows, setRows] = useState<{ source: string; campaign: string; visitors: number; purchases: number; revenuePaise: number }[] | null>(null);
+  const [notReady, setNotReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null);
+    (async () => {
+      const res = await fetch(`/api/admin/campaigns?period=${period}`, { headers: await authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      setNotReady(Boolean(data.notReady));
+      setRows(data.rows ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [period]);
+  return (
+    <section className="mt-6 rounded-[20px] border border-line bg-surface p-5">
+      <h2 className="text-[18px] font-semibold">By ad campaign</h2>
+      <p className="mt-1 text-[13.5px] text-ink-muted">
+        From ad links with a campaign tag (utm_campaign), and Facebook / Instagram visits without one.
+      </p>
+      {rows === null ? (
+        <p className="mt-3 text-[14px] text-ink-muted">Loading…</p>
+      ) : notReady ? (
+        <p className="mt-3 text-[14px] text-danger">The campaign database step hasn&apos;t been run yet.</p>
+      ) : rows.length === 0 ? (
+        <p className="mt-3 text-[14px] text-ink-muted">No visits from ads in this period yet.</p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-[14px]">
+            <thead className="text-[12.5px] uppercase tracking-[.04em] text-ink-muted">
+              <tr>
+                <th className="py-2 pr-3">Source</th>
+                <th className="py-2 pr-3">Campaign</th>
+                <th className="py-2 pr-3 text-right">People</th>
+                <th className="py-2 pr-3 text-right">Sales</th>
+                <th className="py-2 pr-3 text-right">Money</th>
+                <th className="py-2 text-right">Bought</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {rows.map((r) => (
+                <tr key={`${r.source}|${r.campaign}`}>
+                  <td className="py-2 pr-3 font-semibold text-ink-heading">{r.source}</td>
+                  <td className="py-2 pr-3">{r.campaign}</td>
+                  <td className="py-2 pr-3 text-right">{r.visitors}</td>
+                  <td className="py-2 pr-3 text-right">{r.purchases}</td>
+                  <td className="py-2 pr-3 text-right">{rupees(r.revenuePaise)}</td>
+                  <td className="py-2 text-right">{r.visitors ? `${((r.purchases / r.visitors) * 100).toFixed(1)}%` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

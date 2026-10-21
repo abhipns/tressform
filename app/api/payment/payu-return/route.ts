@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   const otherPhone = req.nextUrl.searchParams.get("h") === "1";
   try {
-    const r = await confirmPayuTxn(txnid);
+    const r = await confirmPayuTxn(txnid, "return");
     if (otherPhone) {
       const s = !r.found ? "unknown" : r.status === "FAILED" ? "failed" : r.status === "PENDING" ? "pending" : "paid";
       return go(req, `/pay/done?s=${s}`);

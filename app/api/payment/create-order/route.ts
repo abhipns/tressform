@@ -44,8 +44,25 @@ import { PAYU_LIVE, PAYU_MOCK_MODE, buildPaymentForm, cleanFirstName, newTxnId }
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { confirmPayuTxn } from "@/lib/payments";
+import { campaignColumns } from "@/lib/campaign";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
+
+/**
+ * 21.10.2026: save an order with the ad campaign that brought the customer.
+ * If the campaign columns aren't in the database yet (the database step not
+ * run), the order is saved without them — a payment must never fail over
+ * ad tracking.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function insertOrder(admin: any, select: string, row: Record<string, unknown>, campaign: Record<string, unknown>) {
+  const first = await admin.from("orders").insert({ ...row, ...campaign }).select(select).single();
+  if (first.error && /utm_|column/i.test(first.error.message ?? "")) {
+    console.error("[Tressform] order saved without the ad campaign:", first.error.message);
+    return admin.from("orders").insert(row).select(select).single();
+  }
+  return first;
+}
 
 /**
  * 20.10.2026: the id of one of this customer's orders from the last two hours
@@ -68,7 +85,7 @@ async function recentlyPaidOrder(admin: any, userId: string): Promise<string | n
   for (const o of (open ?? []) as { id: string; razorpay_order_id: string }[]) {
     if (o.razorpay_order_id.startsWith(CREDIT_ONLY_TXN_PREFIX)) continue;
     try {
-      const r = await confirmPayuTxn(o.razorpay_order_id);
+      const r = await confirmPayuTxn(o.razorpay_order_id, "check");
       if (r.found && r.status === "PAID") return r.orderId;
     } catch (err) {
       console.error(`[Tressform] re-check of order ${o.id} before a new order failed:`, (err as Error)?.message ?? err);
@@ -84,6 +101,8 @@ interface CreateOrderBody {
   addonPhotoCount?: number;
   phone?: string;
   useCredit?: boolean;
+  /** 21.10.2026: the ad campaign that brought this customer (lib/campaign.ts). */
+  campaign?: unknown;
 }
 
 /** A 10-digit Indian mobile number, or null. Accepts +91 / 0 / spaces / dashes. */
@@ -240,9 +259,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Your account has no email address. Please log in with Google again." }, { status: 400 });
   }
 
-  const { data: order, error } = await admin
-    .from("orders")
-    .insert({
+  const { data: order, error } = await insertOrder(admin, "*", {
       id: internalOrderId,
       user_id: userId,
       tier: tier ?? null,
@@ -263,9 +280,7 @@ export async function POST(req: NextRequest) {
       preview_count: imageCount,
       // Taken from the balance only when PayU confirms the payment (lib/payments.ts).
       credit_used_paise: split.creditPaise,
-    })
-    .select()
-    .single();
+    }, campaignColumns(body.campaign));
 
   if (error || !order) {
     console.error("[Tressform] Order not created:", error?.message);
@@ -309,9 +324,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const now = new Date().toISOString();
-    const { data: order, error } = await admin
-      .from("orders")
-      .insert({
+    const { data: order, error } = await insertOrder(admin, "id", {
         id: internalOrderId,
         user_id: userId,
         tier: tier ?? null,
@@ -329,9 +342,7 @@ export async function POST(req: NextRequest) {
         razorpay_order_id: `${CREDIT_ONLY_TXN_PREFIX}${txnid}`,
         preview_count: imageCount,
         credit_used_paise: split.creditPaise,
-      })
-      .select("id")
-      .single();
+      }, campaignColumns(body.campaign));
     if (error || !order) {
       // Give the credit back — nothing was bought.
       await admin.rpc("increment_credit_balance", { profile_id: userId, amount_paise: split.creditPaise });

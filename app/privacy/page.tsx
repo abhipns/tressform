@@ -52,7 +52,7 @@ const SECTIONS = [
   },
   {
     heading: "WhatsApp updates",
-    body: "If you choose to, by ticking the box next to it, you can give us your WhatsApp number to receive new hairstyles, hair products and blog posts from us. We keep your number, the words you agreed to and when, where on the site you gave it, and, if you give it on your results, your face shape and whether the hairstyles were men's or women's, so the updates suit you. We send these messages through a WhatsApp messaging provider. We never sell or share your number for anyone else's marketing. You can stop the messages at any time by replying STOP or by contacting us, and we will stop and mark your number as unsubscribed.",
+    body: "If you choose to, by ticking the box next to it, you can give us your WhatsApp number to receive offers, new hairstyles, hair products and blog posts from us. We keep your number, the words you agreed to and when, where on the site you gave it, and, if you give it on your results, your face shape and whether the hairstyles were men's or women's, so the updates suit you. We send these messages through a WhatsApp messaging provider. We never sell or share your number for anyone else's marketing. You can stop the messages at any time by replying STOP or by contacting us, and we will stop and mark your number as unsubscribed.",
   },
   {
     heading: "Product links",
@@ -60,7 +60,11 @@ const SECTIONS = [
   },
   {
     heading: "Visits and reviews",
-    body: "To count visits, your browser keeps a random number that it makes up itself and sends it, with the page you opened and the website you came from, when you open a page. We use no cookies for this and it does not identify you. If you rate Tressform, we keep your stars and comment with your account; comments, with the name you choose to show, appear on our website only after we check them, and you can change or remove your review at any time by contacting us.",
+    body: "To count visits, your browser keeps a random number that it makes up itself and sends it, with the page you opened and the website you came from, when you open a page. We use no cookies for this and it does not identify you. If you came from one of our ads, we also note the ad campaign's name from the link, so we can see which ads bring visitors and purchases. If you rate Tressform, we keep your stars and comment with your account; comments, with the name you choose to show, appear on our website only after we check them, and you can change or remove your review at any time by contacting us.",
+  },
+  {
+    heading: "Meta (Facebook and Instagram) advertising",
+    body: "We advertise on Facebook and Instagram. To see which ads work and to show our ads to people likely to find Tressform useful, our website uses the Meta Pixel, a tool from Meta Platforms. It sets cookies in your browser and tells Meta when someone visits a page, creates an account, gets their hairstyle list, starts a payment or completes one (with the amount). We do not send Meta your name, email address, phone number or any photo. Meta may link this activity to your Facebook or Instagram account under Meta's own privacy policy. You can control how Meta uses it for ads in your Facebook or Instagram ad settings, and you can block or delete cookies in your browser.",
   },
   {
     heading: "How long we keep it",
@@ -90,7 +94,7 @@ export default function PrivacyPolicyPage() {
       <div className="mx-auto max-w-[720px] text-justify hyphens-auto [&_h1]:text-left [&_h3]:text-left [&_dd]:text-left">
         <p className="eyebrow">Legal</p>
         <h1 className="mb-2 text-[clamp(26px,4vw,36px)]">Privacy Policy</h1>
-        <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: 15 October 2026</p>
+        <p className="mb-8 text-[12.5px] text-ink-muted">Last updated: 21 October 2026</p>
 
         <div className="flex flex-col gap-7">
           {SECTIONS.map((s) => (

@@ -18,6 +18,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, safeNext, useSession } from "@/lib/authClient";
+import InAppBrowserNotice, { useInApp } from "@/components/InAppBrowserNotice";
 
 type Mode = "login" | "signup" | "forgot";
 type Status = "idle" | "loading" | "done" | "check-email" | "reset-sent" | "error";
@@ -38,6 +39,8 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
   const { session, loading: sessionLoading } = useSession();
+  // 21.10.2026: inside the Instagram / Facebook app, Google sign-in is refused.
+  const inApp = useInApp();
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -161,6 +164,7 @@ function LoginContent() {
       <div className="mx-auto max-w-[420px]">
         <p className="eyebrow">Account</p>
         <h1 className="mb-2 text-[clamp(26px,4vw,32px)]">{heading}</h1>
+        {inApp && <InAppBrowserNotice inApp={inApp} />}
 
         {SUPABASE_MOCK_MODE && (
           <div className="mb-6 rounded-md2 border border-line bg-bg-soft p-3.5 text-[12.5px] leading-[1.6] text-ink-muted">
@@ -205,11 +209,14 @@ function LoginContent() {
                 <button
                   type="button"
                   onClick={handleGoogle}
-                  disabled={status === "loading"}
+                  disabled={status === "loading" || Boolean(inApp)}
                   className="btn-secondary mt-4 w-full rounded-full !py-3 disabled:opacity-60"
                 >
                   Continue with Google
                 </button>
+                {inApp && (
+                  <p className="mt-2 text-center text-[12.5px] text-ink-muted">Google sign-in works once you open Tressform in your browser.</p>
+                )}
                 <div className="my-5 flex items-center gap-3 text-[12px] font-semibold uppercase tracking-[.08em] text-ink-muted">
                   <span className="h-px flex-1 bg-line" />
                   or

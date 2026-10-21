@@ -6,6 +6,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { currentCampaign, rememberCampaign } from "@/lib/campaign";
 
 const ID_KEY = "tf_visitor";
 let memoryId: string | null = null;
@@ -38,6 +39,8 @@ function countedAlready(path: string): boolean {
 export default function VisitBeacon() {
   const pathname = usePathname();
   useEffect(() => {
+    // 21.10.2026: note which ad (if any) brought this visitor (lib/campaign.ts).
+    rememberCampaign();
     if (!pathname || pathname.startsWith("/admin") || countedAlready(pathname)) return;
     let ref = "";
     try {
@@ -48,7 +51,7 @@ export default function VisitBeacon() {
     fetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitor: visitorId(), path: pathname, ref }),
+      body: JSON.stringify({ visitor: visitorId(), path: pathname, ref, campaign: currentCampaign() }),
       keepalive: true,
     }).catch(() => undefined);
   }, [pathname]);

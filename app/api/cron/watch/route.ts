@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       if (o.razorpay_order_id.startsWith(CREDIT_ONLY_TXN_PREFIX)) continue;
       checked += 1;
       try {
-        const r = await confirmPayuTxn(o.razorpay_order_id);
+        const r = await confirmPayuTxn(o.razorpay_order_id, "check");
         if (r.found && r.status === "PAID") late.push(`${o.razorpay_order_id} (₹${Math.round(o.price_paise / 100)})`);
       } catch (err) {
         console.error(`[Tressform] Daily watch: PayU check of ${o.razorpay_order_id} failed:`, (err as Error)?.message ?? err);

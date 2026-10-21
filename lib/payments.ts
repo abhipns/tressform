@@ -26,7 +26,7 @@ export type ConfirmResult =
   | { found: true; orderId: string; tier: string | null; status: "PAID" | "FAILED" | "PENDING" };
 
 /** Look up the order for a PayU txnid and settle it from PayU's own answer. */
-export async function confirmPayuTxn(txnid: string): Promise<ConfirmResult> {
+export async function confirmPayuTxn(txnid: string, via: "return" | "webhook" | "check" | "page" = "page"): Promise<ConfirmResult> {
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
 
@@ -35,11 +35,23 @@ export async function confirmPayuTxn(txnid: string): Promise<ConfirmResult> {
   if (order.status === "PAID") return { found: true, orderId: order.id, tier: order.tier, status: "PAID" };
   if (order.status === "REFUNDED") return { found: true, orderId: order.id, tier: order.tier, status: "FAILED" };
 
-  const v = await verifyPayment(txnid);
+  let v: Awaited<ReturnType<typeof verifyPayment>>;
+  try {
+    v = await verifyPayment(txnid);
+  } catch (err) {
+    await note(admin, via, txnid, { error: (err as Error)?.message ?? String(err) });
+    throw err;
+  }
+  // 21.10.2026: on 19.10.2026 two paid QR-code payments weren't marked paid
+  // for a day, and no record said why. Now, whenever PayU's own answer is
+  // anything but "success" when the customer comes back from PayU, or PayU
+  // calls the webhook, or the daily check asks, it is written down.
+  if (v.status !== "success" && via !== "page") await note(admin, via, txnid, { status: v.status, detail: v.detail ?? null, amountPaise: v.amountPaise });
 
   if (v.status === "success") {
     if (v.amountPaise !== order.price_paise || (v.orderId && v.orderId !== order.id)) {
       console.error(`[Tressform] PayU ${txnid}: paid ${v.amountPaise} paise for order ${order.id} priced ${order.price_paise} — not marked paid.`);
+      await note(admin, via, txnid, { problem: "amount or order mismatch", paid: v.amountPaise, price: order.price_paise, udf1: v.orderId, order: order.id });
       return { found: true, orderId: order.id, tier: order.tier, status: "PENDING" };
     }
     // Conditional update: only one caller can move the order to PAID, so
@@ -141,5 +153,15 @@ async function settleReferral(admin: any, order: { id: string; user_id: string; 
     await admin.from("orders").update({ referral_credits_paise: creditsPaise }).eq("id", order.id);
   } catch (err) {
     console.error("[Tressform] referral settlement failed (payment itself is confirmed):", err);
+  }
+}
+
+/** A line in job_runs ("payu_check") about a payment PayU didn't confirm. Best-effort. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function note(admin: any, via: string, txnid: string, what: Record<string, unknown>) {
+  try {
+    await admin.from("job_runs").insert({ job: "payu_check", summary: { txnid, via, ...what } });
+  } catch {
+    /* never in the way of a payment */
   }
 }

@@ -12,11 +12,18 @@ import VisitBeacon from "@/components/VisitBeacon";
 // 14.10.2026: picks up ?ref= referral links on any page (lib/referral.ts).
 import ReferralBeacon from "@/components/ReferralBeacon";
 import VersionWatch from "@/components/VersionWatch";
+// 21.10.2026: Meta ads — the Pixel (lib/metaPixel.ts) and ad-campaign tags (lib/campaign.ts).
+import MetaPixel from "@/components/MetaPixel";
+
+// 21.10.2026: Meta's domain check (Business settings → Domains → Meta-tag):
+// the code goes in NEXT_PUBLIC_META_DOMAIN_VERIFICATION in Vercel.
+const META_DOMAIN_CODE = (process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION || "").replace(/[^A-Za-z0-9]/g, "");
 
 export const metadata: Metadata = {
   title: "Tressform",
   description:
     "Find your perfect haircut before you cut, using AI face analysis and AI hairstyles.",
+  ...(META_DOMAIN_CODE ? { other: { "facebook-domain-verification": META_DOMAIN_CODE } } : {}),
 };
 
 // Header/Footer moved here from app/page.tsx so every route (the new
@@ -39,6 +46,7 @@ export default function RootLayout({
         <VisitBeacon />
         <ReferralBeacon />
         <VersionWatch />
+        <MetaPixel />
       </body>
     </html>
   );
