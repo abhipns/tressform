@@ -98,6 +98,8 @@ import {
 import { reasonsFor, UPKEEP_LABEL } from "@/lib/pickReasons";
 import { PACK_TIERS, getCurrentPackPricePaise, paiseToRupees, type PackTier } from "@/lib/pricing";
 import BarberPointText from "./BarberPointText";
+import Link from "next/link";
+import { useSalonsAvailable } from "@/lib/useSalonsAvailable";
 import { CLIPPER_GUIDE } from "@/lib/content/barberPoints";
 import {
   barberMessage,
@@ -576,6 +578,9 @@ export default function StylePicks({
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ styleId: string; text: string } | null>(null);
 
+  // 21.10.2026: "Get this look at a salon", once a partner salon is approved.
+  const salonsOn = useSalonsAvailable();
+
   /** 20.10.2026: one picture with the before photo, the four views and the cutting instructions. */
   function barberSheet(preview: PreviewState): Promise<File> {
     const style = preview.style;
@@ -775,6 +780,15 @@ export default function StylePicks({
         >
           {single ? "Save the picture" : `Save the ${pics.filter((p) => p.url).length} pictures separately`}
         </button>
+        {salonsOn && (
+          <Link
+            href={`/salons?style=${encodeURIComponent(style.id)}`}
+            className="mt-3 flex items-center justify-between gap-3 rounded-[14px] border border-line bg-surface px-4 py-3 text-[15px] font-semibold text-ink-heading transition hover:border-ink-heading"
+          >
+            <span>💈 Get this look at a salon near you</span>
+            <span className="text-mint" aria-hidden="true">›</span>
+          </Link>
+        )}
         {notice?.styleId === style.id && <p className="mt-2 text-[13.5px] text-ink-muted">{notice.text}</p>}
 
         {reasons.length > 0 && (

@@ -57,7 +57,7 @@ const DIRECT_LINKS = [
 ];
 
 const MENU_LINKS = [
-  { href: "/#salons", label: "Salons", note: "Partner salons near you, coming soon" },
+  { href: "/#salons", label: "Salons", note: "Salons can now list themselves free" },
   { href: "/refer", label: "Refer & Earn", note: "Credits for every friend who buys" },
   { href: "/blog", label: "Blog", note: "Hair advice, plainly written" },
 ];

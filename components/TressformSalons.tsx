@@ -7,6 +7,7 @@
 // (id="salons") because salon bookings are the second half of the business.
 
 import Image from "next/image";
+import FindSalonButton from "./salons/FindSalonButton";
 
 export default function TressformSalons() {
   return (
@@ -14,7 +15,7 @@ export default function TressformSalons() {
       <div className="frame pb-16 sm:pb-20 lg:pb-28">
         <div className="grid items-center gap-x-16 gap-y-8 overflow-hidden rounded-[28px] bg-mint-pale lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-x-24">
           <div className="p-7 sm:p-10 lg:py-14 lg:pl-14 lg:pr-0">
-            <p className="text-[15px] font-semibold text-mint-deep">Coming soon</p>
+            <p className="text-[15px] font-semibold text-mint-deep">Partner salons</p>
             <h2 className="mt-2 font-heading text-[clamp(26px,2.6vw,40px)] font-semibold leading-[1.08]">
               Get your Tressform look at a matching salon.
             </h2>
@@ -22,13 +23,15 @@ export default function TressformSalons() {
               Style Match reads the technique your chosen haircut actually needs, not just its name, and points you to
               a partner salon whose stylists can do it.
             </p>
+            {/* 21.10.2026: appears once a salon has been approved. */}
+            <FindSalonButton className="mt-5" />
             {/* 21.10.2026: salons can list themselves now (app/salons/join). */}
             <div className="mt-6 rounded-[18px] bg-surface/80 p-4">
               <p className="text-[15px] font-semibold text-ink-heading">Own a salon?</p>
               <p className="mt-1 text-[14px] leading-[1.5] text-ink-body">
                 List it on Tressform. Free during our launch period, in under 5 minutes.
               </p>
-              <a href="/salons/join" className="btn-primary mt-3 !px-6 !py-2.5 !text-[15px]">
+              <a href="/salons/join" className="btn-amber mt-3 !px-6 !py-2.5 !text-[15px] !shadow-none">
                 List your salon free
               </a>
             </div>
