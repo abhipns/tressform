@@ -142,8 +142,6 @@ function asFacialHair(value: unknown): FacialHair | null {
 }
 
 type Slot = "front" | "left" | "right";
-/** 17.10.2026: the plain light backdrop behind the selfie after "Remove background". */
-const PLAIN_BACKDROP = "#E8E6E1";
 type Step = "capture" | "analyzing" | "results";
 /** What the analysis sent back, kept for the result screen. */
 type Analysis = { photoId: string; previewsLeft: number | null; details: PhotoDetails };
@@ -330,10 +328,6 @@ export default function UploadFlow() {
   // The shrunk JPEGs that actually get uploaded (photos{} above only holds
   // their data: URLs, for the on-screen previews).
   const blobs = useRef<Record<Slot, Blob | null>>({ front: null, left: null, right: null });
-  // 17.10.2026: "Remove background" on the selfie. The photo as taken is kept
-  // so the customer can go back to it.
-  const [bgState, setBgState] = useState<"idle" | "working" | "done">("idle");
-  const original = useRef<{ dataUrl: string; blob: Blob } | null>(null);
   const card = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -507,72 +501,9 @@ export default function UploadFlow() {
       }
       blobs.current[slot] = blob;
       setPhotos((prev) => ({ ...prev, [slot]: dataUrl }));
-      if (slot === "front") {
-        setBgState("idle");
-        original.current = null;
-      }
     } catch {
       setError("We couldn't read that photo. Please try a JPG or PNG image.");
     }
-  }
-
-  /**
-   * 17.10.2026: put the person on a plain light background, so the customer
-   * doesn't have to find a plain wall. The server removes the background
-   * (/api/photo/background); the plain colour is added here.
-   */
-  async function removeBackground() {
-    const front = photos.front;
-    const blob = blobs.current.front;
-    if (!front || !blob || bgState === "working") return;
-    setError(null);
-    setBgState("working");
-    try {
-      if (!SUPABASE_MOCK_MODE && !(await ensureSession())) {
-        window.location.assign(loginUrl("/#upload"));
-        return;
-      }
-      const res = await fetch("/api/photo/background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify(SUPABASE_MOCK_MODE ? { userId: mockUserId, photo: front } : { photo: front }),
-      });
-      const data = await res.json();
-      if (!res.ok || typeof data.image !== "string") throw new Error(data.error || "We couldn't remove the background. Please try again.");
-      const cutout = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("We couldn't remove the background. Please try again."));
-        img.src = data.image;
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = cutout.naturalWidth;
-      canvas.height = cutout.naturalHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("We couldn't remove the background on this phone.");
-      ctx.fillStyle = PLAIN_BACKDROP;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(cutout, 0, 0);
-      const plain = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("We couldn't remove the background on this phone."))), "image/jpeg", 0.9)
-      );
-      original.current = { dataUrl: front, blob };
-      blobs.current.front = plain;
-      setPhotos((prev) => ({ ...prev, front: canvas.toDataURL("image/jpeg", 0.9) }));
-      setBgState("done");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "We couldn't remove the background. Please try again.");
-      setBgState("idle");
-    }
-  }
-
-  /** Back to the selfie as it was taken. */
-  function keepOriginalBackground() {
-    if (!original.current) return;
-    blobs.current.front = original.current.blob;
-    setPhotos((prev) => ({ ...prev, front: original.current!.dataUrl }));
-    original.current = null;
-    setBgState("idle");
   }
 
   /** Open the camera for the selfie (or to retake it). */
@@ -727,8 +658,6 @@ export default function UploadFlow() {
     setStep("capture");
     setPhotos({ front: null, left: null, right: null });
     blobs.current = { front: null, left: null, right: null };
-    original.current = null;
-    setBgState("idle");
     setAnalysis(null);
     setEarlier([]);
     remember(null);
@@ -873,27 +802,8 @@ export default function UploadFlow() {
                       >
                         {allUploaded ? "Choose a different photo" : "or upload a photo"}
                       </label>
-                      {allUploaded && bgState !== "done" && (
-                        <button
-                          type="button"
-                          className="btn-secondary w-full gap-2 !px-4 !py-2.5 max-sm:!text-[14.5px]"
-                          disabled={bgState === "working"}
-                          onClick={removeBackground}
-                        >
-                          {bgState === "working" ? "Removing background…" : "Remove background"}
-                        </button>
-                      )}
-                      {allUploaded && bgState === "done" && (
-                        <p className="text-center text-[13.5px] font-semibold text-mint-deep">
-                          Background removed ·{" "}
-                          <button type="button" className="font-semibold underline underline-offset-4" onClick={keepOriginalBackground}>
-                            Undo
-                          </button>
-                        </p>
-                      )}
                       <p className="text-center text-[13px] leading-[1.45] text-ink-muted">
                         Phone at arm&apos;s length, looking straight at it, head and shoulders in the picture.
-                        {allUploaded && bgState === "idle" && " Busy background? Tap Remove background."}
                       </p>
                     </div>
                   </div>
