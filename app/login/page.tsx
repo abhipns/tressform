@@ -17,7 +17,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { SUPABASE_MOCK_MODE, safeNext, useSession } from "@/lib/authClient";
+import { SUPABASE_MOCK_MODE, safeNext, useSession, isAnonymousSession } from "@/lib/authClient";
 import InAppBrowserNotice, { useInApp } from "@/components/InAppBrowserNotice";
 
 type Mode = "login" | "signup" | "forgot";
@@ -38,7 +38,9 @@ function friendlyError(message: string): string {
 function LoginContent() {
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
-  const { session, loading: sessionLoading } = useSession();
+  const { session: rawSession, loading: sessionLoading } = useSession();
+  // 23.10.2026: an anonymous (not-yet-signed-in) session counts as signed out here.
+  const session = rawSession && !isAnonymousSession(rawSession) ? rawSession : null;
   // 21.10.2026: inside the Instagram / Facebook app, Google sign-in is refused.
   const inApp = useInApp();
 

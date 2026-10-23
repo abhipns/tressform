@@ -55,3 +55,61 @@ describe("daily AI limits", () => {
     await expect(takeDailyUse(admin, "photo_read", "owner")).resolves.toBeNull();
   });
 });
+
+// 23.10.2026: visitors who haven't signed in yet (anonymous accounts).
+import { ANON_DAILY_TOTAL, ANON_LIMITS, ANON_MESSAGES } from "../lib/usageLimits";
+
+/** Counts depend on the filters: per network address, or all anonymous uses. */
+function fakeAnonAdmin(opts: { perIp: number; total: number }) {
+  const inserted: { job: string; summary: Record<string, unknown> }[] = [];
+  return {
+    inserted,
+    from() {
+      const filters: Record<string, unknown> = {};
+      const q: Record<string, unknown> = {};
+      q.select = () => q;
+      q.gte = () => q;
+      q.eq = (k: string, v: unknown) => {
+        filters[k] = v;
+        return q;
+      };
+      q.then = (resolve: (v: unknown) => void) =>
+        resolve({ count: filters["job"] === "anon_ceiling_alert" ? 1 : filters["summary->>ip"] ? opts.perIp : opts.total, error: null });
+      q.insert = async (row: { job: string; summary: Record<string, unknown> }) => {
+        inserted.push(row);
+        return { error: null };
+      };
+      return q;
+    },
+  };
+}
+
+describe("limits before signing in", () => {
+  it("has small per-visitor limits and a daily ceiling", () => {
+    expect(ANON_LIMITS).toEqual({ photo_read: 3, background: 3 });
+    expect(ANON_DAILY_TOTAL).toBe(300);
+  });
+
+  it("lets a new visitor through and logs the use against their network address", async () => {
+    const admin = fakeAnonAdmin({ perIp: 0, total: 10 });
+    await expect(takeDailyUse(admin, "photo_read", "anon-1", { anonymous: true, ip: "abc" })).resolves.toBeNull();
+    expect(admin.inserted).toEqual([{ job: "usage:photo_read", summary: { user: "anon-1", ip: "abc", anon: true } }]);
+  });
+
+  it("asks a visitor to sign in after a few photos, even from a fresh anonymous account", async () => {
+    const admin = fakeAnonAdmin({ perIp: 3, total: 10 });
+    await expect(takeDailyUse(admin, "photo_read", "anon-2", { anonymous: true, ip: "abc" })).resolves.toBe(ANON_MESSAGES.perVisitor);
+    expect(admin.inserted).toEqual([]);
+  });
+
+  it("asks everyone to sign in once the day's ceiling is reached", async () => {
+    const admin = fakeAnonAdmin({ perIp: 0, total: 300 });
+    await expect(takeDailyUse(admin, "photo_read", "anon-3", { anonymous: true, ip: "xyz" })).resolves.toBe(ANON_MESSAGES.total);
+    expect(admin.inserted.filter((r) => r.job.startsWith("usage:"))).toEqual([]);
+  });
+
+  it("keeps the normal per-account limits once signed in", async () => {
+    const admin = fakeAdmin({ used: 3 });
+    await expect(takeDailyUse(admin, "photo_read", "user-9", { anonymous: false })).resolves.toBeNull();
+  });
+});

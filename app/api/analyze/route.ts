@@ -59,7 +59,7 @@ import { FALAI_MOCK_MODE } from "@/lib/integrations/falai";
 import { readImageSize } from "@/lib/imageSize";
 import { mockStore } from "@/lib/mockStore";
 import { mockPreviewsLeft, previewsLeft as countPreviewsLeft } from "@/lib/allowance";
-import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { hashedClientIp, requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { takeDailyUse } from "@/lib/usageLimits";
 import { tooClose } from "@/lib/photoFraming";
 
@@ -217,10 +217,13 @@ export async function POST(req: NextRequest) {
   // 20.10.2026: at most DAILY_LIMITS.photo_read photos read per account per
   // day (lib/usageLimits.ts) — each one costs a face check and a vision read.
   if (admin) {
-    const limited = await takeDailyUse(admin, "photo_read", userId);
+    const limited = await takeDailyUse(admin, "photo_read", userId, {
+      anonymous: auth.anonymous,
+      ip: auth.anonymous ? await hashedClientIp(req) : undefined,
+    });
     if (limited) {
       await discardUploads();
-      return NextResponse.json({ error: limited, limitReached: true }, { status: 429 });
+      return NextResponse.json({ error: limited, limitReached: true, needsAccount: Boolean(auth.anonymous) }, { status: 429 });
     }
   }
 

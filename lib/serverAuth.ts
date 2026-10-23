@@ -21,7 +21,7 @@ export const SUPABASE_MOCK_MODE =
   !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export type AuthResult =
-  | { ok: true; userId: string; email: string | null; name?: string | null }
+  | { ok: true; userId: string; email: string | null; name?: string | null; anonymous?: boolean }
   | { ok: false; status: number; error: string };
 
 /**
@@ -55,7 +55,20 @@ export async function requireUser(req: NextRequest, mockUserId?: string | null):
 
   const meta = (data.user.user_metadata ?? {}) as Record<string, unknown>;
   const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
-  return { ok: true, userId: data.user.id, email: data.user.email ?? null, name };
+  // 23.10.2026: visitors from the ads can upload and see their hairstyle list
+  // before signing in, under an anonymous Supabase account (see
+  // lib/authClient.ts ensureSession). Routes that take money or need an email
+  // (create-order) refuse anonymous callers; photo reads are limited per
+  // device network instead of per account (lib/usageLimits.ts).
+  const anonymous = (data.user as { is_anonymous?: boolean }).is_anonymous === true;
+  return { ok: true, userId: data.user.id, email: data.user.email ?? null, name, anonymous };
+}
+
+/** The caller's network address, hashed (never stored as it is). For per-visitor limits on anonymous accounts. */
+export async function hashedClientIp(req: NextRequest): Promise<string> {
+  const raw = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
+  const { createHash } = await import("crypto");
+  return createHash("sha256").update(`tressform:${raw}`).digest("hex").slice(0, 24);
 }
 
 /**

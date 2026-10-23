@@ -23,7 +23,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { authHeaders, loginUrl, useSession, SUPABASE_MOCK_MODE } from "@/lib/authClient";
+import { authHeaders, loginUrl, useSession, SUPABASE_MOCK_MODE, isAnonymousSession } from "@/lib/authClient";
 import {
   AMENITIES,
   CUSTOMER_TYPES,
@@ -58,7 +58,9 @@ function draftKey(uid: string) {
 }
 
 function JoinContent() {
-  const { session, loading } = useSession();
+  const { session: rawSession, loading } = useSession();
+  // 23.10.2026: an anonymous (not-yet-signed-in) session counts as signed out here.
+  const session = rawSession && !isAnonymousSession(rawSession) ? rawSession : null;
   const params = useSearchParams();
   const uid = session?.user.id ?? null;
 

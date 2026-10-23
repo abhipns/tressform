@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { BACKGROUND_OFF, removeBackground } from "@/lib/integrations/background";
-import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { hashedClientIp, requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { takeDailyUse } from "@/lib/usageLimits";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +38,11 @@ export async function POST(req: NextRequest) {
   // 20.10.2026: at most DAILY_LIMITS.background removals per account per day (lib/usageLimits.ts).
   if (!SUPABASE_MOCK_MODE) {
     const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
-    const limited = await takeDailyUse(getSupabaseAdmin(), "background", auth.userId);
-    if (limited) return NextResponse.json({ error: limited, limitReached: true }, { status: 429 });
+    const limited = await takeDailyUse(getSupabaseAdmin(), "background", auth.userId, {
+      anonymous: auth.anonymous,
+      ip: auth.anonymous ? await hashedClientIp(req) : undefined,
+    });
+    if (limited) return NextResponse.json({ error: limited, limitReached: true, needsAccount: Boolean(auth.anonymous) }, { status: 429 });
   }
 
   try {

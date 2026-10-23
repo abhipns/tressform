@@ -62,7 +62,8 @@ import {
   type PackTier,
   isEarlyBirdActive,
 } from "@/lib/pricing";
-import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
+import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, isAnonymousSession, loginUrl, useSession } from "@/lib/authClient";
+import SaveAccount from "@/components/SaveAccount";
 import { splitWithCredit } from "@/lib/credit";
 import { trackMeta } from "@/lib/metaPixel";
 import { currentCampaign } from "@/lib/campaign";
@@ -108,6 +109,8 @@ function CheckoutContent() {
   const [error, setError] = useState<string | null>(null);
   const { session, loading: sessionLoading } = useSession();
   const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
+  // 23.10.2026: tried the upload before signing in — create the account here, before paying.
+  const needsAccount = !SUPABASE_MOCK_MODE && !sessionLoading && isAnonymousSession(session);
   const userId = session?.user.id ?? null;
   const [phone, setPhone] = useState("");
   const [balancePaise, setBalancePaise] = useState(0);
@@ -241,6 +244,13 @@ function CheckoutContent() {
       });
       const createData = await createRes.json();
       if (createRes.status === 401) {
+        if (createData.needsAccount) {
+          // Shouldn't happen (the account box shows first), but never send them to /login and lose their photo.
+          setStatus("idle");
+          setOtherBusy(false);
+          setError("Please create your account below to continue.");
+          return;
+        }
         window.location.assign(loginUrl(`/checkout?tier=${validTier}`));
         return;
       }
@@ -405,7 +415,7 @@ function CheckoutContent() {
           </div>
         )}
 
-        {askPhone && !needsLogin && (
+        {askPhone && !needsLogin && !needsAccount && (
           <label className="mb-5 block">
             <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Mobile number</span>
             <input
@@ -429,7 +439,7 @@ function CheckoutContent() {
             </span>
           </label>
         )}
-        {askPhone && !needsLogin && (
+        {askPhone && !needsLogin && !needsAccount && (
           <label className="-mt-2 mb-5 flex items-start gap-2.5 text-[13px] leading-[1.45] text-ink-muted">
             <input
               type="checkbox"
@@ -445,7 +455,9 @@ function CheckoutContent() {
           <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
         )}
 
-        {needsLogin ? (
+        {needsAccount && validTier && <SaveAccount next={`/checkout?tier=${validTier}`} />}
+
+        {needsAccount ? null : needsLogin ? (
           <a href={loginUrl(`/checkout?tier=${validTier}`)} className="btn-primary w-full">
             Log in to continue
           </a>
@@ -466,7 +478,7 @@ function CheckoutContent() {
         )}
 
         {/* 17.10.2026: for a phone with no UPI app — someone else pays by scanning a QR code. */}
-        {!needsLogin && askPhone && !other && (
+        {!needsLogin && !needsAccount && askPhone && !other && (
           <button
             type="button"
             className="mt-3 w-full rounded-full border border-line bg-surface px-4 py-3 text-[14.5px] font-semibold text-ink-heading transition hover:border-ink-heading disabled:opacity-60"

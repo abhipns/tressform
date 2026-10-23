@@ -39,7 +39,7 @@
 import { useEffect, useRef, useState } from "react";
 import Logo from "./Logo";
 import { supabase } from "@/lib/supabaseClient";
-import { useSession } from "@/lib/authClient";
+import { useSession, isAnonymousSession } from "@/lib/authClient";
 
 // 10.10.2026 (design pass, later the same day): the home page was cut to ten
 // sections. "Hairstyles" pointed at the cartoon-head carousel and "Hair
@@ -90,7 +90,10 @@ const PANEL_ITEM = "block rounded-xl px-3.5 py-2.5 text-[14.5px] text-white/85 t
 export default function Header() {
   const [open, setOpen] = useState<OpenMenu>(null);
   const [scrolled, setScrolled] = useState(false);
-  const { session } = useSession();
+  // 23.10.2026: a visitor who uploaded before signing in has an anonymous
+  // session; to them the header still says "Log in".
+  const { session: rawSession } = useSession();
+  const session = rawSession && !isAnonymousSession(rawSession) ? rawSession : null;
   const bar = useRef<HTMLElement>(null);
 
   useEffect(() => {

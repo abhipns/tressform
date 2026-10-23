@@ -29,6 +29,25 @@ export const DAILY_LIMITS = {
 
 export type LoggedUsage = "photo_read" | "background";
 
+// 23.10.2026: visitors who haven't signed in yet (anonymous accounts, see
+// lib/serverAuth.ts) can make a new account just by clearing their browser,
+// so their limits count per network address (hashed) instead of per account,
+// and there is a ceiling on all anonymous photo reads in a day. Signing in
+// lifts them back to DAILY_LIMITS.
+export const ANON_LIMITS = {
+  photo_read: 3,
+  background: 3,
+} as const;
+export const ANON_DAILY_TOTAL = 300;
+
+export const ANON_MESSAGES = {
+  perVisitor:
+    "You've tried a few photos already today. Please log in or create your account to add more — it takes a few seconds.",
+  total: "Lots of people are trying Tressform right now. Please log in or create your account to continue.",
+};
+
+export type Visitor = { anonymous?: boolean; ip?: string };
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const LIMIT_MESSAGES: Record<keyof typeof DAILY_LIMITS, string> = {
@@ -78,11 +97,61 @@ export async function logUsage(admin: Admin, kind: LoggedUsage, userId: string):
  * Check and log in one go: returns null when the account may go ahead (and
  * the use is logged), or the message to show when it has hit the limit.
  */
-export async function takeDailyUse(admin: Admin, kind: LoggedUsage, userId: string): Promise<string | null> {
+export async function takeDailyUse(admin: Admin, kind: LoggedUsage, userId: string, visitor: Visitor = {}): Promise<string | null> {
+  if (visitor.anonymous) {
+    const ip = visitor.ip || "unknown";
+    if ((await anonUsedToday(admin, kind, { ip })) >= ANON_LIMITS[kind]) return ANON_MESSAGES.perVisitor;
+    if (kind === "photo_read" && (await anonUsedToday(admin, kind, {})) >= ANON_DAILY_TOTAL) {
+      await alertAnonCeiling(admin);
+      return ANON_MESSAGES.total;
+    }
+    const { error } = await admin.from("job_runs").insert({ job: `usage:${kind}`, summary: { user: userId, ip, anon: true } });
+    if (error) console.error(`[Tressform] usage log failed (${kind}):`, error.message);
+    return null;
+  }
   if (await isOwnerAccount(admin, userId)) return null;
   if (overLimit(kind, await usedToday(admin, kind, userId))) return LIMIT_MESSAGES[kind];
   await logUsage(admin, kind, userId);
   return null;
+}
+
+/** Anonymous uses of `kind` in the last 24 hours: from one network address, or from everyone when `ip` is left out. On a read error, 0. */
+export async function anonUsedToday(admin: Admin, kind: LoggedUsage, where: { ip?: string }): Promise<number> {
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  let q = admin
+    .from("job_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("job", `usage:${kind}`)
+    .eq("summary->>anon", "true")
+    .gte("ran_at", since);
+  if (where.ip) q = q.eq("summary->>ip", where.ip);
+  const { count, error } = await q;
+  if (error) {
+    console.error(`[Tressform] anonymous usage count failed (${kind}):`, error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+
+/** Tell the owner, at most once in 12 hours, that the anonymous ceiling was reached. Best-effort. */
+async function alertAnonCeiling(admin: Admin): Promise<void> {
+  try {
+    const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { count } = await admin
+      .from("job_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("job", "anon_ceiling_alert")
+      .gte("ran_at", since);
+    if ((count ?? 0) > 0) return;
+    await admin.from("job_runs").insert({ job: "anon_ceiling_alert", summary: { total: ANON_DAILY_TOTAL } });
+    const { sendOwnerAlert } = await import("./ownerAlerts");
+    await sendOwnerAlert(
+      "Tressform: many photo uploads before sign-in",
+      `${ANON_DAILY_TOTAL} photos were uploaded today by visitors who hadn't signed in yet. New visitors are now asked to sign in before uploading, until the count drops. If this wasn't the ads, someone may be misusing the site.`
+    );
+  } catch (err) {
+    console.error("[Tressform] anonymous ceiling alert failed:", (err as Error)?.message ?? err);
+  }
 }
 
 /** Hairstyle pictures for this account that failed the check in the last 24 hours. */

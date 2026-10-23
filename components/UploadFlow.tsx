@@ -121,7 +121,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
+import { SUPABASE_MOCK_MODE, authHeaders, ensureSession, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import { trackMeta } from "@/lib/metaPixel";
 import SelfieCamera from "./SelfieCamera";
 import { setReloadBlocked } from "./VersionWatch";
@@ -355,7 +355,12 @@ export default function UploadFlow() {
   }
 
   const { session, loading: sessionLoading } = useSession();
-  const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
+  // 23.10.2026: no sign-in wall before the upload any more. A visitor without
+  // a session gets an anonymous one when they first need it (ensureSession),
+  // and is asked to create their account at checkout. If anonymous sign-ins
+  // are switched off in Supabase, ensureSession returns null and the visitor
+  // is sent to /login as before.
+  const needsLogin = false;
 
   // Mock mode only: one demo id per browser, so repeated visits exercise
   // the free-preview cap the same way a real logged-in user would.
@@ -523,6 +528,10 @@ export default function UploadFlow() {
     setError(null);
     setBgState("working");
     try {
+      if (!SUPABASE_MOCK_MODE && !(await ensureSession())) {
+        window.location.assign(loginUrl("/#upload"));
+        return;
+      }
       const res = await fetch("/api/photo/background", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
@@ -607,17 +616,19 @@ export default function UploadFlow() {
       stageStarted = Date.now();
     };
     try {
+      // 23.10.2026: an anonymous session is started here if the visitor has none.
+      const current = SUPABASE_MOCK_MODE ? null : await ensureSession();
       const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
 
       let analyzeBody: Record<string, unknown>;
       if (SUPABASE_MOCK_MODE) {
         analyzeBody = { userId: mockUserId, consentGiven: consent, photoUrl: photos.front, gender };
       } else {
-        if (!session) {
+        if (!current) {
           window.location.assign(loginUrl("/#upload"));
           return;
         }
-        const paths = await uploadToStorage(session.user.id);
+        const paths = await uploadToStorage(current.user.id);
         analyzeBody = { consentGiven: consent, storagePath: paths.front, extraPaths: [], gender };
       }
 
@@ -647,8 +658,9 @@ export default function UploadFlow() {
         previewsLeft: typeof analyzeData.previewsLeft === "number" ? analyzeData.previewsLeft : null,
         details,
       });
-      if (owner) {
-        remember({ owner, photoId: analyzeData.photoId, gender, details, confirmed: null, thumb: await makeThumb(photos.front) });
+      const who = owner ?? current?.user.id ?? null;
+      if (who) {
+        remember({ owner: who, photoId: analyzeData.photoId, gender, details, confirmed: null, thumb: await makeThumb(photos.front) });
         setFresh(false);
       }
       setStep("results");

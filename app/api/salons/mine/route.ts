@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
   if (SUPABASE_MOCK_MODE) return NextResponse.json(OFF, { status: 503 });
   const auth = await requireUser(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // 23.10.2026: salons need a real account, not a not-yet-signed-in visitor.
+  if (auth.anonymous) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
 
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
@@ -59,6 +61,8 @@ export async function POST(req: NextRequest) {
   }
   const auth = await requireUser(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // 23.10.2026: salons need a real account, not a not-yet-signed-in visitor.
+  if (auth.anonymous) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
   const form = body.form;
   if (!form || typeof form !== "object") return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
 

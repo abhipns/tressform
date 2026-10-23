@@ -9,6 +9,9 @@
 //                       always used (moved here from UploadFlow/checkout so
 //                       there is one copy, not two)
 //   loginUrl(next)    — /login link that returns the customer to `next`
+//   ensureSession()   — 23.10.2026: the current session, or a new anonymous
+//                       one, so visitors can upload before signing in
+//   isAnonymousSession(s) — true for those not-yet-signed-in sessions
 //   safeNext(value)   — guards the ?next= parameter against open redirects
 
 import { useEffect, useState } from "react";
@@ -75,4 +78,29 @@ export function safeNext(value: string | null | undefined, fallback = "/#upload"
 
 export function loginUrl(next: string): string {
   return `/login?next=${encodeURIComponent(next)}`;
+}
+
+/** 23.10.2026: true for a visitor who uploaded before signing in (Supabase anonymous account). */
+export function isAnonymousSession(session: Session | null | undefined): boolean {
+  return Boolean((session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous);
+}
+
+/**
+ * The visitor's session, starting an anonymous one if there is none, so the
+ * upload and hairstyle list work before signing in. Sign-in is asked for at
+ * checkout (components/SaveAccount.tsx), which turns the same account into a
+ * real one, so nothing made so far is lost. Returns null if anonymous
+ * sign-ins are switched off in Supabase — callers then send the visitor to
+ * /login as before.
+ */
+export async function ensureSession(): Promise<Session | null> {
+  if (SUPABASE_MOCK_MODE) return null;
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return data.session;
+  const { data: created, error } = await supabase.auth.signInAnonymously();
+  if (error) {
+    console.error("[Tressform] anonymous sign-in failed:", error.message);
+    return null;
+  }
+  return created.session ?? null;
 }

@@ -129,6 +129,12 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireUser(req, body.userId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // 23.10.2026: visitors try the upload before signing in (anonymous
+  // account); paying needs a real account, so the purchase and its pictures
+  // are never lost and PayU gets an email.
+  if (auth.anonymous) {
+    return NextResponse.json({ error: "Please create your account to continue.", needsAccount: true }, { status: 401 });
+  }
   const userId = auth.userId;
 
   const isAddon = Boolean(addonKind);
