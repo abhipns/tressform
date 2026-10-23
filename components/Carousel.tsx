@@ -26,6 +26,8 @@ import { CAROUSEL_PEOPLE, type CarouselPerson } from "@/lib/content/carousel";
 
 const MOVING_STRIP_FROM = 4;
 const SECONDS_PER_CARD = 14;
+// 23.10.2026 (owner): a little faster on phones, where one card fills most of the screen.
+const SECONDS_PER_CARD_PHONE = 9;
 
 function Tile({ src, alt, caption, original = false }: { src: string; alt: string; caption: string; original?: boolean }) {
   const picture = (
@@ -138,8 +140,13 @@ export default function Carousel() {
           style={{ maskImage: "linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)" }}
         >
           <ul
-            className="flex w-max animate-[scroll-left_80s_linear_infinite] pl-5 hover:[animation-play-state:paused] motion-reduce:animate-none"
-            style={{ animationDuration: `${half.length * SECONDS_PER_CARD}s` }}
+            className="flex w-max animate-[scroll-left_80s_linear_infinite] pl-5 [animation-duration:var(--strip-phone)] hover:[animation-play-state:paused] motion-reduce:animate-none sm:[animation-duration:var(--strip)]"
+            style={
+              {
+                "--strip": `${half.length * SECONDS_PER_CARD}s`,
+                "--strip-phone": `${half.length * SECONDS_PER_CARD_PHONE}s`,
+              } as React.CSSProperties
+            }
           >
             {half.map((person, i) => (
               <PersonCard key={`a-${i}`} person={person} hidden={i >= people.length} />

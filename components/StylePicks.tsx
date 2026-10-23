@@ -1423,12 +1423,12 @@ export default function StylePicks({
                 faceShape={customer.faceShape}
                 title={
                   lookItems.length === 0
-                    ? "Not buying today? Get our offers on WhatsApp"
+                    ? `Get new hairstyles for your ${customer.faceShape.toLowerCase()} face on WhatsApp`
                     : `New hairstyles for your ${customer.faceShape.toLowerCase()} face, on WhatsApp`
                 }
                 blurb={
                   lookItems.length === 0
-                    ? `We'll send you Tressform offers, like a lower price to see your face with a new cut, and new hairstyles that suit a ${customer.faceShape.toLowerCase()} face. No spam.`
+                    ? `We'll keep you updated with new hairstyles that suit a ${customer.faceShape.toLowerCase()} face, haircare tips and our new blog posts. No spam.`
                     : "When we add cuts that suit you, new hair products or a new blog post, we'll send it to your WhatsApp. No spam."
                 }
               />
