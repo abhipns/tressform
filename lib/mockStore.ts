@@ -128,6 +128,22 @@ export interface MockStyleResult {
   orderId?: string | null;
 }
 
+/** 26.10.2026: a visitor a customer's link brought, and a ₹10 link reward (lib/linkVisits.ts). */
+export interface MockLinkVisit {
+  code: string;
+  visitor: string;
+  referrerId: string;
+  firstSeen: string;
+}
+export interface MockLinkReward {
+  code: string;
+  referrerId: string;
+  milestone: number;
+  visitors: number;
+  creditsPaise: number;
+  createdAt: string;
+}
+
 // A module-level singleton keeps state across requests within one running
 // server process (fine for local dev / a single test run).
 const orders = new Map<string, MockOrder>();
@@ -137,6 +153,9 @@ const carouselSessions = new Map<string, MockCarouselSession>();
 const photos = new Map<string, MockPhoto>();
 const styleResults = new Map<string, MockStyleResult>();
 const pictureViews = new Map<string, MockPictureView>(); // keyed by `${orderId}:${view}`
+const linkVisits = new Map<string, MockLinkVisit>(); // keyed by `${code}:${visitor}`
+const linkRewards = new Map<string, MockLinkReward>(); // keyed by `${code}:${milestone}`
+const sharerDevices = new Set<string>(); // `${userId}:${visitor}`
 
 export const mockStore = {
   orders,
@@ -146,6 +165,9 @@ export const mockStore = {
   photos,
   styleResults,
   pictureViews,
+  linkVisits,
+  linkRewards,
+  sharerDevices,
 
   addPhoto(photo: MockPhoto) {
     photos.set(photo.id, photo);
@@ -316,9 +338,14 @@ export const mockStore = {
    */
   sumReferrerCreditsThisFY(referrerId: string, now: Date = new Date()): number {
     const fyStart = financialYearStart(now).getTime();
-    return [...referrals.values()]
+    const packs = [...referrals.values()]
       .filter((r) => r.referrerId === referrerId && new Date(r.createdAt).getTime() >= fyStart)
       .reduce((sum, r) => sum + r.creditsPaise, 0);
+    // 26.10.2026: credit from visitors their link brought counts toward the same cap.
+    const links = [...linkRewards.values()]
+      .filter((r) => r.referrerId === referrerId && new Date(r.createdAt).getTime() >= fyStart)
+      .reduce((sum, r) => sum + r.creditsPaise, 0);
+    return packs + links;
   },
 
   /**

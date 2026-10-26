@@ -4,10 +4,17 @@
 // copy it, share it on WhatsApp, and see what it has earned. Shows nothing
 // to visitors who aren't signed in — the page's own "Log in to get your
 // referral link" line covers them.
+//
+// 26.10.2026: also how many visitors their link has brought toward the next
+// ₹10 credit (every 10 people who open it; lib/linkVisits.ts). Sends this
+// device's visitor id, so the customer's own visits are never counted.
 
 import { useEffect, useState } from "react";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, useSession } from "@/lib/authClient";
 import { referralLink } from "@/lib/referral";
+import { visitorId } from "@/components/VisitBeacon";
+import { LINK_REWARD_PAISE, LINK_VISITORS_PER_REWARD } from "@/lib/pricing";
+import { linkProgressLine } from "@/lib/linkVisits";
 
 interface Mine {
   code: string;
@@ -15,7 +22,14 @@ interface Mine {
   joined: number;
   bought: number;
   earnedPaise: number;
+  /** 26.10.2026: visitors the link has brought, and the credit that earned. */
+  linkVisitors?: number;
+  linkEarnedPaise?: number;
+  linkCanEarn?: boolean;
 }
+
+/** 26.10.2026: under the share buttons after a customer's results. */
+export const SHARE_LINE = `Share your look: every ${LINK_VISITORS_PER_REWARD} people who open your link = ₹${LINK_REWARD_PAISE / 100} credit`;
 
 /** The "Log in to get your referral link" line — only for visitors who aren't signed in. */
 export function LoginForLink({ children }: { children: React.ReactNode }) {
@@ -41,7 +55,7 @@ export default function MyReferral() {
         const res = await fetch("/api/referral/me", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-          body: JSON.stringify({ userId: SUPABASE_MOCK_MODE ? getMockUserId() : undefined }),
+          body: JSON.stringify({ userId: SUPABASE_MOCK_MODE ? getMockUserId() : undefined, visitor: visitorId() }),
         });
         if (!res.ok) throw new Error(String(res.status));
         const data = (await res.json()) as Mine;
@@ -118,6 +132,16 @@ export default function MyReferral() {
           <dd className="text-[20px] font-bold text-mint-deep">{rupees(mine.balancePaise)}</dd>
         </div>
       </dl>
+      <div className="mt-4 rounded-md2 bg-mint-pale/50 px-4 py-3">
+        <p className="text-[14px] font-semibold text-ink-heading">
+          {linkProgressLine(mine.linkVisitors ?? 0, mine.linkEarnedPaise ?? 0)}
+        </p>
+        <p className="mt-0.5 text-[12.5px] text-ink-muted">
+          {mine.linkCanEarn
+            ? "Every 10 different people who open your link earn you ₹10 credit. Your own visits don't count."
+            : "Starts once you've bought a pack or a picture: then every 10 different people who open your link earn you ₹10 credit."}
+        </p>
+      </div>
       <p className="mt-3 text-[13px] text-ink-muted">
         A friend counts when they open your link and sign up, as long as they haven&apos;t bought from Tressform
         before. You earn credit when they make their first purchase.

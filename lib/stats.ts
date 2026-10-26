@@ -45,6 +45,29 @@ export function campaignTotals(rows: { visitors: number; purchases: number; reve
   return { visitors, purchases, revenuePaise, boughtPct: visitors ? ((purchases / visitors) * 100).toFixed(1) : null };
 }
 
+/** Search-engine robots and link previews, which never count as visitors (13.10.2026; shared 26.10.2026). */
+const ROBOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|headless|lighthouse|pingdom|monitor/i;
+
+export function looksLikeRobot(userAgent: string | null | undefined): boolean {
+  return !userAgent || ROBOT.test(userAgent);
+}
+
+/**
+ * 26.10.2026: "Top sharers" on the dashboard — visitors each referral link
+ * brought and the link credit it earned, most visitors first.
+ */
+export function topSharers(
+  visits: { code: string }[],
+  rewards: { code: string; credits_paise: number }[],
+  max = 20
+): { code: string; visitors: number; creditPaise: number }[] {
+  const by = new Map<string, { code: string; visitors: number; creditPaise: number }>();
+  const row = (code: string) => by.get(code) ?? by.set(code, { code, visitors: 0, creditPaise: 0 }).get(code)!;
+  for (const v of visits) row(v.code).visitors += 1;
+  for (const r of rewards) row(r.code).creditPaise += r.credits_paise ?? 0;
+  return [...by.values()].sort((a, b) => b.visitors - a.visitors || b.creditPaise - a.creditPaise).slice(0, max);
+}
+
 /** "₹1,234" from paise. */
 export function rupees(paise: number): string {
   return "₹" + Math.round(paise / 100).toLocaleString("en-IN");

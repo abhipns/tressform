@@ -995,3 +995,47 @@ revoke all on function public.reserve_picture_view(uuid, uuid, text, text) from 
 grant execute on function public.reserve_picture_view(uuid, uuid, text, text) to service_role;
 revoke all on function public.finish_picture_view(uuid, text, boolean, text) from public, anon, authenticated;
 grant execute on function public.finish_picture_view(uuid, text, boolean, text) to service_role;
+
+-- 26.10.2026: credit for visitors a customer's link brings
+-- (supabase/migrations/20261026_link_visitor_credit.sql)
+
+create table if not exists public.referral_link_visits (
+  code text not null check (char_length(code) <= 24),
+  visitor text not null check (visitor ~ '^[A-Za-z0-9-]{8,64}$'),
+  referrer_id uuid not null references public.profiles(id) on delete cascade,
+  first_seen timestamp with time zone not null default now(),
+  primary key (code, visitor)
+);
+create index if not exists referral_link_visits_code_day_idx on public.referral_link_visits (code, first_seen);
+create index if not exists referral_link_visits_referrer_idx on public.referral_link_visits (referrer_id);
+
+create table if not exists public.referral_link_rewards (
+  code text not null check (char_length(code) <= 24),
+  referrer_id uuid not null references public.profiles(id) on delete cascade,
+  milestone integer not null check (milestone >= 1),
+  visitors integer not null check (visitors >= 0),
+  credits_paise integer not null check (credits_paise >= 0),
+  created_at timestamp with time zone not null default now(),
+  primary key (code, milestone)
+);
+create index if not exists referral_link_rewards_referrer_idx on public.referral_link_rewards (referrer_id, created_at);
+
+create table if not exists public.referral_sharer_devices (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  visitor text not null check (visitor ~ '^[A-Za-z0-9-]{8,64}$'),
+  created_at timestamp with time zone not null default now(),
+  primary key (user_id, visitor)
+);
+create index if not exists referral_sharer_devices_visitor_idx on public.referral_sharer_devices (visitor);
+
+alter table public.referral_link_visits enable row level security;
+revoke all on public.referral_link_visits from anon, authenticated;
+grant all on public.referral_link_visits to service_role;
+
+alter table public.referral_link_rewards enable row level security;
+revoke all on public.referral_link_rewards from anon, authenticated;
+grant all on public.referral_link_rewards to service_role;
+
+alter table public.referral_sharer_devices enable row level security;
+revoke all on public.referral_sharer_devices from anon, authenticated;
+grant all on public.referral_sharer_devices to service_role;

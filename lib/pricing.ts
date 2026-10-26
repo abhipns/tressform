@@ -283,6 +283,43 @@ export function calculatePicturePnl(pricePaise: number, pictureCount: number): O
   return calculateOrderPnl(pricePaise, pictureCount, 1);
 }
 
+// ---------------------------------------------------------------------------
+// Credit for visitors a customer's link brings (26.10.2026, owner's request).
+// Separate from, and on top of, the pack referral rewards above (which don't
+// change): ₹10 of the same non-cash credit for every 10 different visitors
+// who open the site through the customer's referral link. It counts toward
+// the same ₹15,000-a-year cap. Only accounts that have paid at least once
+// earn it, and at most 100 new visitors per link are counted a day. The
+// counting rules are in lib/linkVisits.ts.
+// ---------------------------------------------------------------------------
+export const LINK_VISITORS_PER_REWARD = 10;
+export const LINK_REWARD_PAISE = 1_000; // ₹10
+export const LINK_NEW_VISITORS_PER_DAY = 100;
+
+/**
+ * The link rewards to pay now: one per 10 visitors reached (milestone 1 at
+ * 10, 2 at 20…) that hasn't been paid yet, each ₹10, cut down to what's
+ * left of the yearly cap (`creditsThisFYPaise` = credit already earned this
+ * financial year, from packs and links). A milestone reached with the cap
+ * used up is still recorded, at ₹0, so it is never paid later.
+ */
+export function linkRewardsDue(
+  visitors: number,
+  paidMilestones: readonly number[],
+  creditsThisFYPaise: number
+): { milestone: number; paise: number }[] {
+  const reached = Math.floor(Math.max(0, visitors) / LINK_VISITORS_PER_REWARD);
+  let room = Math.max(0, REFERRAL_ANNUAL_CAP_PAISE - creditsThisFYPaise);
+  const due: { milestone: number; paise: number }[] = [];
+  for (let m = 1; m <= reached; m++) {
+    if (paidMilestones.includes(m)) continue;
+    const paise = Math.min(LINK_REWARD_PAISE, room);
+    room -= paise;
+    due.push({ milestone: m, paise });
+  }
+  return due;
+}
+
 /** Convert paise to a ₹ display string, e.g. 14714 -> "147.14". */
 export function paiseToRupees(paise: number): string {
   return (paise / 100).toFixed(2);

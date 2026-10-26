@@ -29,6 +29,11 @@ const STEPS = [
     body: "You earn a credit the moment someone you referred completes their first paid pack purchase.",
   },
   {
+    // 26.10.2026: the extra credit for visitors a link brings (lib/linkVisits.ts).
+    title: "Every 10 visitors earns ₹10 too",
+    body: "Once you've bought from Tressform, every 10 different people who open the site through your link earn you ₹10 credit, on top of the rewards above. Your own visits don't count.",
+  },
+  {
     title: "Credit lands in your account",
     body: "Use it toward your own future Tressform packs — it's a Tressform credit, not cash, and isn't withdrawable.",
   },

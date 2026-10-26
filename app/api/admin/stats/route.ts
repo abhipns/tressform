@@ -15,10 +15,15 @@
 // 26.10.2026: single-picture orders are in the sales figures like any paid
 // order (admin_stats). They have no pack looks, and their side and back
 // views are made only when paid for, so they are left out of "unopened looks".
+//
+// 26.10.2026: also `sharers` — the referral links that brought the most
+// visitors, all time, and the ₹10-per-10-visitors credit each earned
+// (lib/linkVisits.ts). Codes only, nothing personal.
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
-import { committedCost, periodStart, type Period } from "@/lib/stats";
+import { committedCost, periodStart, topSharers, type Period } from "@/lib/stats";
+import { mockStore } from "@/lib/mockStore";
 import { FALAI_COST_PER_IMAGE_PAISE } from "@/lib/integrations/falai";
 import { GST_RATE, GST_REGISTERED } from "@/lib/pricing";
 
@@ -61,6 +66,10 @@ export async function GET(req: NextRequest) {
       income: [],
       committed: committedCost(0, 0, FALAI_COST_PER_IMAGE_PAISE),
       gst: { registered: GST_REGISTERED, duePaise: 0, ifRegisteredPaise: 0 },
+      sharers: topSharers(
+        [...mockStore.linkVisits.values()],
+        [...mockStore.linkRewards.values()].map((r) => ({ code: r.code, credits_paise: r.creditsPaise }))
+      ),
     });
   }
 
@@ -75,9 +84,11 @@ export async function GET(req: NextRequest) {
   // Committed AI cost, customers only (the owner's own test looks are left out).
   const { data: admins } = await db.from("profiles").select("id").eq("role", "ADMIN");
   const adminIds = new Set((admins ?? []).map((a) => a.id as string));
-  const [{ data: unopened }, { data: paidOrders }] = await Promise.all([
+  const [{ data: unopened }, { data: paidOrders }, { data: linkVisits }, { data: linkRewards }] = await Promise.all([
     db.from("style_results").select("user_id, order_id").not("order_id", "is", null).eq("status", "SUCCEEDED").is("view_paths", null).limit(10000),
     db.from("orders").select("id, user_id, preview_count, previews_used, gst_paise, paid_at, order_kind").eq("status", "PAID").limit(10000),
+    db.from("referral_link_visits").select("code").limit(100000),
+    db.from("referral_link_rewards").select("code, credits_paise").limit(100000),
   ]);
   const customerOrders = (paidOrders ?? []).filter((o) => !adminIds.has(o.user_id as string));
   // 14.10.2026: a refunded order makes no more pictures (lib/refunds.ts), so its looks don't count here.
@@ -96,5 +107,6 @@ export async function GET(req: NextRequest) {
     income: income ?? [],
     committed: committedCost(unopenedLooks, unmadeLooks, FALAI_COST_PER_IMAGE_PAISE),
     gst: { registered: GST_REGISTERED, duePaise: gstDuePaise, ifRegisteredPaise: Math.round(revenuePaise * GST_RATE) },
+    sharers: topSharers(linkVisits ?? [], linkRewards ?? []),
   });
 }

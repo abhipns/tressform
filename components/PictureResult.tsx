@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import BarberPointText from "@/components/BarberPointText";
+import { SHARE_LINE } from "@/components/MyReferral";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId } from "@/lib/authClient";
 import { barberName, barberPoints, hairstyleById } from "@/lib/content/hairstyles";
 import { PICTURE_PRICE_PAISE, paiseToRupees, type PictureView } from "@/lib/pricing";
@@ -258,6 +259,13 @@ export default function PictureResult({ orderId, pictures }: { orderId: string; 
           </ul>
           <p className="mt-2 text-[13.5px] text-ink-muted">Showing them the pictures as well works best.</p>
         </div>
+        {/* 26.10.2026: the link-visitor credit (lib/linkVisits.ts). */}
+        <p className="mt-4 text-[14px] font-semibold text-mint-deep">
+          {SHARE_LINE}.{" "}
+          <a href="/refer" className="underline underline-offset-4">
+            Get your link
+          </a>
+        </p>
       </div>
     </section>
   );

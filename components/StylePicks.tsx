@@ -71,6 +71,7 @@ import WhatsAppOptIn from "@/components/WhatsAppOptIn";
 import RatePopup, { mayAskForRating } from "@/components/RatePopup";
 import { LookCarousel, LockedLooks, type LookItem } from "@/components/LookCarousel";
 import PictureOffer from "@/components/PictureOffer";
+import { SHARE_LINE } from "@/components/MyReferral";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, useSession } from "@/lib/authClient";
 import { supabase } from "@/lib/supabaseClient";
 import { referralLink } from "@/lib/referral";
@@ -919,6 +920,8 @@ export default function StylePicks({
             <p className="mt-0.5 text-[13.5px] text-ink-muted">
               Post one picture of you and {Math.min(4, madeStyles.length) === 1 ? "this look" : `your looks numbered 1–${Math.min(4, madeStyles.length)}`}, and let friends comment their pick. Friends who join with your link earn you credit.
             </p>
+            {/* 26.10.2026: the link-visitor credit (lib/linkVisits.ts). */}
+            <p className="mt-1 text-[13.5px] font-semibold text-mint-deep">{SHARE_LINE}</p>
           </div>
           <div className="flex gap-2">
             {many && (

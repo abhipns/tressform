@@ -79,6 +79,8 @@ function Dashboard() {
   // 14.10.2026: GST figures and the owner's own income-tax rate for the final summary.
   const [gst, setGst] = useState<{ registered: boolean; duePaise: number; ifRegisteredPaise: number } | null>(null);
   const [taxRate, setTaxRate] = useState("30");
+  // 26.10.2026: referral links that brought the most visitors (all time).
+  const [sharers, setSharers] = useState<{ code: string; visitors: number; creditPaise: number }[]>([]);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("tf_tax_rate");
@@ -111,6 +113,7 @@ function Dashboard() {
     setIncome(data.income ?? []);
     setCommitted(data.committed ?? null);
     setGst(data.gst ?? null);
+    setSharers(data.sharers ?? []);
   }
 
   useEffect(() => {
@@ -386,6 +389,37 @@ function Dashboard() {
                           .map(([shop, n]) => `${nameOfShop(shop)} ${n}`)
                           .join(" · ")}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 26.10.2026: ₹10 credit for every 10 visitors a customer's link brings (lib/linkVisits.ts). */}
+          <h2 className="mt-10 text-[21px] font-semibold">Top sharers</h2>
+          <p className="mt-1 text-[14.5px] text-ink-muted">
+            Customers&apos; referral links that brought the most different visitors, all time, and the ₹10-per-10-visitors
+            credit each has earned. Shown by referral code only.
+          </p>
+          {sharers.length === 0 ? (
+            <p className="mt-3 text-[15px] text-ink-muted">No visitors from customers&apos; links yet.</p>
+          ) : (
+            <div className="mt-3 max-w-[760px] overflow-x-auto rounded-[16px] bg-surface shadow-card">
+              <table className="w-full text-left text-[14.5px]">
+                <thead className="text-[13px] uppercase tracking-[.03em] text-ink-muted">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Code</th>
+                    <th className="px-4 py-3 text-right font-semibold">Visitors brought</th>
+                    <th className="px-4 py-3 text-right font-semibold">Credit earned</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sharers.map((r) => (
+                    <tr key={r.code} className="border-t border-line">
+                      <td className="px-4 py-2.5 font-mono text-[13.5px]">{r.code}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold">{r.visitors}</td>
+                      <td className="px-4 py-2.5 text-right">{rupees(r.creditPaise)}</td>
                     </tr>
                   ))}
                 </tbody>
