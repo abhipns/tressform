@@ -229,6 +229,60 @@ export function calculateFullOrder(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Single pictures (26.10.2026, owner's request). Next to the packs (which are
+// unchanged), a customer can buy ONE hairstyle on their own face, picture by
+// picture: the front ₹25, each side and the back ₹15, or all four together
+// as the "Full look" for ₹70. Views can be added later (front today, the
+// back next week for ₹15). The side and back pictures are made FROM the
+// front picture (lib/integrations/falai.ts, generateView), so a side or back
+// can only be bought with the front or after it. Single pictures earn the
+// referrer nothing — the referral rewards stay with the packs.
+// ---------------------------------------------------------------------------
+export type PictureView = "front" | "left" | "right" | "back";
+export const PICTURE_VIEWS: PictureView[] = ["front", "left", "right", "back"];
+export const PICTURE_PRICE_PAISE: Record<PictureView, number> = {
+  front: 2_500, // ₹25
+  left: 1_500, // ₹15
+  right: 1_500, // ₹15
+  back: 1_500, // ₹15
+};
+/** All four views bought together, before any of them is owned. */
+export const FULL_LOOK_PRICE_PAISE = 7_000; // ₹70
+/** Single pictures never earn referral credit. */
+export const PICTURE_REFERRAL_CREDITS_PAISE = 0;
+/** A paid view that fails this many times is marked for refund (/admin/orders). */
+export const PICTURE_MAX_FAILURES = 3;
+
+export type PicturePrice =
+  | { ok: true; views: PictureView[]; pricePaise: number; fullLook: boolean }
+  | { ok: false; error: string };
+
+/**
+ * What a customer pays for the views they ask for, given the views of the
+ * same hairstyle on the same photo they already own. Owned views are left
+ * out (never paid twice). The Full look price applies when all four are
+ * bought at once with none owned; otherwise each view is priced on its own.
+ */
+export function priceForPictures(wanted: readonly string[], owned: readonly string[] = []): PicturePrice {
+  const have = new Set(owned.filter((v): v is PictureView => (PICTURE_VIEWS as string[]).includes(v)));
+  const views = PICTURE_VIEWS.filter((v) => wanted.includes(v) && !have.has(v));
+  if (views.length === 0) {
+    return { ok: false, error: wanted.length > 0 ? "You already have these pictures." : "Choose which pictures you'd like." };
+  }
+  if (!have.has("front") && !views.includes("front")) {
+    return { ok: false, error: "The sides and back are made from the front picture, so the front comes first." };
+  }
+  const fullLook = have.size === 0 && views.length === PICTURE_VIEWS.length;
+  const pricePaise = fullLook ? FULL_LOOK_PRICE_PAISE : views.reduce((sum, v) => sum + PICTURE_PRICE_PAISE[v], 0);
+  return { ok: true, views, pricePaise, fullLook };
+}
+
+/** P&L for a single-picture order: ₹3.50 × 1.2 per picture, 2.36% gateway fee (calculateOrderPnl). */
+export function calculatePicturePnl(pricePaise: number, pictureCount: number): OrderPnl {
+  return calculateOrderPnl(pricePaise, pictureCount, 1);
+}
+
 /** Convert paise to a ₹ display string, e.g. 14714 -> "147.14". */
 export function paiseToRupees(paise: number): string {
   return (paise / 100).toFixed(2);

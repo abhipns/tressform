@@ -70,6 +70,7 @@ import PendingPaymentBox from "@/components/PendingPaymentBox";
 import WhatsAppOptIn from "@/components/WhatsAppOptIn";
 import RatePopup, { mayAskForRating } from "@/components/RatePopup";
 import { LookCarousel, LockedLooks, type LookItem } from "@/components/LookCarousel";
+import PictureOffer from "@/components/PictureOffer";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, useSession } from "@/lib/authClient";
 import { supabase } from "@/lib/supabaseClient";
 import { referralLink } from "@/lib/referral";
@@ -299,6 +300,7 @@ export default function StylePicks({
   onStartOver,
   earlier,
   onDetails,
+  photoId = null,
 }: {
   gender: HairGender;
   frontPhoto: string | null;
@@ -313,6 +315,8 @@ export default function StylePicks({
   earlier?: EarlierPreview[];
   /** Told each time the customer's details are complete or change. */
   onDetails?: (details: ConfirmedDetails) => void;
+  /** 26.10.2026: the customer's photo, for buying single pictures of one hairstyle. */
+  photoId?: string | null;
 }) {
   const lengths: readonly string[] = gender === "men" ? MEN_LENGTHS : WOMEN_LENGTHS;
   const [faceShape, setFaceShape] = useState<FaceShape>(initial.faceShape);
@@ -1009,6 +1013,12 @@ export default function StylePicks({
                   Get a pack to see this
                 </a>
               )}
+              {/* 26.10.2026: or just this one hairstyle, picture by picture. */}
+              {!preview && allowanceSpent && photoId && !samples && (
+                <div className="w-full">
+                  <PictureOffer styleId={pick.style.id} photoId={photoId} />
+                </div>
+              )}
               {preview?.state === "failed" && (
                 <button
                   type="button"
@@ -1384,7 +1394,9 @@ export default function StylePicks({
             ) : (
               <LockedLooks
                 photo={frontPhoto}
+                photoId={samples ? null : photoId}
                 names={lookPicks.slice(0, PACK_TIERS.STARTER.imageCount).map((p) => ({
+                  styleId: p.style.id,
                   name: p.style.name,
                   ready: growLabel(p),
                   readyNow: p.cutToday,

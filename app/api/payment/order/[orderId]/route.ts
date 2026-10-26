@@ -9,6 +9,11 @@
 //
 // 09.10.2026 (real sign-in): in real mode only the logged-in owner of an
 // order can read it — anyone else gets the same "not found" as a wrong id.
+//
+// 26.10.2026 (single pictures): a single-picture order also says which
+// hairstyle and photo it is for, and the state of each of the four views of
+// that hairstyle on that photo (this order's and any bought before or after),
+// with the front picture's link once it is made (lib/pictures.ts).
 
 import { NextRequest, NextResponse } from "next/server";
 import { mockStore } from "@/lib/mockStore";
@@ -16,6 +21,20 @@ import { PACK_TIERS, type PackTier } from "@/lib/pricing";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { PAYU_MOCK_MODE } from "@/lib/integrations/payu";
 import { confirmPayuTxn } from "@/lib/payments";
+import { hairstyleById } from "@/lib/content/hairstyles";
+import { pictureViewRows, viewState, type PictureViewState } from "@/lib/pictures";
+import { PICTURE_VIEWS, type PictureView } from "@/lib/pricing";
+
+const LINK_SECONDS = 3600;
+
+type PictureSummary = {
+  styleId: string;
+  styleName: string | null;
+  photoId: string | null;
+  bought: PictureView[];
+  views: Record<PictureView, PictureViewState>;
+  frontUrl: string | null;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +44,18 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
   if (SUPABASE_MOCK_MODE) {
     const order = mockStore.getOrder(orderId);
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+    let pictures: PictureSummary | null = null;
+    if (order.orderKind === "PICTURES" && order.pictureStyleId) {
+      const rows = mockStore.ownedPictureViews(order.userId, order.picturePhotoId ?? "", order.pictureStyleId);
+      pictures = {
+        styleId: order.pictureStyleId,
+        styleName: hairstyleById(order.pictureStyleId)?.name ?? null,
+        photoId: order.picturePhotoId ?? null,
+        bought: order.pictureViews ?? [],
+        views: Object.fromEntries(PICTURE_VIEWS.map((v) => [v, viewState(rows, v)])) as Record<PictureView, PictureViewState>,
+        frontUrl: rows.find((r) => r.view === "front" && r.status === "DONE")?.resultUrl ?? null,
+      };
+    }
 
     return NextResponse.json({
       mockMode: true,
@@ -41,6 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
         referralCreditsPaise: order.referralCreditsPaise,
         createdAt: order.createdAt,
         paidAt: order.paidAt,
+        pictures,
       },
     });
   }
@@ -66,6 +98,28 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
     }
   }
 
+  let pictures: PictureSummary | null = null;
+  if (order.order_kind === "PICTURES" && order.picture_style_id) {
+    const rows = order.picture_photo_id ? await pictureViewRows(admin, order.user_id, order.picture_photo_id, order.picture_style_id) : [];
+    const frontPath = rows.find((r) => r.view === "front" && r.status === "DONE")?.result_storage_path ?? null;
+    let frontUrl: string | null = null;
+    if (frontPath) {
+      if (frontPath.startsWith("http")) frontUrl = frontPath;
+      else {
+        const { data } = await admin.storage.from("results").createSignedUrl(frontPath, LINK_SECONDS);
+        frontUrl = data?.signedUrl ?? null;
+      }
+    }
+    pictures = {
+      styleId: order.picture_style_id,
+      styleName: hairstyleById(order.picture_style_id)?.name ?? null,
+      photoId: order.picture_photo_id,
+      bought: order.picture_views ?? [],
+      views: Object.fromEntries(PICTURE_VIEWS.map((v) => [v, viewState(rows, v)])) as Record<PictureView, PictureViewState>,
+      frontUrl,
+    };
+  }
+
   return NextResponse.json({
     mockMode: false,
     order: {
@@ -81,6 +135,7 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
       referralCreditsPaise: order.referral_credits_paise,
       createdAt: order.created_at,
       paidAt: order.paid_at,
+      pictures,
     },
   });
 }

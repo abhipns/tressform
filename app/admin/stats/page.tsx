@@ -49,6 +49,9 @@ interface Income {
   note: string | null;
 }
 
+// 26.10.2026: orders that aren't a pack, in the "Packs:" line under Money.
+const PACK_NAMES: Record<string, string> = { PICTURES: "Single pictures", ADDON: "Add-ons" };
+
 const SOURCES = { amazon: "Amazon Associates", earnkaro: "EarnKaro (Flipkart, Nykaa…)", other: "Other" } as const;
 const input =
   "w-full rounded-sm2 border border-line bg-surface px-3.5 py-2.5 text-[15px] outline-none focus:border-mint-deep";
@@ -317,7 +320,7 @@ function Dashboard() {
             <p className="mt-3 text-[14.5px] text-ink-muted">
               Packs:{" "}
               {Object.entries(s.by_pack)
-                .map(([tier, n]) => `${PACK_TIERS[tier as PackTier]?.label ?? tier} ${n}`)
+                .map(([tier, n]) => `${PACK_TIERS[tier as PackTier]?.label ?? PACK_NAMES[tier] ?? tier} ${n}`)
                 .join(" · ")}
             </p>
           )}

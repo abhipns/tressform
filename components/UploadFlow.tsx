@@ -904,6 +904,7 @@ export default function UploadFlow() {
                 onStartOver={startOver}
                 earlier={earlier}
                 makeViews={makeViews}
+                photoId={analysis.photoId}
                 onDetails={(confirmed) => {
                   const saved = recall();
                   if (saved && saved.photoId === analysis.photoId) remember({ ...saved, confirmed });

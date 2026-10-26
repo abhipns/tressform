@@ -11,6 +11,9 @@
 // every few seconds for about a minute — the server asks PayU each time —
 // instead of telling the customer to refresh. A failed payment says so
 // plainly and offers to try again.
+//
+// 26.10.2026 (single pictures): an order for pictures of one hairstyle shows
+// those pictures here, made as the page opens (components/PictureResult.tsx).
 
 "use client";
 
@@ -18,6 +21,7 @@ import { useEffect, useState } from "react";
 import { paiseToRupees } from "@/lib/pricing";
 import { SUPABASE_MOCK_MODE, authHeaders, loginUrl } from "@/lib/authClient";
 import { trackPurchaseOnce } from "@/lib/metaPixel";
+import PictureResult, { type PictureOrderSummary } from "@/components/PictureResult";
 
 interface OrderSummary {
   id: string;
@@ -31,6 +35,18 @@ interface OrderSummary {
   gstPaise: number;
   referralCreditsPaise: number;
   paidAt: string | null;
+  /** 26.10.2026: set for single-picture orders. */
+  pictures?: PictureOrderSummary | null;
+}
+
+/** Where "Try again" goes: the same pack, or the same pictures. */
+function retryLink(order: OrderSummary): string {
+  const p = order.pictures;
+  if (p) {
+    const views = p.bought.length === 4 ? "all" : p.bought.join(",");
+    return `/checkout?style=${encodeURIComponent(p.styleId)}&photo=${encodeURIComponent(p.photoId ?? "")}&views=${views}`;
+  }
+  return `/checkout?tier=${order.tier ?? ""}`;
 }
 
 export default function ResultsPage({ params }: { params: { orderId: string } }) {
@@ -41,7 +57,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
 
   // 21.10.2026: Meta Pixel — a confirmed payment, once per order on this device.
   useEffect(() => {
-    if (order?.status === "PAID" && !SUPABASE_MOCK_MODE) trackPurchaseOnce(order.id, Math.round((order.pricePaise ?? 0) / 100), order.tierLabel ?? null);
+    if (order?.status === "PAID" && !SUPABASE_MOCK_MODE) trackPurchaseOnce(order.id, Math.round((order.pricePaise ?? 0) / 100), order.tierLabel ?? (order.pictures ? "Single pictures" : null));
   }, [order]);
 
   // Still waiting for PayU: check again shortly.
@@ -106,7 +122,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
             No hairstyles were added and no money was taken. If money did leave your account, your bank returns it
             automatically within a few working days.
           </p>
-          <a href={`/checkout?tier=${order.tier ?? ""}`} className="btn-primary">
+          <a href={retryLink(order)} className="btn-primary">
             Try again
           </a>
         </div>
@@ -133,7 +149,7 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
               <button className="btn-primary" onClick={() => setChecks(0)}>
                 Check again
               </button>
-              <a href={`/checkout?tier=${order.tier ?? ""}`} className="text-[13.5px] font-semibold text-mint-deep">
+              <a href={retryLink(order)} className="text-[13.5px] font-semibold text-mint-deep">
                 Try the payment again
               </a>
             </div>
@@ -151,14 +167,22 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
             ✓
           </span>
           <h1 className="mb-2 text-[clamp(24px,4vw,30px)]">Payment confirmed</h1>
-          <p className="mb-6 text-[14.5px] text-ink-muted">
-            {order.tierLabel}: {order.imageCount} hairstyles have been added to your account. Use them on any
-            style from your list.
-          </p>
-          <a href="/#upload" className="btn-primary mb-7">
-            Continue to my hairstyles
-          </a>
-          <br />
+          {order.pictures ? (
+            <p className="mb-6 text-[14.5px] text-ink-muted">
+              Your pictures of {order.pictures.styleName ?? "this hairstyle"} are being made below. Keep this page open.
+            </p>
+          ) : (
+            <>
+              <p className="mb-6 text-[14.5px] text-ink-muted">
+                {order.tierLabel}: {order.imageCount} hairstyles have been added to your account. Use them on any
+                style from your list.
+              </p>
+              <a href="/#upload" className="btn-primary mb-7">
+                Continue to my hairstyles
+              </a>
+              <br />
+            </>
+          )}
           <div className="mx-auto mb-2 inline-flex gap-6 rounded-md2 border border-line bg-surface px-6 py-3 text-[13px] text-ink-muted">
             <span>
               {order.pricePaise > 0 || !order.creditUsedPaise ? (
@@ -187,6 +211,12 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           )}
         </div>
       </section>
+
+      {order.pictures && (
+        <div className="mt-8">
+          <PictureResult orderId={order.id} pictures={order.pictures} />
+        </div>
+      )}
 
       {/* 12.10.2026: the made-up "Tressform" products that stood here are gone.
           Care tips and real product picks are on each hairstyle card now. */}

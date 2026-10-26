@@ -13,6 +13,8 @@
 //                 No AI picture is made for this (owner's choice: no cost
 //                 before payment).
 
+import PictureOffer from "@/components/PictureOffer";
+
 export interface LookItem {
   id: string;
   rank: number;
@@ -121,13 +123,18 @@ function LockIcon() {
   );
 }
 
+// 26.10.2026: each locked look also offers "See this on your face" — the
+// front ₹25 or the Full look ₹70, for that one hairstyle (PictureOffer).
 export function LockedLooks({
   photo,
+  photoId,
   names,
   packs,
 }: {
   photo: string | null;
-  names: { name: string; ready: string; readyNow: boolean }[];
+  /** The customer's photo, for buying single pictures. Without it, only the packs are offered. */
+  photoId?: string | null;
+  names: { styleId?: string; name: string; ready: string; readyNow: boolean }[];
   packs: { tier: string; count: number; rupees: string }[];
 }) {
   const first = packs[0];
@@ -151,6 +158,7 @@ export function LockedLooks({
             </div>
             <p className="mt-2 text-[15px] font-semibold leading-snug text-ink-heading">{look.name}</p>
             <ReadyChip text={look.ready} now={look.readyNow} />
+            {photoId && look.styleId && <PictureOffer styleId={look.styleId} photoId={photoId} />}
           </li>
         ))}
       </ol>

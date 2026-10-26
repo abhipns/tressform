@@ -11,6 +11,10 @@
 // period's paid orders (saved with each order; 0 while Tressform isn't
 // GST-registered, lib/pricing.ts GST_REGISTERED), and, for planning, what
 // it would be at 18% of the same sales if prices stayed as they are.
+//
+// 26.10.2026: single-picture orders are in the sales figures like any paid
+// order (admin_stats). They have no pack looks, and their side and back
+// views are made only when paid for, so they are left out of "unopened looks".
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
@@ -73,11 +77,11 @@ export async function GET(req: NextRequest) {
   const adminIds = new Set((admins ?? []).map((a) => a.id as string));
   const [{ data: unopened }, { data: paidOrders }] = await Promise.all([
     db.from("style_results").select("user_id, order_id").not("order_id", "is", null).eq("status", "SUCCEEDED").is("view_paths", null).limit(10000),
-    db.from("orders").select("id, user_id, preview_count, previews_used, gst_paise, paid_at").eq("status", "PAID").limit(10000),
+    db.from("orders").select("id, user_id, preview_count, previews_used, gst_paise, paid_at, order_kind").eq("status", "PAID").limit(10000),
   ]);
   const customerOrders = (paidOrders ?? []).filter((o) => !adminIds.has(o.user_id as string));
   // 14.10.2026: a refunded order makes no more pictures (lib/refunds.ts), so its looks don't count here.
-  const paidIds = new Set(customerOrders.map((o) => o.id as string));
+  const paidIds = new Set(customerOrders.filter((o) => o.order_kind !== "PICTURES").map((o) => o.id as string));
   const gstDuePaise = customerOrders
     .filter((o) => o.paid_at && (o.paid_at as string) >= since)
     .reduce((sum, o) => sum + (o.gst_paise ?? 0), 0);

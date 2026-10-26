@@ -43,6 +43,12 @@
 //     (and a link to share) that opens PayU for this same order on another
 //     phone (lib/payHandoff.ts). This page checks the order every few
 //     seconds and moves on to the results once it is paid.
+//
+// 26.10.2026 (single pictures): ?style=<hairstyle>&photo=<photo>&views=front
+// (or views=all for the Full look, or e.g. views=back to add one view later)
+// buys pictures of one hairstyle on the customer's own photo instead of a
+// pack. Same credit box, PayU page, QR code and "already paid" check. The
+// server prices it again itself, leaving out views already owned.
 
 "use client";
 
@@ -61,7 +67,10 @@ import {
   paiseToRupees,
   type PackTier,
   isEarlyBirdActive,
+  PICTURE_VIEWS,
+  priceForPictures,
 } from "@/lib/pricing";
+import { hairstyleById } from "@/lib/content/hairstyles";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, isAnonymousSession, loginUrl, useSession } from "@/lib/authClient";
 import SaveAccount from "@/components/SaveAccount";
 import { splitWithCredit } from "@/lib/credit";
@@ -99,6 +108,11 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const tierParam = (searchParams.get("tier") || "").toUpperCase() as PackTier;
   const cameBackFailed = searchParams.get("payment") === "failed";
+  // 26.10.2026: single pictures of one hairstyle.
+  const pictureStyle = hairstyleById(searchParams.get("style") ?? undefined);
+  const picturePhoto = (searchParams.get("photo") ?? "").slice(0, 60);
+  const viewsParam = searchParams.get("views") ?? "front";
+  const pictureMode = Boolean(pictureStyle && picturePhoto);
 
   const [status, setStatus] = useState<"idle" | "paying" | "error">("idle");
   // "Pay from another phone": the QR code and link, while waiting for the payment.
@@ -201,18 +215,40 @@ function CheckoutContent() {
     };
   }, [other, router]);
 
-  const validTier = SELLABLE_TIERS.includes(tierParam) ? tierParam : null;
+  const validTier = !pictureMode && SELLABLE_TIERS.includes(tierParam) ? tierParam : null;
 
   const pnl = useMemo(() => (validTier ? calculatePackPnl(validTier) : null), [validTier]);
   const pack = validTier ? PACK_TIERS[validTier] : null;
-  const split = splitWithCredit(pnl?.pricePaise ?? 0, balancePaise, useCredit);
+  // Single pictures: the views asked for. Adding a side or back later assumes
+  // the front is already theirs; the server checks that and prices it itself.
+  const wantedViews: string[] = viewsParam === "all" ? [...PICTURE_VIEWS] : viewsParam.split(",");
+  const picturePrice = pictureMode ? priceForPictures(wantedViews, wantedViews.includes("front") ? [] : ["front"]) : null;
+  const VIEW_NAMES: Record<string, string> = { front: "Front view", left: "Left side", right: "Right side", back: "Back" };
+  const product =
+    pack && pnl
+      ? { label: pack.label, line: `${pack.imageCount} hairstyles on your own photo`, pricePaise: pnl.pricePaise, noun: "pack" }
+      : pictureStyle && picturePrice?.ok
+        ? {
+            label: picturePrice.fullLook ? `Full look · ${pictureStyle.name}` : pictureStyle.name,
+            line: picturePrice.fullLook
+              ? "Front, both sides and back, on your own photo"
+              : `${picturePrice.views.map((v) => VIEW_NAMES[v]).join(", ")}, on your own photo`,
+            pricePaise: picturePrice.pricePaise,
+            noun: "order",
+          }
+        : null;
+  const here = pictureMode
+    ? `/checkout?style=${encodeURIComponent(pictureStyle!.id)}&photo=${encodeURIComponent(picturePhoto)}&views=${encodeURIComponent(viewsParam)}`
+    : `/checkout?tier=${validTier}`;
+  const pictures = pictureMode && picturePrice?.ok ? { styleId: pictureStyle!.id, photoId: picturePhoto, views: picturePrice.views } : undefined;
+  const split = splitWithCredit(product?.pricePaise ?? 0, balancePaise, useCredit);
   const free = split.duePaise === 0 && split.creditPaise > 0;
   const askPhone = !SUPABASE_MOCK_MODE && !free;
   const gstOnDuePaise = GST_REGISTERED ? Math.round(split.duePaise * GST_RATE) : 0;
   const rupees = (paise: number) => `₹${paiseToRupees(paise).split(".")[0]}`;
 
   async function handlePay(where: "here" | "other" = "here") {
-    if (!validTier) return;
+    if (!product) return;
     if (askPhone && !phoneOk(phone)) {
       setPhoneError(true);
       return;
@@ -226,7 +262,7 @@ function CheckoutContent() {
     if (where === "other") setOtherBusy(true);
     else setStatus("paying");
     // 21.10.2026: Meta Pixel — checkout started, with the amount to pay.
-    trackMeta("InitiateCheckout", { value: Math.round(split.duePaise / 100), currency: "INR", content_name: pack?.label });
+    trackMeta("InitiateCheckout", { value: Math.round(split.duePaise / 100), currency: "INR", content_name: product.label });
     setError(null);
     // Saved before PayU takes over the page; a failure here never stops the payment.
     if (askPhone && whatsappYes) await saveWhatsAppNumber({ phone, source: "checkout" }).catch(() => undefined);
@@ -238,8 +274,8 @@ function CheckoutContent() {
         headers,
         body: JSON.stringify(
           SUPABASE_MOCK_MODE
-            ? { userId: getMockUserId(), tier: validTier, useCredit }
-            : { tier: validTier, phone: free ? undefined : phone, useCredit, campaign: currentCampaign() }
+            ? { userId: getMockUserId(), tier: validTier ?? undefined, pictures, useCredit }
+            : { tier: validTier ?? undefined, pictures, phone: free ? undefined : phone, useCredit, campaign: currentCampaign() }
         ),
       });
       const createData = await createRes.json();
@@ -251,7 +287,7 @@ function CheckoutContent() {
           setError("Please create your account below to continue.");
           return;
         }
-        window.location.assign(loginUrl(`/checkout?tier=${validTier}`));
+        window.location.assign(loginUrl(here));
         return;
       }
       // 20.10.2026: an earlier payment of theirs has just been confirmed — no second payment.
@@ -291,7 +327,7 @@ function CheckoutContent() {
       }
 
       if (!payu?.action || !payu?.fields) throw new Error("Could not start the payment. Please try again.");
-      savePendingPayment(orderId, validTier);
+      if (validTier) savePendingPayment(orderId, validTier);
 
       if (where === "other") {
         const handoffRes = await fetch("/api/payment/handoff", {
@@ -321,14 +357,17 @@ function CheckoutContent() {
     }
   }
 
-  if (!validTier || !pack || !pnl) {
+  if (!product) {
     return (
       <section className="wrap py-16">
         <div className="mx-auto max-w-[520px] text-center">
           <h1 className="mb-3 text-[26px]">We couldn&apos;t find that plan</h1>
           <p className="mb-6 text-[14.5px] text-ink-muted">
-            Head back to pricing and choose Starter Pack or Style Pack — Full Explore isn&apos;t available for
-            purchase yet.
+            {pictureMode
+              ? picturePrice && !picturePrice.ok
+                ? picturePrice.error
+                : "Please go back to your hairstyles and choose again."
+              : "Head back to pricing and choose Starter Pack or Style Pack — Full Explore isn't available for purchase yet."}
           </p>
           <a href="/#pricing" className="btn-primary">
             Back to Pricing
@@ -342,18 +381,16 @@ function CheckoutContent() {
     <section className="wrap py-16">
       <div className="mx-auto max-w-[480px]">
         <p className="eyebrow">Checkout</p>
-        <h1 className="mb-6 text-[clamp(24px,4vw,32px)]">{pack.label}</h1>
+        <h1 className="mb-6 text-[clamp(24px,4vw,32px)]">{product.label}</h1>
 
         <div className="mb-6 rounded-lg2 border border-line bg-surface p-6">
           <div className="mb-4 flex items-baseline justify-between">
-            <span className="text-[14.5px] text-ink-muted">
-              {pack.imageCount} hairstyles on your own photo
-            </span>
+            <span className="text-[14.5px] text-ink-muted">{product.line}</span>
             <span className="font-heading text-[24px] font-bold text-ink-heading">
-              ₹{paiseToRupees(pnl.pricePaise).split(".")[0]}
+              ₹{paiseToRupees(product.pricePaise).split(".")[0]}
             </span>
           </div>
-          {isEarlyBirdActive() && pack.regularPricePaise !== null && (
+          {pack && isEarlyBirdActive() && pack.regularPricePaise !== null && (
             <p className="mb-4 text-[12.5px] font-semibold text-mint-deep">
               Early Bird price applied — regular price is ₹{paiseToRupees(pack.regularPricePaise).split(".")[0]}
             </p>
@@ -371,7 +408,7 @@ function CheckoutContent() {
                 <span className="block text-[12.5px] text-ink-muted">
                   {useCredit
                     ? split.creditPaise < balancePaise
-                      ? `${rupees(split.creditPaise)} goes toward this pack; ${rupees(balancePaise - split.creditPaise)} stays in your account.`
+                      ? `${rupees(split.creditPaise)} goes toward this ${product.noun}; ${rupees(balancePaise - split.creditPaise)} stays in your account.`
                       : "Your credit is taken only once your payment goes through."
                     : "Your credit stays in your account for later."}
                 </span>
@@ -455,10 +492,10 @@ function CheckoutContent() {
           <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
         )}
 
-        {needsAccount && validTier && <SaveAccount next={`/checkout?tier=${validTier}`} />}
+        {needsAccount && <SaveAccount next={here} />}
 
         {needsAccount ? null : needsLogin ? (
-          <a href={loginUrl(`/checkout?tier=${validTier}`)} className="btn-primary w-full">
+          <a href={loginUrl(here)} className="btn-primary w-full">
             Log in to continue
           </a>
         ) : (
@@ -556,7 +593,7 @@ function CheckoutContent() {
 
         <p className="mt-4 text-center text-[12px] text-ink-muted">
           {free
-            ? "Your credit pays for the whole pack, so there's no payment step."
+            ? `Your credit pays for the whole ${product.noun}, so there's no payment step.`
             : "You'll pay on PayU's secure page (UPI, cards, net banking), then come straight back here."}{" "}
           See our{" "}
           <a href="/refund" className="font-semibold text-mint-deep">

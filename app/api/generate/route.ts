@@ -39,6 +39,12 @@
 // preview made from a pack is recorded against that order, which is also
 // what keeps a paid picture out of the 90-day clean-up. The reply says how
 // many previews are left in all (`previewsLeft`).
+//
+// 26.10.2026 (single pictures): when the customer has paid for the front
+// picture of this hairstyle on this photo (lib/pictures.ts), that paid
+// picture is used instead of a pack look. If it fails it isn't lost: it can
+// be tried again for free, and the third failure marks it for refund on
+// /admin/orders. In the demo, the photo can be named by photoId alone.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -59,6 +65,7 @@ import {
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { alertFalRefused, watchFalBalance } from "@/lib/falBalance";
 import { failedPicturesToday, isOwnerAccount, LIMIT_MESSAGES, overLimit } from "@/lib/usageLimits";
+import { finishPictureView, reservePictureView } from "@/lib/pictures";
 
 // A real generation takes roughly 10–30 seconds; give the function room.
 export const maxDuration = 60;
@@ -136,7 +143,9 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const userId = auth.userId;
 
-  if (SUPABASE_MOCK_MODE && !sourceImageUrl) {
+  // 26.10.2026: the demo's result screen for single pictures names the photo by its id.
+  const mockSource = SUPABASE_MOCK_MODE ? sourceImageUrl || (photoId ? mockStore.getPhoto(photoId)?.storagePath : undefined) : undefined;
+  if (SUPABASE_MOCK_MODE && !mockSource) {
     return NextResponse.json({ error: "sourceImageUrl is required." }, { status: 400 });
   }
   if (!SUPABASE_MOCK_MODE && !photoId) {
@@ -147,8 +156,10 @@ export async function POST(req: NextRequest) {
   // ---------------------------------------------------------------- mock DB
   if (SUPABASE_MOCK_MODE) {
     const profile = mockStore.getOrCreateProfile(userId);
-    const taken = mockReservePreview(userId);
-    if (!taken) {
+    // 26.10.2026: a paid single picture of this hairstyle comes first.
+    const pictureOrderId = style && photoId ? mockStore.reservePictureView(userId, photoId, style.id, "front") : null;
+    const taken = pictureOrderId ? null : mockReservePreview(userId);
+    if (!pictureOrderId && !taken) {
       return NextResponse.json(
         {
           error: "You have no hairstyles left. Choose a pack to see more styles on your own photo.",
@@ -160,13 +171,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await generateHairstyle({ sourceImageUrl: sourceImageUrl!, styleName, styleDescription, faceShape, gender });
+    const result = await generateHairstyle({ sourceImageUrl: mockSource!, styleName, styleDescription, faceShape, gender });
 
     if (result.status !== "SUCCEEDED" || !result.resultImageUrl) {
       // Only a finished picture uses up a preview.
-      mockReleasePreview(userId, taken);
+      if (pictureOrderId) mockStore.finishPictureView(pictureOrderId, "front", false, null);
+      else if (taken) mockReleasePreview(userId, taken);
       return NextResponse.json({ error: result.errorMessage || "Generation failed." }, { status: 502 });
     }
+    if (pictureOrderId) mockStore.finishPictureView(pictureOrderId, "front", true, result.resultImageUrl);
 
     mockStore.addStyleResult({
       id: randomUUID(),
@@ -178,12 +191,13 @@ export async function POST(req: NextRequest) {
       provider: "fal_ai_pulid_flux",
       costPaise: result.costPaise,
       createdAt: new Date().toISOString(),
+      orderId: pictureOrderId ?? (taken?.kind === "paid" ? taken.orderId : null),
     });
 
     return NextResponse.json({
       mockMode: true,
       resultImageUrl: result.resultImageUrl,
-      paid: taken.kind === "paid",
+      paid: Boolean(pictureOrderId) || taken?.kind === "paid",
       previewsLeft: mockPreviewsLeft(userId).total,
       freePreviewsUsed: profile.freePreviewsUsed,
       freePreviewsLimit: profile.freePreviewsLimit,
@@ -305,8 +319,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 26.10.2026: a paid single picture of this hairstyle on this photo comes first (lib/pictures.ts).
+  let pictureHeld: string | null = style ? await reservePictureView(admin, userId, photo.id, style.id, "front") : null;
+  const pictureOrderId = pictureHeld;
+
   let reservation: Reservation | null = null;
-  if (FALAI_MOCK_MODE) {
+  if (pictureOrderId) {
+    // Paid for on its own: nothing is taken from a pack.
+  } else if (FALAI_MOCK_MODE) {
     if ((await countPreviewsLeft(admin, userId)).total <= 0) return limitReached();
   } else {
     try {
@@ -319,13 +339,20 @@ export async function POST(req: NextRequest) {
   }
 
   async function giveBack() {
+    // A paid single picture that failed: tried again for free; the third failure is marked for refund.
+    if (pictureHeld) {
+      const held = pictureHeld;
+      pictureHeld = null;
+      await finishPictureView(admin, held, "front", false, null);
+      return;
+    }
     if (!reservation) return;
     const held = reservation;
     reservation = null;
     await releasePreview(admin, userId, held);
   }
   // Read now: giveBack() clears the reservation, and the records below need it.
-  const paidOrderId = reservation?.kind === "paid" ? reservation.orderId : null;
+  const paidOrderId = pictureOrderId ?? (reservation?.kind === "paid" ? reservation.orderId : null);
 
   // The customer's own photo, to compare each preview against. If it can't
   // be read back the preview is still made; it just goes out unchecked.
@@ -420,8 +447,9 @@ export async function POST(req: NextRequest) {
     if (failedInsertError) console.error("[Tressform] style_results insert (failed check) failed:", failedInsertError.message);
     return NextResponse.json(
       {
-        error:
-          "We couldn't make a true-to-you picture of this style, so it hasn't been counted. Please try another style, or a clearer photo facing the camera.",
+        error: pictureOrderId
+          ? "We couldn't make a true-to-you picture this time. Tap “Try again” — it's free."
+          : "We couldn't make a true-to-you picture of this style, so it hasn't been counted. Please try another style, or a clearer photo facing the camera.",
         previewRejected: true,
       },
       { status: 422 }
@@ -474,6 +502,10 @@ export async function POST(req: NextRequest) {
     // The customer still gets the image they were just charged an allowance
     // for; the missing record is ours to chase.
     console.error("[Tressform] style_results insert failed:", insertError.message);
+  }
+  if (pictureHeld) {
+    pictureHeld = null;
+    await finishPictureView(admin, pictureOrderId!, "front", true, storedPath);
   }
 
   // 20.10.2026: a picture was just paid for — look at the fal.ai balance (at

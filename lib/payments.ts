@@ -20,6 +20,7 @@
 import { verifyPayment } from "@/lib/integrations/payu";
 import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/pricing";
 import { financialYearStart } from "@/lib/referral";
+import { grantPictureViews } from "@/lib/pictures";
 
 export type ConfirmResult =
   | { found: false }
@@ -65,6 +66,8 @@ export async function confirmPayuTxn(txnid: string, via: "return" | "webhook" | 
     if (updated && updated.length > 0) {
       await spendOrderCredit(admin, order);
       await settleReferral(admin, order);
+      // 26.10.2026: single pictures — the paid views, ready to be made (lib/pictures.ts).
+      if (order.order_kind === "PICTURES") await grantPictureViews(admin, order.id);
     }
     return { found: true, orderId: order.id, tier: order.tier, status: "PAID" };
   }
