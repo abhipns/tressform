@@ -166,7 +166,8 @@ select jsonb_build_object(
   'returning_visitors', (select count(*) from (
       select visitor from site_visits where created_at >= p_since
       group by visitor having count(distinct (created_at at time zone 'Asia/Kolkata')::date) > 1) r),
-  'signups', (select count(*) from profiles where created_at >= p_since and role <> 'ADMIN'),
+  -- 23.10.2026: only accounts with an email count as sign-ups (supabase/migrations/20261023_try_before_signin.sql).
+  'signups', (select count(*) from profiles where created_at >= p_since and role <> 'ADMIN' and email is not null),
   'selfies', (select count(*) from photos where created_at >= p_since and user_id not in (select id from admins)),
   'selfie_people', (select count(distinct user_id) from photos where created_at >= p_since and user_id not in (select id from admins)),
   'hairstyles_made', (select count(*) from style_results where created_at >= p_since and status = 'SUCCEEDED'
