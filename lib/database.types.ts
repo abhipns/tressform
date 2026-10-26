@@ -137,6 +137,8 @@ export interface AffiliateProductRow {
   amazon_asin: string | null;
   /** 13.10.2026: affiliate links for the other shops, e.g. { flipkart: "https://…", nykaa: "https://…" }. */
   shop_links: Record<string, string>;
+  /** 26.10.2026: the owner ticked "Trending", so it shows at the top of /haircare. */
+  is_trending: boolean;
   is_active: boolean;
   sort_order: number;
   created_at: string;

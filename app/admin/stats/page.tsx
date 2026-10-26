@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import OwnerGate from "@/components/admin/OwnerGate";
 import { authHeaders } from "@/lib/authClient";
-import { PERIODS, finalSummary, rupees, stepRate, type Period } from "@/lib/stats";
+import { PERIODS, campaignTotals, finalSummary, rupees, stepRate, type Period } from "@/lib/stats";
 import { shopLabel, type ShopId } from "@/lib/content/haircare";
 import { PACK_TIERS, type PackTier } from "@/lib/pricing";
 import { REVIEW_SECTIONS, REVIEW_SECTION_IDS, type ReviewSection } from "@/lib/reviews";
@@ -497,6 +497,23 @@ function Campaigns({ period }: { period: Period }) {
                 </tr>
               ))}
             </tbody>
+            {/* 26.10.2026: the owner's Total row, all campaigns together. */}
+            {(() => {
+              const t = campaignTotals(rows);
+              return (
+                <tfoot className="border-t-2 border-line font-bold text-ink-heading">
+                  <tr>
+                    <td className="py-2 pr-3" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="py-2 pr-3 text-right">{t.visitors}</td>
+                    <td className="py-2 pr-3 text-right">{t.purchases}</td>
+                    <td className="py-2 pr-3 text-right">{rupees(t.revenuePaise)}</td>
+                    <td className="py-2 text-right">{t.boughtPct === null ? "—" : `${t.boughtPct}%`}</td>
+                  </tr>
+                </tfoot>
+              );
+            })()}
           </table>
         </div>
       )}

@@ -159,7 +159,9 @@ create table public.affiliate_products (
   hair_types text[] default '{}'::text[] not null,
   gender text default 'all'::text not null,
   amazon_asin text,
-  shop_links jsonb default '{}'::jsonb not null
+  shop_links jsonb default '{}'::jsonb not null,
+  -- 26.10.2026: highlighted in "Trending" on /haircare (supabase/migrations/20261026_trending_products.sql)
+  is_trending boolean default false not null
 );
 
 create table public.affiliate_clicks (

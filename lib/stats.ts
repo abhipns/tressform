@@ -28,6 +28,23 @@ export function stepRate(count: number, previous: number): number | null {
   return Math.round((count / previous) * 100);
 }
 
+/**
+ * 26.10.2026: the bold Total row under "By ad campaign", so the owner sees
+ * all ads together. Bought % is total sales ÷ total people (not an average
+ * of each row's %), to 1 decimal; null when there were no people.
+ */
+export function campaignTotals(rows: { visitors: number; purchases: number; revenuePaise: number }[]): {
+  visitors: number;
+  purchases: number;
+  revenuePaise: number;
+  boughtPct: string | null;
+} {
+  const visitors = rows.reduce((n, r) => n + r.visitors, 0);
+  const purchases = rows.reduce((n, r) => n + r.purchases, 0);
+  const revenuePaise = rows.reduce((n, r) => n + r.revenuePaise, 0);
+  return { visitors, purchases, revenuePaise, boughtPct: visitors ? ((purchases / visitors) * 100).toFixed(1) : null };
+}
+
 /** "₹1,234" from paise. */
 export function rupees(paise: number): string {
   return "₹" + Math.round(paise / 100).toLocaleString("en-IN");

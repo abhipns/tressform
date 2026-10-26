@@ -28,6 +28,8 @@ type Input = {
   hairTypes?: unknown;
   sortOrder?: unknown;
   active?: unknown;
+  /** 26.10.2026: show it in "Trending" at the top of /haircare. */
+  trending?: unknown;
 };
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -94,6 +96,7 @@ function readInput(body: Input, partial: boolean): { ok: true; row: Partial<Affi
     row.sort_order = Number.isFinite(n) ? Math.max(0, Math.min(9999, Math.round(n))) : 0;
   }
   if (body.active !== undefined) row.is_active = body.active === true;
+  if (body.trending !== undefined) row.is_trending = body.trending === true;
   return { ok: true, row };
 }
 
@@ -132,7 +135,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as Input;
   const read = readInput(body, false);
   if (!read.ok) return NextResponse.json({ error: read.error }, { status: 400 });
-  const row = { gender: "all" as const, hair_types: [], is_active: true, sort_order: 0, ...read.row };
+  const row = { gender: "all" as const, hair_types: [], is_active: true, is_trending: false, sort_order: 0, ...read.row };
 
   if (SUPABASE_MOCK_MODE) {
     const now = new Date().toISOString();

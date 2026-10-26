@@ -9,6 +9,11 @@
 // this list straight away — no upload needed. Products can be switched off
 // without deleting them. The list shows how often each was tapped in the
 // last 30 days.
+//
+// 26.10.2026: a "Trending" tick box. Ticked products (up to 6, lowest order
+// number first) show in "Trending for this season's hairstyles" at the top
+// of the Hair Care page; with none ticked, the 6 most-tapped of the last 30
+// days show there instead.
 
 import { useEffect, useState } from "react";
 import { SUPABASE_MOCK_MODE, authHeaders, loginUrl, useSession } from "@/lib/authClient";
@@ -30,6 +35,7 @@ interface Row {
   hair_types: string[];
   sort_order: number;
   is_active: boolean;
+  is_trending: boolean;
   clicks30: number;
 }
 
@@ -44,6 +50,7 @@ const EMPTY = {
   gender: "all",
   hairTypes: [] as string[],
   sortOrder: "0",
+  trending: false,
 };
 
 const TYPES = ["straight", "wavy", "curly"] as const;
@@ -119,6 +126,7 @@ export default function AdminProductsPage() {
       gender: form.gender,
       hairTypes: form.hairTypes,
       sortOrder: Number(form.sortOrder) || 0,
+      trending: form.trending,
     };
     const ok = await send(form.id ? "PATCH" : "POST", body);
     if (ok) {
@@ -145,6 +153,7 @@ export default function AdminProductsPage() {
       gender: r.gender,
       hairTypes: r.hair_types ?? [],
       sortOrder: String(r.sort_order ?? 0),
+      trending: r.is_trending === true,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -278,6 +287,21 @@ export default function AdminProductsPage() {
             <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Order (lower shows first)</span>
             <input className={input} inputMode="numeric" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} />
           </label>
+          <label className="flex items-start gap-2 text-[15px] sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.trending}
+              onChange={(e) => setForm({ ...form, trending: e.target.checked })}
+            />
+            <span>
+              <span className="font-semibold text-ink-heading">Trending</span>
+              <span className="block text-[13.5px] text-ink-muted">
+                Show it in &ldquo;Trending for this season&apos;s hairstyles&rdquo; at the top of the Hair Care page (up
+                to 6 show, lowest order number first). With none ticked, the 6 most-tapped of the last 30 days show.
+              </span>
+            </span>
+          </label>
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button type="button" className="btn-primary" disabled={busy} onClick={save}>
@@ -320,7 +344,7 @@ export default function AdminProductsPage() {
                     {r.hair_types?.length ? r.hair_types.join(", ") : "all hair types"} · order {r.sort_order}
                   </p>
                   <p className="mt-0.5 text-[13.5px] text-ink-muted">
-                    {r.clicks30} tap{r.clicks30 === 1 ? "" : "s"} in the last 30 days{r.is_active ? "" : " · switched off"}
+                    {r.clicks30} tap{r.clicks30 === 1 ? "" : "s"} in the last 30 days{r.is_trending ? " · Trending" : ""}{r.is_active ? "" : " · switched off"}
                   </p>
                   </div>
                 </div>

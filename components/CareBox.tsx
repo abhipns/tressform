@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import type { Hairstyle, HairTexture } from "@/lib/content/hairstyles";
+import { rupees } from "@/lib/stats";
 import { AMAZON_DISCLOSURE, KINDS, SHOP_STYLE, careFor, goLink, productsFor, shopLabel, type CareProduct } from "@/lib/content/haircare";
 
 let cache: Promise<CareProduct[]> | null = null;
@@ -94,24 +95,74 @@ export function ProductLink({ product, from, styleId, compact = false }: { produ
           {product.note && <span className="block text-[12.5px] text-ink-muted">{product.note}</span>}
         </span>
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2">
-        <span className="text-[12.5px] text-ink-muted">Buy on</span>
-        {product.shops.map((shop) => (
-          <a
-            key={shop}
-            href={goLink(product.id, from, styleId, shop)}
-            target="_blank"
-            rel="sponsored noopener"
-            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition hover:opacity-90"
-            style={{ background: SHOP_STYLE[shop].bg, color: SHOP_STYLE[shop].fg }}
-            aria-label={`Buy ${product.brand ? product.brand + " " : ""}${product.title} on ${shopLabel(shop)}`}
-          >
-            {shopLabel(shop)}
-            <span aria-hidden="true">↗</span>
-          </a>
-        ))}
-      </div>
+      <ShopButtons product={product} from={from} styleId={styleId} />
     </div>
+  );
+}
+
+/** The "Buy on" row: one button per shop, each through /go/[id] so the tap is counted. */
+function ShopButtons({ product, from, styleId }: { product: CareProduct; from: string; styleId?: string }) {
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2">
+      <span className="text-[12.5px] text-ink-muted">Buy on</span>
+      {product.shops.map((shop) => (
+        <a
+          key={shop}
+          href={goLink(product.id, from, styleId, shop)}
+          target="_blank"
+          rel="sponsored noopener"
+          className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition hover:opacity-90"
+          style={{ background: SHOP_STYLE[shop].bg, color: SHOP_STYLE[shop].fg }}
+          aria-label={`Buy ${product.brand ? product.brand + " " : ""}${product.title} on ${shopLabel(shop)}`}
+        >
+          {shopLabel(shop)}
+          <span aria-hidden="true">↗</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// 26.10.2026: "Trending for this season's hairstyles" at the top of
+// /haircare — up to 6 products the owner ticked "Trending" (or, with none
+// ticked, the most tapped this month). Photo, name, price when known, and
+// the same buy buttons and small print as everywhere else. On phones the
+// row scrolls sideways; on bigger screens it's a grid.
+export function TrendingStrip({ products, from }: { products: CareProduct[]; from: string }) {
+  if (products.length === 0) return null;
+  return (
+    <section aria-labelledby="trending-heading" className="mb-10">
+      <h2 id="trending-heading" className="text-[22px]">
+        Trending for this season&apos;s hairstyles
+      </h2>
+      <div className="-mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
+        {products.map((p) => {
+          const kind = KINDS[p.kind];
+          return (
+            <div key={p.id} className="flex w-[72%] max-w-[260px] shrink-0 snap-start flex-col rounded-[14px] border border-line bg-surface p-3 sm:w-auto sm:max-w-none">
+              {p.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Amazon's own hosted image, shown as Amazon allows.
+                <img src={p.image} alt="" loading="lazy" className="aspect-square w-full rounded-[10px] bg-white object-contain p-2" />
+              ) : (
+                <span className="flex aspect-square w-full items-center justify-center rounded-[10px] bg-mint-pale text-mint-deep">
+                  <GroupIcon group={kind.group} />
+                </span>
+              )}
+              <span className="mt-2.5 block text-[12px] font-semibold uppercase tracking-[.03em] text-ink-muted">{kind.label}</span>
+              <span className="block text-[14.5px] font-semibold leading-snug text-ink-heading">
+                {p.brand ? `${p.brand} ` : ""}
+                {p.title}
+              </span>
+              {p.pricePaise ? <span className="mt-1 block text-[15px] font-bold text-ink-heading">{rupees(p.pricePaise)}</span> : null}
+              <div className="mt-auto">
+                <ShopButtons product={p} from={from} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <AffiliateNote products={products} className="mt-2 !text-[13.5px]" />
+    </section>
   );
 }
 

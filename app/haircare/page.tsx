@@ -6,10 +6,14 @@
 // each button goes through /go/[id], which counts the tap and opens the
 // shop with the owner's affiliate link. Until products are added, the page
 // shows the tips and says product picks are coming.
+//
+// 26.10.2026: a "Trending for this season's hairstyles" strip at the very
+// top, so the owner's highlighted products are the first thing seen (see
+// pickTrending in lib/content/haircare.ts).
 
-import { AffiliateNote, ProductLink } from "@/components/CareBox";
-import { GROUPS, KINDS, WASH } from "@/lib/content/haircare";
-import { loadCareProducts } from "@/lib/haircareProducts";
+import { AffiliateNote, ProductLink, TrendingStrip } from "@/components/CareBox";
+import { GROUPS, KINDS, WASH, pickTrending } from "@/lib/content/haircare";
+import { loadCareProducts, loadTaps30 } from "@/lib/haircareProducts";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -33,10 +37,13 @@ const STYLING = [
 ];
 
 export default async function HairCarePage() {
-  const products = await loadCareProducts();
+  const [products, taps30] = await Promise.all([loadCareProducts(), loadTaps30()]);
+  const trending = pickTrending(products, taps30);
   return (
     <section className="wrap py-16">
       <div className="mx-auto max-w-[880px]">
+        <TrendingStrip products={trending} from="haircare-trending" />
+
         <p className="eyebrow">Hair care</p>
         <h1 className="mb-3 text-[clamp(28px,4vw,40px)]">Look after your new cut</h1>
         <p className="max-w-[60ch] text-[16px] leading-[1.6] text-ink-body">
