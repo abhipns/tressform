@@ -78,6 +78,7 @@ import { referralLink } from "@/lib/referral";
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
+  WORLD_HAIRSTYLES,
   MEN_LENGTHS,
   WOMEN_LENGTHS,
   barberName,
@@ -339,7 +340,8 @@ export default function StylePicks({
   const [previews, setPreviews] = useState<Record<string, PreviewState>>(() => {
     const made: Record<string, PreviewState> = {};
     for (const item of earlier ?? []) {
-      const style = HAIRSTYLES.find((h) => h.gender === gender && h.name === item.styleName);
+      // 26.10.2026: including any "Hairstyles of the World" style tried.
+      const style = [...HAIRSTYLES, ...WORLD_HAIRSTYLES].find((h) => h.gender === gender && h.name === item.styleName);
       if (style) {
         made[style.id] = item.views
           ? { state: "done", imageUrl: item.url, style, viewsState: "done", views: item.views }

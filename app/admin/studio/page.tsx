@@ -16,6 +16,9 @@
 //
 // Every image costs real money on the FAL account. The page shows the
 // price beside each model and keeps a running total for the session.
+//
+// 26.10.2026: "World hairstyles – make pictures" at the top
+// (components/admin/WorldPictureMaker.tsx), for /hairstyles.
 
 "use client";
 
@@ -24,6 +27,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, loginUrl, useSession } from "@/lib/authClient";
 import { shrinkPhoto } from "@/lib/shrinkPhoto";
 import { STUDIO_GROUPS, STUDIO_STYLES, type StudioStyle } from "@/lib/content/studioStyles";
+import WorldPictureMaker from "@/components/admin/WorldPictureMaker";
 
 type Gender = "men" | "women";
 
@@ -381,6 +385,11 @@ export default function StudioPage() {
           {error}
         </div>
       )}
+
+      {/* 26.10.2026: pictures for the Hairstyles of the World page (/hairstyles). */}
+      <div className="mt-8">
+        <WorldPictureMaker />
+      </div>
 
       <div className="mt-10 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* 1 — the photo */}

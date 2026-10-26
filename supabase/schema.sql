@@ -1039,3 +1039,25 @@ grant all on public.referral_link_rewards to service_role;
 alter table public.referral_sharer_devices enable row level security;
 revoke all on public.referral_sharer_devices from anon, authenticated;
 grant all on public.referral_sharer_devices to service_role;
+
+-- 26.10.2026: Hairstyles of the World pictures
+-- (supabase/migrations/20261026_world_hairstyles.sql)
+
+create table if not exists public.world_pictures (
+  kind text not null check (kind in ('model', 'style')),
+  key text not null check (char_length(key) <= 80),
+  full_path text,
+  small_path text,
+  cost_paise integer not null default 0 check (cost_paise >= 0),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  primary key (kind, key)
+);
+
+alter table public.world_pictures enable row level security;
+revoke all on public.world_pictures from anon, authenticated;
+grant all on public.world_pictures to service_role;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('world', 'world', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do nothing;

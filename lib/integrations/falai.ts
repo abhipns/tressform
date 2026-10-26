@@ -579,3 +579,50 @@ export async function generateView(params: GenerateViewParams): Promise<Generate
     mock: false,
   };
 }
+
+// ---------------------------------------------------------------------------
+// 26.10.2026: "Hairstyles of the World" (/hairstyles). The owner's Studio
+// makes one plain "before" photo of an invented model per region and gender
+// from a description alone (lib/content/worldHairstyles.ts, modelPrompt);
+// each style's picture is then made from that photo with generateHairstyle,
+// exactly as a customer's would be. Nano Banana's text-to-picture model,
+// the same price as its editor.
+export const PORTRAIT_MODEL = "fal-ai/nano-banana";
+
+export async function generatePortrait(prompt: string): Promise<GenerateHairstyleResult> {
+  if (FALAI_MOCK_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return {
+      status: "SUCCEEDED",
+      resultImageUrl: mockPlaceholderImage("model photo"),
+      contentType: "image/png",
+      costPaise: FALAI_COST_PER_IMAGE_PAISE,
+      providerRequestId: `mock_portrait_${Date.now()}`,
+      model: "mock",
+      mock: true,
+    };
+  }
+  const { createFalClient } = await import("@fal-ai/client");
+  const fal = createFalClient({ credentials: FAL_AI_API_KEY });
+  let response: { data: unknown; requestId: string };
+  try {
+    response = (await fal.subscribe(PORTRAIT_MODEL, {
+      input: { prompt, num_images: 1, output_format: "jpeg", aspect_ratio: "4:5" },
+      logs: false,
+    })) as { data: unknown; requestId: string };
+  } catch (err) {
+    return failure(PORTRAIT_MODEL as FalaiModel, describeFalError(err), "", falStatus(err));
+  }
+  const data = (response.data ?? {}) as { images?: { url?: string; content_type?: string }[] };
+  const image = data.images?.[0];
+  if (!image?.url) return failure(PORTRAIT_MODEL as FalaiModel, "No picture came back — please try again.", response.requestId);
+  return {
+    status: "SUCCEEDED",
+    resultImageUrl: image.url,
+    contentType: image.content_type ?? null,
+    costPaise: FALAI_COST_PER_IMAGE_PAISE,
+    providerRequestId: response.requestId,
+    model: PORTRAIT_MODEL,
+    mock: false,
+  };
+}
