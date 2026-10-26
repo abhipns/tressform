@@ -128,6 +128,10 @@ export interface CareProduct {
   note: string | null;
   /** The product photo: Amazon's own image (from SiteStripe), or null. */
   image: string | null;
+  /** 26.10.2026: the owner ticked "Trending" on /admin/products. */
+  trending?: boolean;
+  /** 26.10.2026: the price in paise, shown only when the database has one. */
+  pricePaise?: number | null;
 }
 
 // ------------------------------------------------------------------ finishes
@@ -273,4 +277,21 @@ export function goLink(productId: string, from: string, styleId?: string, shop?:
   if (shop) q.set("shop", shop);
   if (styleId) q.set("style", styleId);
   return `/go/${productId}?${q.toString()}`;
+}
+
+export const TRENDING_MAX = 6;
+
+/**
+ * 26.10.2026: the "Trending for this season's hairstyles" strip on /haircare.
+ * The owner chooses: the products ticked "Trending" (in the owner's order).
+ * With none ticked, the most-tapped products of the last 30 days
+ * (`taps30` = product id → taps), leaving out products nobody tapped.
+ */
+export function pickTrending(products: CareProduct[], taps30: Record<string, number>, max = TRENDING_MAX): CareProduct[] {
+  const ticked = products.filter((p) => p.trending);
+  if (ticked.length > 0) return ticked.slice(0, max);
+  return products
+    .filter((p) => (taps30[p.id] ?? 0) > 0)
+    .sort((a, b) => taps30[b.id] - taps30[a.id])
+    .slice(0, max);
 }

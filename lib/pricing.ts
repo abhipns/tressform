@@ -229,6 +229,97 @@ export function calculateFullOrder(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Single pictures (26.10.2026, owner's request). Next to the packs (which are
+// unchanged), a customer can buy ONE hairstyle on their own face, picture by
+// picture: the front ₹25, each side and the back ₹15, or all four together
+// as the "Full look" for ₹70. Views can be added later (front today, the
+// back next week for ₹15). The side and back pictures are made FROM the
+// front picture (lib/integrations/falai.ts, generateView), so a side or back
+// can only be bought with the front or after it. Single pictures earn the
+// referrer nothing — the referral rewards stay with the packs.
+// ---------------------------------------------------------------------------
+export type PictureView = "front" | "left" | "right" | "back";
+export const PICTURE_VIEWS: PictureView[] = ["front", "left", "right", "back"];
+export const PICTURE_PRICE_PAISE: Record<PictureView, number> = {
+  front: 2_500, // ₹25
+  left: 1_500, // ₹15
+  right: 1_500, // ₹15
+  back: 1_500, // ₹15
+};
+/** All four views bought together, before any of them is owned. */
+export const FULL_LOOK_PRICE_PAISE = 7_000; // ₹70
+/** Single pictures never earn referral credit. */
+export const PICTURE_REFERRAL_CREDITS_PAISE = 0;
+/** A paid view that fails this many times is marked for refund (/admin/orders). */
+export const PICTURE_MAX_FAILURES = 3;
+
+export type PicturePrice =
+  | { ok: true; views: PictureView[]; pricePaise: number; fullLook: boolean }
+  | { ok: false; error: string };
+
+/**
+ * What a customer pays for the views they ask for, given the views of the
+ * same hairstyle on the same photo they already own. Owned views are left
+ * out (never paid twice). The Full look price applies when all four are
+ * bought at once with none owned; otherwise each view is priced on its own.
+ */
+export function priceForPictures(wanted: readonly string[], owned: readonly string[] = []): PicturePrice {
+  const have = new Set(owned.filter((v): v is PictureView => (PICTURE_VIEWS as string[]).includes(v)));
+  const views = PICTURE_VIEWS.filter((v) => wanted.includes(v) && !have.has(v));
+  if (views.length === 0) {
+    return { ok: false, error: wanted.length > 0 ? "You already have these pictures." : "Choose which pictures you'd like." };
+  }
+  if (!have.has("front") && !views.includes("front")) {
+    return { ok: false, error: "The sides and back are made from the front picture, so the front comes first." };
+  }
+  const fullLook = have.size === 0 && views.length === PICTURE_VIEWS.length;
+  const pricePaise = fullLook ? FULL_LOOK_PRICE_PAISE : views.reduce((sum, v) => sum + PICTURE_PRICE_PAISE[v], 0);
+  return { ok: true, views, pricePaise, fullLook };
+}
+
+/** P&L for a single-picture order: ₹3.50 × 1.2 per picture, 2.36% gateway fee (calculateOrderPnl). */
+export function calculatePicturePnl(pricePaise: number, pictureCount: number): OrderPnl {
+  return calculateOrderPnl(pricePaise, pictureCount, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Credit for visitors a customer's link brings (26.10.2026, owner's request).
+// Separate from, and on top of, the pack referral rewards above (which don't
+// change): ₹10 of the same non-cash credit for every 10 different visitors
+// who open the site through the customer's referral link. It counts toward
+// the same ₹15,000-a-year cap. Only accounts that have paid at least once
+// earn it, and at most 100 new visitors per link are counted a day. The
+// counting rules are in lib/linkVisits.ts.
+// ---------------------------------------------------------------------------
+export const LINK_VISITORS_PER_REWARD = 10;
+export const LINK_REWARD_PAISE = 1_000; // ₹10
+export const LINK_NEW_VISITORS_PER_DAY = 100;
+
+/**
+ * The link rewards to pay now: one per 10 visitors reached (milestone 1 at
+ * 10, 2 at 20…) that hasn't been paid yet, each ₹10, cut down to what's
+ * left of the yearly cap (`creditsThisFYPaise` = credit already earned this
+ * financial year, from packs and links). A milestone reached with the cap
+ * used up is still recorded, at ₹0, so it is never paid later.
+ */
+export function linkRewardsDue(
+  visitors: number,
+  paidMilestones: readonly number[],
+  creditsThisFYPaise: number
+): { milestone: number; paise: number }[] {
+  const reached = Math.floor(Math.max(0, visitors) / LINK_VISITORS_PER_REWARD);
+  let room = Math.max(0, REFERRAL_ANNUAL_CAP_PAISE - creditsThisFYPaise);
+  const due: { milestone: number; paise: number }[] = [];
+  for (let m = 1; m <= reached; m++) {
+    if (paidMilestones.includes(m)) continue;
+    const paise = Math.min(LINK_REWARD_PAISE, room);
+    room -= paise;
+    due.push({ milestone: m, paise });
+  }
+  return due;
+}
+
 /** Convert paise to a ₹ display string, e.g. 14714 -> "147.14". */
 export function paiseToRupees(paise: number): string {
   return (paise / 100).toFixed(2);

@@ -4,11 +4,15 @@
 // (14.10.2026). OWNER ONLY. Refund the money in the PayU dashboard (find it
 // by the PayU id shown here), then mark it here so the credit goes back,
 // unused looks stop and the dashboard is corrected — see lib/refunds.ts.
+//
+// 26.10.2026: single-picture orders too — the hairstyle and the views
+// bought, and any picture that failed 3 times or was paid for twice, with
+// "Mark this picture refunded" once its price is refunded in PayU.
 
 import { useEffect, useState } from "react";
 import OwnerGate from "@/components/admin/OwnerGate";
 import { authHeaders } from "@/lib/authClient";
-import { PACK_TIERS, type PackTier } from "@/lib/pricing";
+import { PACK_TIERS, PICTURE_PRICE_PAISE, type PackTier, type PictureView } from "@/lib/pricing";
 import { rupees } from "@/lib/stats";
 
 interface Order {
@@ -23,7 +27,19 @@ interface Order {
   previews_used: number;
   email: string | null;
   txnid: string | null;
+  /** 26.10.2026: single pictures. */
+  order_kind?: "PACK" | "PICTURES";
+  style_name?: string | null;
+  picture_views?: PictureView[];
+  problems?: { view: PictureView; status: "REFUND_DUE" | "DUPLICATE" | "REFUNDED"; failures: number }[];
 }
+
+const VIEW_NAME: Record<PictureView, string> = { front: "Front", left: "Left side", right: "Right side", back: "Back" };
+const PROBLEM: Record<string, string> = {
+  REFUND_DUE: "couldn't be made (failed 3 times)",
+  DUPLICATE: "was paid for twice",
+  REFUNDED: "refunded",
+};
 
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -75,6 +91,29 @@ function Orders() {
     }
   }
 
+  // 26.10.2026: one picture of a single-picture order.
+  async function refundPicture(o: Order, view: PictureView) {
+    const ok = window.confirm(
+      `Mark the ${VIEW_NAME[view].toLowerCase()} picture as refunded?\n\n` +
+        `Refund ${rupees(PICTURE_PRICE_PAISE[view])} in the PayU dashboard yourself first (PayU id ${o.txnid ?? "—"}). This only records it here.`
+    );
+    if (!ok) return;
+    setBusy(`${o.id}:${view}`);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ orderId: o.id, view }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setNotice({ id: o.id, text: res.ok ? `${VIEW_NAME[view]} picture marked as refunded.` : data.error ?? "That didn't work. Please try again." });
+      if (res.ok) await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (error) return <p className="text-[15px] text-danger">{error}</p>;
   if (!orders) return <p className="text-[15px] text-ink-muted">Loading…</p>;
 
@@ -91,11 +130,19 @@ function Orders() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[15.5px] font-semibold text-ink-heading">
-                  {o.tier && o.tier in PACK_TIERS ? PACK_TIERS[o.tier as PackTier].label : "Add-on"} · {rupees(o.price_paise)}
+                  {o.order_kind === "PICTURES"
+                    ? `Single pictures · ${o.style_name ?? "hairstyle"}`
+                    : o.tier && o.tier in PACK_TIERS
+                      ? PACK_TIERS[o.tier as PackTier].label
+                      : "Add-on"}{" "}
+                  · {rupees(o.price_paise)}
                   {o.credit_used_paise > 0 && <span className="font-normal text-ink-muted"> + {rupees(o.credit_used_paise)} credit</span>}
                 </p>
                 <p className="mt-0.5 text-[13.5px] text-ink-muted">
-                  {o.email ?? "—"} · paid {when(o.paid_at ?? o.created_at)} · looks {o.previews_used}/{o.preview_count}
+                  {o.email ?? "—"} · paid {when(o.paid_at ?? o.created_at)} ·{" "}
+                  {o.order_kind === "PICTURES"
+                    ? (o.picture_views ?? []).map((v) => VIEW_NAME[v]).join(", ")
+                    : `looks ${o.previews_used}/${o.preview_count}`}
                 </p>
                 {o.txnid && <p className="mt-0.5 text-[12.5px] text-ink-muted">PayU id: {o.txnid}</p>}
               </div>
@@ -112,6 +159,24 @@ function Orders() {
                 </button>
               )}
             </div>
+            {(o.problems ?? []).map((p) => (
+              <div key={p.view} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-sm2 bg-lilac/15 px-3 py-2 text-[13.5px]">
+                <span className="text-ink-heading">
+                  <strong>{VIEW_NAME[p.view]}</strong> {PROBLEM[p.status]}
+                  {p.status !== "REFUNDED" && <> · refund {rupees(PICTURE_PRICE_PAISE[p.view])} in PayU</>}
+                </span>
+                {p.status !== "REFUNDED" && o.status !== "REFUNDED" && (
+                  <button
+                    type="button"
+                    className="btn-secondary !px-3 !py-1.5 !text-[13px]"
+                    disabled={busy === `${o.id}:${p.view}`}
+                    onClick={() => refundPicture(o, p.view)}
+                  >
+                    Mark this picture refunded
+                  </button>
+                )}
+              </div>
+            ))}
             {notice?.id === o.id && <p className="mt-2 text-[13.5px] text-ink-heading">{notice.text}</p>}
           </li>
         ))}

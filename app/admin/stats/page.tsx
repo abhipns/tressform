@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import OwnerGate from "@/components/admin/OwnerGate";
 import { authHeaders } from "@/lib/authClient";
-import { PERIODS, finalSummary, rupees, stepRate, type Period } from "@/lib/stats";
+import { PERIODS, campaignTotals, finalSummary, rupees, stepRate, type Period } from "@/lib/stats";
 import { shopLabel, type ShopId } from "@/lib/content/haircare";
 import { PACK_TIERS, type PackTier } from "@/lib/pricing";
 import { REVIEW_SECTIONS, REVIEW_SECTION_IDS, type ReviewSection } from "@/lib/reviews";
@@ -49,6 +49,9 @@ interface Income {
   note: string | null;
 }
 
+// 26.10.2026: orders that aren't a pack, in the "Packs:" line under Money.
+const PACK_NAMES: Record<string, string> = { PICTURES: "Single pictures", ADDON: "Add-ons" };
+
 const SOURCES = { amazon: "Amazon Associates", earnkaro: "EarnKaro (Flipkart, Nykaa…)", other: "Other" } as const;
 const input =
   "w-full rounded-sm2 border border-line bg-surface px-3.5 py-2.5 text-[15px] outline-none focus:border-mint-deep";
@@ -76,6 +79,8 @@ function Dashboard() {
   // 14.10.2026: GST figures and the owner's own income-tax rate for the final summary.
   const [gst, setGst] = useState<{ registered: boolean; duePaise: number; ifRegisteredPaise: number } | null>(null);
   const [taxRate, setTaxRate] = useState("30");
+  // 26.10.2026: referral links that brought the most visitors (all time).
+  const [sharers, setSharers] = useState<{ code: string; visitors: number; creditPaise: number }[]>([]);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("tf_tax_rate");
@@ -108,6 +113,7 @@ function Dashboard() {
     setIncome(data.income ?? []);
     setCommitted(data.committed ?? null);
     setGst(data.gst ?? null);
+    setSharers(data.sharers ?? []);
   }
 
   useEffect(() => {
@@ -317,7 +323,7 @@ function Dashboard() {
             <p className="mt-3 text-[14.5px] text-ink-muted">
               Packs:{" "}
               {Object.entries(s.by_pack)
-                .map(([tier, n]) => `${PACK_TIERS[tier as PackTier]?.label ?? tier} ${n}`)
+                .map(([tier, n]) => `${PACK_TIERS[tier as PackTier]?.label ?? PACK_NAMES[tier] ?? tier} ${n}`)
                 .join(" · ")}
             </p>
           )}
@@ -383,6 +389,37 @@ function Dashboard() {
                           .map(([shop, n]) => `${nameOfShop(shop)} ${n}`)
                           .join(" · ")}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 26.10.2026: ₹10 credit for every 10 visitors a customer's link brings (lib/linkVisits.ts). */}
+          <h2 className="mt-10 text-[21px] font-semibold">Top sharers</h2>
+          <p className="mt-1 text-[14.5px] text-ink-muted">
+            Customers&apos; referral links that brought the most different visitors, all time, and the ₹10-per-10-visitors
+            credit each has earned. Shown by referral code only.
+          </p>
+          {sharers.length === 0 ? (
+            <p className="mt-3 text-[15px] text-ink-muted">No visitors from customers&apos; links yet.</p>
+          ) : (
+            <div className="mt-3 max-w-[760px] overflow-x-auto rounded-[16px] bg-surface shadow-card">
+              <table className="w-full text-left text-[14.5px]">
+                <thead className="text-[13px] uppercase tracking-[.03em] text-ink-muted">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Code</th>
+                    <th className="px-4 py-3 text-right font-semibold">Visitors brought</th>
+                    <th className="px-4 py-3 text-right font-semibold">Credit earned</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sharers.map((r) => (
+                    <tr key={r.code} className="border-t border-line">
+                      <td className="px-4 py-2.5 font-mono text-[13.5px]">{r.code}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold">{r.visitors}</td>
+                      <td className="px-4 py-2.5 text-right">{rupees(r.creditPaise)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -497,6 +534,23 @@ function Campaigns({ period }: { period: Period }) {
                 </tr>
               ))}
             </tbody>
+            {/* 26.10.2026: the owner's Total row, all campaigns together. */}
+            {(() => {
+              const t = campaignTotals(rows);
+              return (
+                <tfoot className="border-t-2 border-line font-bold text-ink-heading">
+                  <tr>
+                    <td className="py-2 pr-3" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="py-2 pr-3 text-right">{t.visitors}</td>
+                    <td className="py-2 pr-3 text-right">{t.purchases}</td>
+                    <td className="py-2 pr-3 text-right">{rupees(t.revenuePaise)}</td>
+                    <td className="py-2 text-right">{t.boughtPct === null ? "—" : `${t.boughtPct}%`}</td>
+                  </tr>
+                </tfoot>
+              );
+            })()}
           </table>
         </div>
       )}

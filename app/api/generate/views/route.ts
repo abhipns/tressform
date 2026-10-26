@@ -16,6 +16,13 @@
 //     already made;
 //   - a view that fails is left out; calling again tries the missing ones.
 // The three pictures' cost is added to the preview's own cost.
+//
+// 26.10.2026 (single pictures, lib/pictures.ts): when the front picture came
+// from a single-picture order, only the views the customer paid for are made
+// (any of left, right, back, bought with the front or added later for ₹15
+// each). The answer also lists the views not bought (`locked`, shown as
+// blurred "Add for ₹15" tiles) and any that failed 3 times (`refund`). A
+// view that fails is tried again for free on the next call.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -23,6 +30,7 @@ import { generateView, HAIR_VIEWS, type HairView } from "@/lib/integrations/fala
 import { hairstyleById } from "@/lib/content/hairstyles";
 import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
+import { finishPictureView, pictureViewRows, reservePictureView, viewState } from "@/lib/pictures";
 
 export const maxDuration = 60;
 
@@ -52,6 +60,27 @@ export async function POST(req: NextRequest) {
       .filter((r) => r.userId === userId && r.photoId === body.photoId && r.styleName === style.name && r.status === "SUCCEEDED")
       .pop();
     if (!row?.resultImageUrl) return NextResponse.json({ error: "Make the hairstyle first." }, { status: 404 });
+    if (row.orderId && mockStore.getOrder(row.orderId)?.orderKind === "PICTURES") {
+      const owned = mockStore.ownedPictureViews(userId, body.photoId, style.id);
+      const views: Record<HairView, string | null> = { left: null, right: null, back: null };
+      const locked: HairView[] = [];
+      const refund: HairView[] = [];
+      for (const view of HAIR_VIEWS) {
+        const state = viewState(owned, view);
+        if (state === "done") views[view] = owned.find((v) => v.view === view && v.status === "DONE")?.resultUrl ?? null;
+        else if (state === "locked") locked.push(view);
+        else if (state === "refund") refund.push(view);
+        else if (state === "ready") {
+          const orderId = mockStore.reservePictureView(userId, body.photoId, style.id, view);
+          if (!orderId) continue;
+          const r = await generateView({ frontImageUrl: row.resultImageUrl, view, styleDescription: style.prompt });
+          const ok = r.status === "SUCCEEDED" && Boolean(r.resultImageUrl);
+          if (mockStore.finishPictureView(orderId, view, ok, r.resultImageUrl ?? null) === "REFUND_DUE") refund.push(view);
+          if (ok) views[view] = r.resultImageUrl;
+        }
+      }
+      return NextResponse.json({ state: "done", views, locked, refund });
+    }
     if (!row.viewUrls) {
       const made = await Promise.all(
         HAIR_VIEWS.map((view) => generateView({ frontImageUrl: row.resultImageUrl!, view, styleDescription: style.prompt }))
@@ -91,6 +120,12 @@ export async function POST(req: NextRequest) {
   const current = (row.view_paths ?? null) as ViewRecord | null;
   const missing = HAIR_VIEWS.filter((v) => !current?.[v]);
 
+  // 26.10.2026: a single-picture front makes only the views that were paid for.
+  if (row.order_id) {
+    const { data: from } = await admin.from("orders").select("order_kind").eq("id", row.order_id).maybeSingle();
+    if (from?.order_kind === "PICTURES") return paidViewsOnly();
+  }
+
   // 14.10.2026: a refunded pack makes no new pictures (the owner marks it on
   // /admin/orders). Views already made can still be seen.
   if (row.order_id && missing.length > 0 && profile?.role !== "ADMIN") {
@@ -112,6 +147,79 @@ export async function POST(req: NextRequest) {
       })
     );
     return out;
+  }
+
+  /** Single pictures: show the views made, make the paid ones still waiting, and list the rest. */
+  async function paidViewsOnly() {
+    const rows = await pictureViewRows(admin, userId, body.photoId!, style!.id);
+    const made: Paths = {};
+    const locked: HairView[] = [];
+    const refund: HairView[] = [];
+    let making = false;
+    let spent = 0;
+    let frontUrl: string | null = null;
+    const front = row!.result_storage_path as string;
+    await Promise.all(
+      HAIR_VIEWS.map(async (view) => {
+        const state = viewState(rows, view);
+        if (state === "done") {
+          const path = rows.find((r) => r.view === view && r.status === "DONE")?.result_storage_path;
+          if (path) made[view] = path;
+          return;
+        }
+        if (state === "locked") return void locked.push(view);
+        if (state === "refund") return void refund.push(view);
+        if (state === "waiting") return void (making = true);
+        const orderId = await reservePictureView(admin, userId, body.photoId!, style!.id, view);
+        if (!orderId) return void (making = true);
+        let path: string | null = null;
+        try {
+          if (!frontUrl) {
+            if (front.startsWith("http")) frontUrl = front;
+            else {
+              const { data } = await admin.storage.from("results").createSignedUrl(front, 600);
+              frontUrl = data?.signedUrl ?? null;
+            }
+          }
+          if (!frontUrl) throw new Error("front picture not readable");
+          const r = await generateView({ frontImageUrl: frontUrl, view, styleDescription: style!.prompt });
+          if (r.status !== "SUCCEEDED" || !r.resultImageUrl) throw new Error(r.errorMessage ?? "not made");
+          spent += r.mock ? 0 : r.costPaise;
+          if (r.mock) path = r.resultImageUrl;
+          else {
+            const download = await fetch(r.resultImageUrl);
+            if (!download.ok) throw new Error(`download ${download.status}`);
+            const bytes = new Uint8Array(await download.arrayBuffer());
+            const stored = `${userId}/${randomUUID()}-${view}.jpg`;
+            const { error } = await admin.storage.from("results").upload(stored, bytes, { contentType: "image/jpeg" });
+            if (error) throw new Error(error.message);
+            path = stored;
+          }
+        } catch (err) {
+          console.error(`[Tressform] paid ${view} view not made:`, (err as Error).message);
+        }
+        await finishPictureView(admin, orderId, view, Boolean(path), path);
+        if (path) made[view] = path;
+        else {
+          const failures = (rows.find((r) => r.view === view && r.status === "READY")?.failures ?? 0) + 1;
+          if (failures >= 3) refund.push(view);
+        }
+      })
+    );
+    // Kept on the picture too, so "My hairstyles" shows the views made.
+    const merged: ViewRecord = { ...(current ?? {}), ...made, state: "done", at: new Date().toISOString() };
+    await admin
+      .from("style_results")
+      .update({ view_paths: merged, cost_paise: (row!.cost_paise ?? 0) + spent })
+      .eq("id", row!.id);
+    const failed = HAIR_VIEWS.some((v) => !made[v] && !locked.includes(v) && !refund.includes(v));
+    return NextResponse.json({
+      state: making ? "making" : "done",
+      views: await links(made),
+      locked,
+      refund,
+      ...(failed && !making ? { error: "A picture couldn't be made this time. Tap “Try again” — it's free." } : {}),
+    });
   }
 
   if (missing.length === 0) return NextResponse.json({ state: "done", views: await links(current!) });

@@ -11,7 +11,8 @@ import { currentCampaign, rememberCampaign } from "@/lib/campaign";
 const ID_KEY = "tf_visitor";
 let memoryId: string | null = null;
 
-function visitorId(): string {
+/** The anonymous id this device uses for counting (also sent with referral-link visits, 26.10.2026). */
+export function visitorId(): string {
   try {
     const saved = window.localStorage.getItem(ID_KEY);
     if (saved && /^[A-Za-z0-9-]{8,64}$/.test(saved)) return saved;

@@ -118,6 +118,13 @@
 // were made from, what they confirmed about their face and hair, and every
 // hairstyle with its pictures (/api/previews with { latest: true }). After
 // "Start over" this tab stays on a fresh upload form (FRESH_KEY).
+//
+// 26.10.2026 (Hairstyles of the World): a style can come chosen from
+// /hairstyles (?style=<id>, kept for this tab). The men's or women's list is
+// set to match, and once the photo is read the chosen style is shown at the
+// top with "See this on your face" (front ₹25 or Full look ₹70). With
+// &buy=front or &buy=all (the buttons on a style's own page), the customer
+// goes straight on to the single-picture checkout once their photo is read.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -133,7 +140,40 @@ import StylePicks, {
   type PreviewOutcome,
   type ViewsOutcome,
 } from "./StylePicks";
-import type { HairGender } from "@/lib/content/hairstyles";
+import { hairstyleById, type HairGender } from "@/lib/content/hairstyles";
+import PictureOffer, { pictureCheckoutLink } from "./PictureOffer";
+
+const WORLD_PICK_KEY = "tf_world_pick";
+type WorldPick = { id: string; buy: "front" | "all" | null };
+
+/** A style chosen on /hairstyles: from the address (then kept for this tab), or kept from before. */
+function takeWorldPick(): WorldPick | null {
+  try {
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get("style");
+    if (id && hairstyleById(id)) {
+      const raw = url.searchParams.get("buy");
+      const pick: WorldPick = { id, buy: raw === "front" || raw === "all" ? raw : null };
+      window.sessionStorage.setItem(WORLD_PICK_KEY, JSON.stringify(pick));
+      url.searchParams.delete("style");
+      url.searchParams.delete("buy");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      return pick;
+    }
+    const kept = JSON.parse(window.sessionStorage.getItem(WORLD_PICK_KEY) ?? "null") as WorldPick | null;
+    return kept && hairstyleById(kept.id) ? kept : null;
+  } catch {
+    return null;
+  }
+}
+
+function dropWorldPick() {
+  try {
+    window.sessionStorage.removeItem(WORLD_PICK_KEY);
+  } catch {
+    /* nothing kept */
+  }
+}
 import { FACIAL_HAIR_OPTIONS, type FacialHair } from "@/lib/recommend";
 
 /** 14.10.2026: a facial-hair value from the server, or null if it isn't one. */
@@ -329,6 +369,8 @@ export default function UploadFlow() {
   // their data: URLs, for the on-screen previews).
   const blobs = useRef<Record<Slot, Blob | null>>({ front: null, left: null, right: null });
   const card = useRef<HTMLDivElement | null>(null);
+  // 26.10.2026: a style chosen on /hairstyles (see the note at the top).
+  const [worldPick, setWorldPick] = useState<WorldPick | null>(null);
 
   useEffect(() => {
     try {
@@ -337,7 +379,19 @@ export default function UploadFlow() {
     } catch {
       // Storage blocked (private browsing): the customer just chooses again.
     }
+    const pick = takeWorldPick();
+    if (pick) {
+      setWorldPick(pick);
+      setGender(hairstyleById(pick.id)!.gender);
+    }
   }, []);
+
+  // A buy button on a style's page: straight on to checkout once the photo is read.
+  useEffect(() => {
+    if (!worldPick?.buy || !analysis?.photoId) return;
+    dropWorldPick();
+    window.location.assign(pictureCheckoutLink(worldPick.id, analysis.photoId, worldPick.buy));
+  }, [worldPick, analysis]);
 
   function chooseGender(value: HairGender) {
     setGender(value);
@@ -894,6 +948,25 @@ export default function UploadFlow() {
               </div>
             )}
 
+            {step === "results" && analysis && worldPick && !worldPick.buy && hairstyleById(worldPick.id) && (
+              <div className="mb-6 rounded-[18px] border-2 border-mint/50 bg-mint-pale/40 p-4 sm:p-5">
+                <p className="text-[12.5px] font-semibold uppercase tracking-[.04em] text-mint-deep">The style you chose</p>
+                <p className="mt-1 text-[18px] font-semibold text-ink-heading">{hairstyleById(worldPick.id)!.name}</p>
+                <p className="mt-0.5 text-[14px] text-ink-body">{hairstyleById(worldPick.id)!.line}</p>
+                <PictureOffer styleId={worldPick.id} photoId={analysis.photoId} />
+                <button
+                  type="button"
+                  className="mt-3 text-[13px] font-semibold text-ink-muted underline underline-offset-4"
+                  onClick={() => {
+                    dropWorldPick();
+                    setWorldPick(null);
+                  }}
+                >
+                  Hide this
+                </button>
+              </div>
+            )}
+
             {step === "results" && analysis && gender && (
               <StylePicks
                 gender={gender}
@@ -904,6 +977,7 @@ export default function UploadFlow() {
                 onStartOver={startOver}
                 earlier={earlier}
                 makeViews={makeViews}
+                photoId={analysis.photoId}
                 onDetails={(confirmed) => {
                   const saved = recall();
                   if (saved && saved.photoId === analysis.photoId) remember({ ...saved, confirmed });

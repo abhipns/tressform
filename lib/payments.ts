@@ -20,6 +20,8 @@
 import { verifyPayment } from "@/lib/integrations/payu";
 import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/pricing";
 import { financialYearStart } from "@/lib/referral";
+import { grantPictureViews } from "@/lib/pictures";
+import { linkCreditsSince } from "@/lib/linkVisits";
 
 export type ConfirmResult =
   | { found: false }
@@ -65,6 +67,8 @@ export async function confirmPayuTxn(txnid: string, via: "return" | "webhook" | 
     if (updated && updated.length > 0) {
       await spendOrderCredit(admin, order);
       await settleReferral(admin, order);
+      // 26.10.2026: single pictures — the paid views, ready to be made (lib/pictures.ts).
+      if (order.order_kind === "PICTURES") await grantPictureViews(admin, order.id);
     }
     return { found: true, orderId: order.id, tier: order.tier, status: "PAID" };
   }
@@ -123,7 +127,10 @@ async function settleReferral(admin: any, order: { id: string; user_id: string; 
       .select("credits_paise")
       .eq("referrer_id", referral.referrer_id)
       .gte("paid_at", financialYearStart().toISOString());
-    const cumulative = ((priorCredits ?? []) as { credits_paise: number | null }[]).reduce((s, r) => s + (r.credits_paise ?? 0), 0);
+    // 26.10.2026: credit from visitors their link brought counts toward the same yearly cap (lib/linkVisits.ts).
+    const cumulative =
+      ((priorCredits ?? []) as { credits_paise: number | null }[]).reduce((s, r) => s + (r.credits_paise ?? 0), 0) +
+      (await linkCreditsSince(admin, referral.referrer_id, financialYearStart().toISOString()));
     const creditsPaise = calculateReferralCreditsPaiseWithCap(order.tier as PackTier, true, cumulative);
 
     // 20.10.2026: only the FIRST paid order settles the referral. Two orders

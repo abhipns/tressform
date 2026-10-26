@@ -54,6 +54,8 @@ const DIRECT_LINKS = [
   { href: "/#what", label: "What you get" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/haircare", label: "Hair care" },
+  // 26.10.2026: Hairstyles of the World.
+  { href: "/hairstyles", label: "Hairstyles" },
 ];
 
 const MENU_LINKS = [

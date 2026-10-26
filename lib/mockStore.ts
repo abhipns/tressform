@@ -9,8 +9,8 @@
 // real Supabase project is connected (SUPABASE_MOCK_MODE becomes false), the
 // API routes use getSupabaseAdmin() instead and this module is unused.
 
-import type { AddonKind, PackTier } from "./pricing";
-import { financialYearStart } from "./pricing";
+import type { AddonKind, PackTier, PictureView } from "./pricing";
+import { PICTURE_MAX_FAILURES, financialYearStart } from "./pricing";
 
 export interface MockOrder {
   id: string;
@@ -37,6 +37,24 @@ export interface MockOrder {
   previewsUsed?: number;
   /** 14.10.2026: credit put toward the order; pricePaise is what was charged. */
   creditUsedPaise?: number;
+  /** 26.10.2026: single pictures of one hairstyle (lib/pictures.ts). */
+  orderKind?: "PACK" | "PICTURES";
+  pictureStyleId?: string | null;
+  picturePhotoId?: string | null;
+  pictureViews?: PictureView[];
+}
+
+/** 26.10.2026: one paid view of a single-picture order (the picture_views table). */
+export interface MockPictureView {
+  orderId: string;
+  userId: string;
+  photoId: string | null;
+  styleId: string;
+  view: PictureView;
+  status: "READY" | "MAKING" | "DONE" | "REFUND_DUE" | "DUPLICATE" | "REFUNDED";
+  failures: number;
+  resultUrl: string | null;
+  createdAt: string;
 }
 
 export interface MockReferral {
@@ -106,6 +124,24 @@ export interface MockStyleResult {
   createdAt: string;
   /** 12.10.2026: left/right/back pictures of a paid preview. */
   viewUrls?: { left: string | null; right: string | null; back: string | null } | null;
+  /** 26.10.2026: the order this picture was paid from (packs or single pictures). */
+  orderId?: string | null;
+}
+
+/** 26.10.2026: a visitor a customer's link brought, and a ₹10 link reward (lib/linkVisits.ts). */
+export interface MockLinkVisit {
+  code: string;
+  visitor: string;
+  referrerId: string;
+  firstSeen: string;
+}
+export interface MockLinkReward {
+  code: string;
+  referrerId: string;
+  milestone: number;
+  visitors: number;
+  creditsPaise: number;
+  createdAt: string;
 }
 
 // A module-level singleton keeps state across requests within one running
@@ -116,6 +152,12 @@ const profiles = new Map<string, MockProfile>();
 const carouselSessions = new Map<string, MockCarouselSession>();
 const photos = new Map<string, MockPhoto>();
 const styleResults = new Map<string, MockStyleResult>();
+const pictureViews = new Map<string, MockPictureView>(); // keyed by `${orderId}:${view}`
+const linkVisits = new Map<string, MockLinkVisit>(); // keyed by `${code}:${visitor}`
+const linkRewards = new Map<string, MockLinkReward>(); // keyed by `${code}:${milestone}`
+const sharerDevices = new Set<string>(); // `${userId}:${visitor}`
+// 26.10.2026: "Hairstyles of the World" pictures made in the demo Studio (lib/worldPictures.ts).
+const worldPictures = new Map<string, { kind: "model" | "style"; key: string; full_path: string | null; small_path: string | null; cost_paise: number }>();
 
 export const mockStore = {
   orders,
@@ -124,6 +166,11 @@ export const mockStore = {
   carouselSessions,
   photos,
   styleResults,
+  pictureViews,
+  linkVisits,
+  linkRewards,
+  sharerDevices,
+  worldPictures,
 
   addPhoto(photo: MockPhoto) {
     photos.set(photo.id, photo);
@@ -213,6 +260,69 @@ export const mockStore = {
     if (order) order.previewsUsed = Math.max(0, (order.previewsUsed ?? 0) - 1);
   },
 
+  // ---------------------------------------------- single pictures (26.10.2026)
+  /** The views of this hairstyle on this photo the customer has paid for (duplicates left out). */
+  ownedPictureViews(userId: string, photoId: string, styleId: string): MockPictureView[] {
+    return [...pictureViews.values()].filter(
+      (v) =>
+        v.userId === userId &&
+        v.photoId === photoId &&
+        v.styleId === styleId &&
+        v.status !== "DUPLICATE" &&
+        v.status !== "REFUNDED" &&
+        orders.get(v.orderId)?.status === "PAID"
+    );
+  },
+
+  /** Same as grant_picture_views() in the database: one row per view, once the order is paid. */
+  grantPictureViews(orderId: string): number {
+    const order = orders.get(orderId);
+    if (!order || order.status !== "PAID" || order.orderKind !== "PICTURES" || !order.pictureStyleId) return 0;
+    let n = 0;
+    for (const view of order.pictureViews ?? []) {
+      const key = `${orderId}:${view}`;
+      if (pictureViews.has(key)) continue;
+      const owned = mockStore
+        .ownedPictureViews(order.userId, order.picturePhotoId ?? "", order.pictureStyleId)
+        .some((v) => v.view === view && v.orderId !== orderId);
+      pictureViews.set(key, {
+        orderId,
+        userId: order.userId,
+        photoId: order.picturePhotoId ?? null,
+        styleId: order.pictureStyleId,
+        view,
+        status: owned ? "DUPLICATE" : "READY",
+        failures: 0,
+        resultUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+      if (!owned) n += 1;
+    }
+    return n;
+  },
+
+  /** Same as reserve_picture_view(): take a paid view to make it; its order id, or null. */
+  reservePictureView(userId: string, photoId: string, styleId: string, view: PictureView): string | null {
+    const row = mockStore.ownedPictureViews(userId, photoId, styleId).find((v) => v.view === view && v.status === "READY");
+    if (!row) return null;
+    row.status = "MAKING";
+    return row.orderId;
+  },
+
+  /** Same as finish_picture_view(): made, or failed (the third failure marks it for refund). */
+  finishPictureView(orderId: string, view: PictureView, ok: boolean, url: string | null) {
+    const row = pictureViews.get(`${orderId}:${view}`);
+    if (!row || row.status !== "MAKING") return null;
+    if (ok) {
+      row.status = "DONE";
+      row.resultUrl = url;
+    } else {
+      row.failures += 1;
+      row.status = row.failures >= PICTURE_MAX_FAILURES ? "REFUND_DUE" : "READY";
+    }
+    return row.status;
+  },
+
   recordReferral(referral: MockReferral) {
     referrals.set(referral.referredId, referral);
     return referral;
@@ -231,9 +341,14 @@ export const mockStore = {
    */
   sumReferrerCreditsThisFY(referrerId: string, now: Date = new Date()): number {
     const fyStart = financialYearStart(now).getTime();
-    return [...referrals.values()]
+    const packs = [...referrals.values()]
       .filter((r) => r.referrerId === referrerId && new Date(r.createdAt).getTime() >= fyStart)
       .reduce((sum, r) => sum + r.creditsPaise, 0);
+    // 26.10.2026: credit from visitors their link brought counts toward the same cap.
+    const links = [...linkRewards.values()]
+      .filter((r) => r.referrerId === referrerId && new Date(r.createdAt).getTime() >= fyStart)
+      .reduce((sum, r) => sum + r.creditsPaise, 0);
+    return packs + links;
   },
 
   /**

@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
       buyer.creditBalancePaise = Math.max(0, buyer.creditBalancePaise - (order.creditUsedPaise ?? 0));
     }
 
+    // 26.10.2026: single pictures — the paid views, ready to be made.
+    if (!wasPaid && order.orderKind === "PICTURES") mockStore.grantPictureViews(order.id);
+
     // Best-effort referral settlement — see file header for why this is a
     // no-op when there's no referrals row for this user yet.
     if (order.isReferredFirstPurchase && order.tier) {

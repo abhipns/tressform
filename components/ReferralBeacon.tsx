@@ -9,10 +9,15 @@
 // own code, already linked, already paid before); it's kept if they simply
 // aren't signed in yet, so it works whenever they sign up — even days later
 // on the same device.
+//
+// 26.10.2026: opening the site through a link also tells
+// /api/referral/visit, once, with this device's anonymous visitor id — every
+// 10 different visitors earn the link's owner ₹10 credit (lib/linkVisits.ts).
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, useSession } from "@/lib/authClient";
+import { visitorId } from "@/components/VisitBeacon";
 
 const KEY = "tf_ref";
 let sending = false;
@@ -53,13 +58,31 @@ function captureFromAddress(): string | null {
   return code;
 }
 
+/** Count this visit toward the link's owner (the server decides whether it counts). */
+async function sendLinkVisit(code: string) {
+  try {
+    await fetch("/api/referral/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ code, visitor: visitorId(), userId: SUPABASE_MOCK_MODE ? getMockUserId() : undefined }),
+      keepalive: true,
+    });
+  } catch {
+    /* not counted — never in the visitor's way */
+  }
+}
+
 export default function ReferralBeacon() {
   const pathname = usePathname();
   const { session, loading } = useSession();
   const userId = session?.user.id ?? null;
 
   useEffect(() => {
-    const code = captureFromAddress() ?? readKept();
+    const fromLink = captureFromAddress();
+    // Once, when the link itself is opened (signed in or not; the server also
+    // knows the owner's own devices).
+    if (fromLink) void sendLinkVisit(fromLink);
+    const code = fromLink ?? readKept();
     if (!code || sending) return;
     if (!SUPABASE_MOCK_MODE && (loading || !userId)) return; // wait until signed in
 

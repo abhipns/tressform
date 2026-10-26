@@ -70,12 +70,15 @@ import PendingPaymentBox from "@/components/PendingPaymentBox";
 import WhatsAppOptIn from "@/components/WhatsAppOptIn";
 import RatePopup, { mayAskForRating } from "@/components/RatePopup";
 import { LookCarousel, LockedLooks, type LookItem } from "@/components/LookCarousel";
+import PictureOffer from "@/components/PictureOffer";
+import { SHARE_LINE } from "@/components/MyReferral";
 import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, useSession } from "@/lib/authClient";
 import { supabase } from "@/lib/supabaseClient";
 import { referralLink } from "@/lib/referral";
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
+  WORLD_HAIRSTYLES,
   MEN_LENGTHS,
   WOMEN_LENGTHS,
   barberName,
@@ -299,6 +302,7 @@ export default function StylePicks({
   onStartOver,
   earlier,
   onDetails,
+  photoId = null,
 }: {
   gender: HairGender;
   frontPhoto: string | null;
@@ -313,6 +317,8 @@ export default function StylePicks({
   earlier?: EarlierPreview[];
   /** Told each time the customer's details are complete or change. */
   onDetails?: (details: ConfirmedDetails) => void;
+  /** 26.10.2026: the customer's photo, for buying single pictures of one hairstyle. */
+  photoId?: string | null;
 }) {
   const lengths: readonly string[] = gender === "men" ? MEN_LENGTHS : WOMEN_LENGTHS;
   const [faceShape, setFaceShape] = useState<FaceShape>(initial.faceShape);
@@ -334,7 +340,8 @@ export default function StylePicks({
   const [previews, setPreviews] = useState<Record<string, PreviewState>>(() => {
     const made: Record<string, PreviewState> = {};
     for (const item of earlier ?? []) {
-      const style = HAIRSTYLES.find((h) => h.gender === gender && h.name === item.styleName);
+      // 26.10.2026: including any "Hairstyles of the World" style tried.
+      const style = [...HAIRSTYLES, ...WORLD_HAIRSTYLES].find((h) => h.gender === gender && h.name === item.styleName);
       if (style) {
         made[style.id] = item.views
           ? { state: "done", imageUrl: item.url, style, viewsState: "done", views: item.views }
@@ -915,6 +922,8 @@ export default function StylePicks({
             <p className="mt-0.5 text-[13.5px] text-ink-muted">
               Post one picture of you and {Math.min(4, madeStyles.length) === 1 ? "this look" : `your looks numbered 1–${Math.min(4, madeStyles.length)}`}, and let friends comment their pick. Friends who join with your link earn you credit.
             </p>
+            {/* 26.10.2026: the link-visitor credit (lib/linkVisits.ts). */}
+            <p className="mt-1 text-[13.5px] font-semibold text-mint-deep">{SHARE_LINE}</p>
           </div>
           <div className="flex gap-2">
             {many && (
@@ -1008,6 +1017,12 @@ export default function StylePicks({
                 <a href="#get-previews" className="btn-secondary !px-6 !py-2.5 !text-[15px]">
                   Get a pack to see this
                 </a>
+              )}
+              {/* 26.10.2026: or just this one hairstyle, picture by picture. */}
+              {!preview && allowanceSpent && photoId && !samples && (
+                <div className="w-full">
+                  <PictureOffer styleId={pick.style.id} photoId={photoId} />
+                </div>
               )}
               {preview?.state === "failed" && (
                 <button
@@ -1384,7 +1399,9 @@ export default function StylePicks({
             ) : (
               <LockedLooks
                 photo={frontPhoto}
+                photoId={samples ? null : photoId}
                 names={lookPicks.slice(0, PACK_TIERS.STARTER.imageCount).map((p) => ({
+                  styleId: p.style.id,
                   name: p.style.name,
                   ready: growLabel(p),
                   readyNow: p.cutToday,

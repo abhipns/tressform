@@ -13,9 +13,9 @@ import type { AffiliateProductRow } from "./database.types";
 const DEMO: CareProduct[] = [
   { id: "demo-1", title: "Example mild shampoo", brand: "Demo", kind: "shampoo-mild", shops: ["amazon", "flipkart", "nykaa"], gender: "all", hairTypes: [], note: null, image: null },
   { id: "demo-2", title: "Example sulphate-free shampoo", brand: "Demo", kind: "shampoo-sulphate-free", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null, image: null },
-  { id: "demo-3", title: "Example matte clay", brand: "Demo", kind: "matte-clay", shops: ["amazon", "flipkart", "nykaa"], gender: "men", hairTypes: [], note: "Light hold, no shine", image: null },
+  { id: "demo-3", title: "Example matte clay", brand: "Demo", kind: "matte-clay", shops: ["amazon", "flipkart", "nykaa"], gender: "men", hairTypes: [], note: "Light hold, no shine", image: null, trending: true },
   { id: "demo-4", title: "Example conditioner", brand: "Demo", kind: "conditioner", shops: ["amazon", "flipkart", "nykaa"], gender: "all", hairTypes: [], note: null, image: null },
-  { id: "demo-5", title: "Example curl cream", brand: "Demo", kind: "curl-cream", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null, image: null },
+  { id: "demo-5", title: "Example curl cream", brand: "Demo", kind: "curl-cream", shops: ["nykaa", "amazon"], gender: "all", hairTypes: ["wavy", "curly"], note: null, image: null, trending: true },
   { id: "demo-6", title: "Example hair serum", brand: "Demo", kind: "serum", shops: ["amazon", "flipkart", "nykaa"], gender: "women", hairTypes: [], note: null, image: null },
 ];
 
@@ -53,6 +53,8 @@ export function rowToProduct(r: AffiliateProductRow): CareProduct | null {
     hairTypes: (r.hair_types ?? []).filter((t): t is CareProduct["hairTypes"][number] => ["straight", "wavy", "curly"].includes(t)),
     note: r.description,
     image: r.image_url && /^https:\/\//i.test(r.image_url) ? r.image_url : null,
+    trending: r.is_trending === true,
+    pricePaise: Number.isInteger(r.price_paise) && (r.price_paise as number) > 0 ? r.price_paise : null,
   };
 }
 
@@ -70,4 +72,27 @@ export async function loadCareProducts(): Promise<CareProduct[]> {
     return [];
   }
   return (data as AffiliateProductRow[]).map(rowToProduct).filter((p): p is CareProduct => p !== null);
+}
+
+/**
+ * 26.10.2026: taps on each product's buy buttons in the last 30 days
+ * (product id → taps), for the Trending strip when the owner hasn't ticked
+ * any. Only product ids are read, never who tapped.
+ */
+export async function loadTaps30(): Promise<Record<string, number>> {
+  if (SUPABASE_MOCK_MODE) return {};
+  const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
+  const since = new Date(Date.now() - 30 * 86400_000).toISOString();
+  const { data, error } = await getSupabaseAdmin()
+    .from("affiliate_clicks")
+    .select("product_id")
+    .gte("created_at", since)
+    .limit(50000);
+  if (error) {
+    console.error("[Tressform] product taps:", error.message);
+    return {};
+  }
+  const count: Record<string, number> = {};
+  for (const c of data ?? []) count[c.product_id] = (count[c.product_id] ?? 0) + 1;
+  return count;
 }

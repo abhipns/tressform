@@ -10,16 +10,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
-import { VISITS_PER_VISITOR_PER_DAY, shouldCountVisit } from "@/lib/stats";
+import { VISITS_PER_VISITOR_PER_DAY, looksLikeRobot, shouldCountVisit } from "@/lib/stats";
 import { campaignColumns } from "@/lib/campaign";
 
 export const dynamic = "force-dynamic";
 
-const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|headless|lighthouse|pingdom|monitor/i;
-
 export async function POST(req: NextRequest) {
-  const ua = req.headers.get("user-agent") ?? "";
-  if (!ua || BOT.test(ua)) return new NextResponse(null, { status: 204 });
+  if (looksLikeRobot(req.headers.get("user-agent"))) return new NextResponse(null, { status: 204 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const visitor = typeof body.visitor === "string" && /^[A-Za-z0-9-]{8,64}$/.test(body.visitor) ? body.visitor : null;
   const rawPath = typeof body.path === "string" ? body.path : "/";

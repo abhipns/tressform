@@ -43,12 +43,21 @@
 // Stubble counts half. Clean-shaven or a moustache only: no change. The
 // nudges are small next to face shape and hair type, which still decide.
 //
+// 26.10.2026 (owner): the "Hairstyles of the World" styles can be tried by
+// anyone, but the picker only offers one when it truly fits
+// (worldStyleFits below): the customer's face shape is one of the two it
+// suits most, it works with their hair as it is, and they can have it done
+// today. Even then at most one of them is in the top 5 (more only when the
+// top 5 couldn't be filled otherwise), and none in the longer list below
+// it, which stays Tressform's own styles.
+//
 // Nothing here talks to a database or an image model; it is a plain
 // function so it can be tested against every kind of customer.
 
 import type { FaceShape } from "@/lib/faceShape";
 import {
   HAIRSTYLES,
+  WORLD_HAIRSTYLES,
   MEN_LENGTHS,
   WOMEN_LENGTHS,
   type HairGender,
@@ -276,10 +285,23 @@ function rate(style: Hairstyle, customer: CustomerHair): StylePick | null {
   };
 }
 
+/** 26.10.2026: a world style is offered only when it truly fits (see the note at the top). */
+export const WORLD_IN_TOP_LIMIT = 1;
+
+export function worldStyleFits(style: Hairstyle, customer: CustomerHair): boolean {
+  if (style.gender !== customer.gender) return false;
+  if (!style.best.slice(0, 2).includes(customer.faceShape)) return false;
+  if (style.avoid.includes(customer.faceShape) || (customer.secondFaceShape && style.avoid.includes(customer.secondFaceShape))) return false;
+  if (style.texture[TEXTURE_INDEX[customer.texture]] !== 2) return false;
+  return currentRank(customer.gender, customer.length) >= needsRank(customer.gender, style.needs);
+}
+
 export function pickStyles(customer: CustomerHair, band: LengthBand | null = null, wish: WantLength | null = null): StylePicks {
   // HAIRSTYLES is in tie-break order and Array.sort is stable, so equal
-  // scores keep the list's order.
-  const rated = HAIRSTYLES.filter((style) => style.gender === customer.gender && (!band || lengthBand(style) === band))
+  // scores keep the list's order. World styles come after, and only the
+  // ones that truly fit.
+  const candidates = [...HAIRSTYLES, ...WORLD_HAIRSTYLES.filter((style) => worldStyleFits(style, customer))];
+  const rated = candidates.filter((style) => style.gender === customer.gender && (!band || lengthBand(style) === band))
     .map((style) => rate(style, customer))
     .filter((pick): pick is StylePick => pick !== null)
     .filter((pick) => fitsWish(pick, wish))
@@ -299,12 +321,15 @@ export function pickStyles(customer: CustomerHair, band: LengthBand | null = nul
   const familyFull = (pick: StylePick) =>
     (perFamily.get(pick.style.family) ?? 0) >= (FAMILY_LIMITS[pick.style.family] ?? FAMILY_LIMIT);
   const bigChangeFull = (pick: StylePick) => pick.bigChange && bigChanges >= BIG_CHANGE_LIMIT;
+  // At most one world style in the top 5, unless the five can't be filled otherwise.
+  const worldFull = (pick: StylePick) =>
+    Boolean(pick.style.world) && top.filter((p) => p.style.world).length >= WORLD_IN_TOP_LIMIT;
 
   // Three passes: both variety rules, then without the family rule, then
   // without either — so the rules shape the five but never shorten them.
   const passes: ((pick: StylePick) => boolean)[] = [
-    (pick) => !familyFull(pick) && !bigChangeFull(pick),
-    (pick) => !bigChangeFull(pick),
+    (pick) => !familyFull(pick) && !bigChangeFull(pick) && !worldFull(pick),
+    (pick) => !bigChangeFull(pick) && !worldFull(pick),
     () => true,
   ];
   for (const allowed of passes) {
@@ -316,7 +341,7 @@ export function pickStyles(customer: CustomerHair, band: LengthBand | null = nul
 
   // Rule 7, second half: a woman's five include one clearly shorter cut.
   if (customer.gender === "women" && top.length === TOP_COUNT && !top.some((pick) => pick.stepsShorter >= 1)) {
-    const shorter = cuts.find((pick) => pick.stepsShorter >= 1 && !top.includes(pick));
+    const shorter = cuts.find((pick) => pick.stepsShorter >= 1 && !top.includes(pick) && !pick.style.world);
     if (shorter) {
       top.sort((a, b) => b.score - a.score || a.stepsShorter - b.stepsShorter);
       top[TOP_COUNT - 1] = shorter;
@@ -324,6 +349,6 @@ export function pickStyles(customer: CustomerHair, band: LengthBand | null = nul
   }
   top.sort((a, b) => b.score - a.score || a.stepsShorter - b.stepsShorter);
 
-  const more = rated.filter((pick) => !top.includes(pick)).slice(0, MORE_COUNT);
+  const more = rated.filter((pick) => !top.includes(pick) && !pick.style.world).slice(0, MORE_COUNT);
   return { top, more, cutsPossibleToday: cuts.length };
 }

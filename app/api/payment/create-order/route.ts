@@ -27,6 +27,14 @@
 // PayU is asked only for the reduced amount. When the credit covers the
 // whole price there is no PayU step at all: the credit is taken at once and
 // the order is saved already PAID (answer: { free: true, orderId }).
+//
+// 26.10.2026 (single pictures): `pictures: { styleId, photoId, views }` buys
+// one hairstyle on the customer's own photo, picture by picture (prices and
+// rules in lib/pricing.ts, priceForPictures; lib/pictures.ts). Views the
+// customer already has are never charged again. The order is saved with
+// order_kind 'PICTURES', no pack and no looks (preview_count 0), so it can't
+// be spent on other hairstyles, and it earns the referrer nothing. Credit,
+// PayU, the "already paid" re-check and the webhook work exactly as for packs.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -34,6 +42,8 @@ import {
   calculatePackPnl,
   calculateAddonPnl,
   calculateOrderPnl,
+  calculatePicturePnl,
+  priceForPictures,
   PACK_TIERS,
   PICTURES_PER_PREVIEW,
   type PackTier,
@@ -45,6 +55,8 @@ import { mockStore } from "@/lib/mockStore";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { confirmPayuTxn } from "@/lib/payments";
 import { campaignColumns } from "@/lib/campaign";
+import { hairstyleById } from "@/lib/content/hairstyles";
+import { grantPictureViews, ownedPictureViews } from "@/lib/pictures";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
@@ -103,6 +115,8 @@ interface CreateOrderBody {
   useCredit?: boolean;
   /** 21.10.2026: the ad campaign that brought this customer (lib/campaign.ts). */
   campaign?: unknown;
+  /** 26.10.2026: single pictures of one hairstyle on the customer's own photo. */
+  pictures?: { styleId?: unknown; photoId?: unknown; views?: unknown };
 }
 
 /** A 10-digit Indian mobile number, or null. Accepts +91 / 0 / spaces / dashes. */
@@ -138,7 +152,18 @@ export async function POST(req: NextRequest) {
   const userId = auth.userId;
 
   const isAddon = Boolean(addonKind);
-  if (!tier && !isAddon) {
+  // 26.10.2026: single pictures — checked here, priced below once the views already owned are known.
+  const pictureStyle = body.pictures ? hairstyleById(typeof body.pictures.styleId === "string" ? body.pictures.styleId : undefined) : null;
+  const picturePhotoId = typeof body.pictures?.photoId === "string" ? body.pictures.photoId.slice(0, 60) : "";
+  const wantedViews = Array.isArray(body.pictures?.views) ? (body.pictures!.views as unknown[]).filter((v): v is string => typeof v === "string") : [];
+  const isPictures = Boolean(body.pictures);
+  if (isPictures && (tier || isAddon)) {
+    return NextResponse.json({ error: "Pass either a pack or pictures, not both." }, { status: 400 });
+  }
+  if (isPictures && (!pictureStyle || !picturePhotoId)) {
+    return NextResponse.json({ error: "That hairstyle or photo couldn't be found. Please go back and try again." }, { status: 400 });
+  }
+  if (!tier && !isAddon && !isPictures) {
     return NextResponse.json({ error: "Either tier or addonKind is required." }, { status: 400 });
   }
   if (tier && isAddon) {
@@ -154,8 +179,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "addonPhotoCount must be at least 1 for an add-on order." }, { status: 400 });
   }
 
-  const listPnl = tier ? calculatePackPnl(tier) : calculateAddonPnl(addonPhotoCount!);
-  const imageCount = tier ? PACK_TIERS[tier].imageCount : addonPhotoCount!;
+  /** 26.10.2026: the price of the pictures asked for, leaving out the ones already owned. */
+  const pricePictures = (owned: string[]) => {
+    const priced = priceForPictures(wantedViews, owned);
+    return priced.ok
+      ? { priced, response: null }
+      : { priced: null, response: NextResponse.json({ error: priced.error, alreadyOwned: owned.length > 0 }, { status: 409 }) };
+  };
+  let picture: { views: ("front" | "left" | "right" | "back")[]; pricePaise: number } | null = null;
+  if (isPictures) {
+    let owned: string[];
+    if (SUPABASE_MOCK_MODE) {
+      if (!mockStore.getPhoto(picturePhotoId)) {
+        return NextResponse.json({ error: "We couldn't find your photo. Please upload it again." }, { status: 404 });
+      }
+      owned = mockStore.ownedPictureViews(userId, picturePhotoId, pictureStyle!.id).map((v) => v.view);
+    } else {
+      const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
+      const db = getSupabaseAdmin();
+      const { data: photo } = await db.from("photos").select("id").eq("id", picturePhotoId).eq("user_id", userId).maybeSingle();
+      if (!photo) return NextResponse.json({ error: "We couldn't find your photo. Please upload it again." }, { status: 404 });
+      owned = await ownedPictureViews(db, userId, picturePhotoId, pictureStyle!.id, pictureStyle!.name);
+    }
+    const { priced, response } = pricePictures(owned);
+    if (!priced) return response!;
+    picture = { views: priced.views, pricePaise: priced.pricePaise };
+  }
+
+  const listPnl = picture
+    ? calculatePicturePnl(picture.pricePaise, picture.views.length)
+    : tier
+      ? calculatePackPnl(tier)
+      : calculateAddonPnl(addonPhotoCount!);
+  const imageCount = picture ? picture.views.length : tier ? PACK_TIERS[tier].imageCount : addonPhotoCount!;
+  /** 26.10.2026: what a single-picture order records (the hairstyle, the photo and the views). */
+  const pictureColumns = picture
+    ? { order_kind: "PICTURES", picture_style_id: pictureStyle!.id, picture_photo_id: picturePhotoId, picture_views: picture.views }
+    : {};
   const internalOrderId = randomUUID();
   const useCredit = body.useCredit === true;
   /** The order's figures at the price actually charged (after any credit). */
@@ -165,12 +225,15 @@ export async function POST(req: NextRequest) {
 
   if (SUPABASE_MOCK_MODE) {
     const profile = mockStore.getOrCreateProfile(userId);
-    const hasPaidBefore = [...mockStore.orders.values()].some((o) => o.userId === userId && o.status === "PAID");
+    // 26.10.2026: single pictures don't count as the first purchase, so a later pack still rewards the referrer.
+    const hasPaidBefore = [...mockStore.orders.values()].some(
+      (o) => o.userId === userId && o.status === "PAID" && o.orderKind !== "PICTURES"
+    );
     const split = splitWithCredit(listPnl.pricePaise, profile.creditBalancePaise, useCredit);
     const free = split.duePaise === 0;
     const pnl = pnlFor(split.duePaise);
     // A first purchase paid entirely with credit brings no new money in, so it earns the referrer nothing.
-    const isReferredFirstPurchase = Boolean(profile.referredBy) && !hasPaidBefore && !free;
+    const isReferredFirstPurchase = Boolean(profile.referredBy) && !hasPaidBefore && !free && !picture;
     if (free) profile.creditBalancePaise -= split.creditPaise;
 
     const order = mockStore.createOrder({
@@ -191,10 +254,15 @@ export async function POST(req: NextRequest) {
       razorpayPaymentId: null,
       createdAt: new Date().toISOString(),
       paidAt: free ? new Date().toISOString() : null,
-      previewCount: imageCount,
+      previewCount: picture ? 0 : imageCount,
       previewsUsed: 0,
       creditUsedPaise: split.creditPaise,
+      orderKind: picture ? "PICTURES" : "PACK",
+      pictureStyleId: picture ? pictureStyle!.id : null,
+      picturePhotoId: picture ? picturePhotoId : null,
+      pictureViews: picture?.views ?? [],
     });
+    if (free) mockStore.grantPictureViews(order.id);
 
     return NextResponse.json({
       mockMode: true,
@@ -237,11 +305,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 26.10.2026: single pictures don't count as the first purchase, so a later pack still rewards the referrer.
   const { data: existingPaid } = await admin
     .from("orders")
     .select("id")
     .eq("user_id", userId)
     .eq("status", "PAID")
+    .eq("order_kind", "PACK")
     .limit(1);
 
   const { data: profile } = await admin
@@ -253,7 +323,7 @@ export async function POST(req: NextRequest) {
   const pnl = pnlFor(split.duePaise);
   // A first purchase paid entirely with credit brings no new money in, so it earns the referrer nothing.
   const isReferredFirstPurchase =
-    Boolean(profile?.referred_by) && !(existingPaid && existingPaid.length > 0) && split.duePaise > 0;
+    Boolean(profile?.referred_by) && !(existingPaid && existingPaid.length > 0) && split.duePaise > 0 && !picture;
 
   if (split.duePaise === 0) return creditOnlyOrder();
 
@@ -282,10 +352,11 @@ export async function POST(req: NextRequest) {
       // PayU's transaction id (column name left over from Razorpay — see lib/payments.ts).
       razorpay_order_id: txnid,
       // What the customer is buying: this many hairstyle previews (see the
-      // "paid previews" section at the end of db/schema.sql).
-      preview_count: imageCount,
+      // "paid previews" section at the end of db/schema.sql). Single pictures: none.
+      preview_count: picture ? 0 : imageCount,
       // Taken from the balance only when PayU confirms the payment (lib/payments.ts).
       credit_used_paise: split.creditPaise,
+      ...pictureColumns,
     }, campaignColumns(body.campaign));
 
   if (error || !order) {
@@ -297,7 +368,7 @@ export async function POST(req: NextRequest) {
   const payu = buildPaymentForm({
     txnid,
     amountPaise: split.duePaise,
-    productinfo: tier ? `Tressform ${PACK_TIERS[tier].label}` : "Tressform add-on",
+    productinfo: picture ? "Tressform pictures" : tier ? `Tressform ${PACK_TIERS[tier].label}` : "Tressform add-on",
     firstname: cleanFirstName(auth.name),
     email: auth.email,
     phone,
@@ -346,8 +417,9 @@ export async function POST(req: NextRequest) {
         status: "PAID",
         paid_at: now,
         razorpay_order_id: `${CREDIT_ONLY_TXN_PREFIX}${txnid}`,
-        preview_count: imageCount,
+        preview_count: picture ? 0 : imageCount,
         credit_used_paise: split.creditPaise,
+        ...pictureColumns,
       }, campaignColumns(body.campaign));
     if (error || !order) {
       // Give the credit back — nothing was bought.
@@ -355,6 +427,7 @@ export async function POST(req: NextRequest) {
       console.error("[Tressform] Credit-only order not created:", error?.message);
       return NextResponse.json({ error: "We couldn't complete your order. Your credit is unchanged — please try again." }, { status: 500 });
     }
+    if (picture) await grantPictureViews(admin, order.id);
     return NextResponse.json({
       mockMode: false,
       free: true,

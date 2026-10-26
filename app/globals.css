@@ -70,6 +70,24 @@
     opacity: 1;
   }
 }
+/* 26.10.2026: Hairstyles of the World — cards leave and arrive when a filter changes. */
+@keyframes tf-card-out {
+  to {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+@keyframes tf-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="tf-card-"] {
+    animation: none !important;
+  }
+}
 
 @layer components {
   .wrap {

@@ -99,8 +99,28 @@ export interface OrderRow {
   previews_used: number;
   /** 14.10.2026: Tressform credit put toward this order. price_paise is what was actually charged. */
   credit_used_paise: number;
+  /** 26.10.2026: 'PACK' (every pack and add-on order) or 'PICTURES' (single pictures of one hairstyle). */
+  order_kind: "PACK" | "PICTURES";
+  /** 26.10.2026, single pictures: the hairstyle, the photo and the views bought. */
+  picture_style_id: string | null;
+  picture_photo_id: string | null;
+  picture_views: ("front" | "left" | "right" | "back")[];
   created_at: string;
   paid_at: string | null;
+}
+
+/** 26.10.2026: one paid view of a single-picture order (private; server only). */
+export interface PictureViewRow {
+  order_id: string;
+  user_id: string;
+  photo_id: string | null;
+  style_id: string;
+  view: "front" | "left" | "right" | "back";
+  status: "READY" | "MAKING" | "DONE" | "REFUND_DUE" | "DUPLICATE" | "REFUNDED";
+  failures: number;
+  result_storage_path: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReferralRow {
@@ -137,6 +157,8 @@ export interface AffiliateProductRow {
   amazon_asin: string | null;
   /** 13.10.2026: affiliate links for the other shops, e.g. { flipkart: "https://…", nykaa: "https://…" }. */
   shop_links: Record<string, string>;
+  /** 26.10.2026: the owner ticked "Trending", so it shows at the top of /haircare. */
+  is_trending: boolean;
   is_active: boolean;
   sort_order: number;
   created_at: string;

@@ -44,6 +44,7 @@
 
 import type { FaceShape } from "@/lib/faceShape";
 import { BARBER_POINTS } from "./barberPoints";
+import { worldAsHairstyles, type WorldRegion } from "./worldHairstyles";
 
 export type HairGender = "men" | "women";
 export type HairTexture = "straight" | "wavy" | "curly";
@@ -123,6 +124,10 @@ export interface Hairstyle {
   effects: StyleEffect[];
   /** What to ask the barber or stylist for, where `prompt` does not read well as a request. */
   barber?: string;
+  /** 26.10.2026: the barber or stylist notes of a world style (worldHairstyles.ts). */
+  barberNotes?: string[];
+  /** 26.10.2026: set for the "Hairstyles of the World" styles, which aren't on the two main lists. */
+  world?: { slug: string; region: WorldRegion; country: string; code: string };
 }
 
 type Row = Omit<Hairstyle, "gender" | "effects" | "front" | "barber">;
@@ -1148,7 +1153,14 @@ export const HAIRSTYLES: Hairstyle[] = [
   ...(BARBER[style.id] ? { barber: BARBER[style.id] } : {}),
 }));
 
-const BY_ID = new Map(HAIRSTYLES.map((style) => [style.id, style]));
+// 26.10.2026: the "Hairstyles of the World" styles (worldHairstyles.ts). They
+// are NOT on the two main lists above, so the Studio's buttons and the
+// counts stay as they are, and the automatic picker only offers one when it
+// truly fits (lib/recommend.ts). But any of them can be named by id, so a
+// customer can try one on their own face (/api/generate, checkout).
+export const WORLD_HAIRSTYLES: Hairstyle[] = worldAsHairstyles();
+
+const BY_ID = new Map([...HAIRSTYLES, ...WORLD_HAIRSTYLES].map((style) => [style.id, style]));
 
 /** A style by its id, or null. The server uses this so a browser can only ever name a style, never describe one. */
 export function hairstyleById(id: unknown): Hairstyle | null {
@@ -1175,7 +1187,7 @@ export function barberName(style: Hairstyle): string {
 }
 
 export function barberPoints(style: Hairstyle): string[] {
-  return BARBER_POINTS[style.id] ?? [barberLine(style)];
+  return BARBER_POINTS[style.id] ?? style.barberNotes ?? [barberLine(style)];
 }
 
 export function hairstylesFor(gender: HairGender): Hairstyle[] {
