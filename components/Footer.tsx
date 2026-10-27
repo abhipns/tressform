@@ -13,7 +13,7 @@
 // by payment gateway reviews. The address line appears once one is set.
 
 import Logo from "./Logo";
-import { BUSINESS, OPERATOR_LINE, addressLines } from "@/lib/business";
+import { BUSINESS, addressLines } from "@/lib/business";
 
 const SOCIALS = [
   {
@@ -166,14 +166,11 @@ export default function Footer() {
             glitch prevents image generation entirely, even after multiple attempts — see our Refund and Cancellation Policy for full
             terms.
           </p>
+          {/* 27.10.2026: the owner's own name and phone number are no longer shown here (owner's request);
+              the support email and the business address stay. */}
           <p className="mb-3 max-w-[820px] text-[12.5px] text-white/60">
-            {OPERATOR_LINE}{" "}
             <a href={`mailto:${BUSINESS.supportEmail}`} className="text-white/75 underline-offset-2 hover:text-white hover:underline">
               {BUSINESS.supportEmail}
-            </a>
-            {" · "}
-            <a href={`tel:${BUSINESS.phoneHref}`} className="text-white/75 underline-offset-2 hover:text-white hover:underline">
-              {BUSINESS.phoneDisplay}
             </a>
             {addressLines().length > 0 && <> · {addressLines().join(", ")}</>}
           </p>
