@@ -13,6 +13,10 @@
 // Someone who already has a Tressform account is offered "Log in instead";
 // they keep everything in that account, but this visit's photo stays with
 // the anonymous one, so they are told they'll add their selfie again.
+//
+// 27.10.2026: no longer in front of the Pay button (customers left there).
+// It now shows AFTER paying, on the results page, as "Save your looks to
+// your account" — the wording comes from that page (title, blurb, button).
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -35,9 +39,24 @@ export function accountError(message: string): string {
   return "We couldn't create your account just now. Please try again.";
 }
 
-export default function SaveAccount({ next }: { next: string }) {
+export default function SaveAccount({
+  next,
+  title = "Create your account to continue",
+  blurb = "Your photo and hairstyle list are saved to it, so your hairstyles are always there to open again.",
+  submitLabel = "Create account and continue",
+  defaultEmail = "",
+  children,
+}: {
+  next: string;
+  title?: string;
+  blurb?: string;
+  submitLabel?: string;
+  defaultEmail?: string;
+  /** 27.10.2026: e.g. "Skip for now", under the box. */
+  children?: React.ReactNode;
+}) {
   const inApp = useInApp();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,17 +113,15 @@ export default function SaveAccount({ next }: { next: string }) {
     return (
       <div className="mb-5 rounded-md2 border border-line bg-bg-soft px-4 py-4 text-[14px] leading-[1.6] text-ink">
         <p className="mb-1 font-semibold text-ink-heading">Check your email</p>
-        We&apos;ve sent a link to <strong>{email}</strong>. Open it, then come back to this page to pay.
+        We&apos;ve sent a link to <strong>{email}</strong>. Open it to finish saving your account.
       </div>
     );
   }
 
   return (
     <div className="mb-5 rounded-md2 border border-line bg-bg-soft px-4 py-5">
-      <p className="text-[17px] font-semibold text-ink-heading">Create your account to continue</p>
-      <p className="mb-4 mt-1 text-[13.5px] leading-[1.55] text-ink-muted">
-        Your photo and hairstyle list are saved to it, so your hairstyles are always there to open again.
-      </p>
+      <p className="text-[17px] font-semibold text-ink-heading">{title}</p>
+      <p className="mb-4 mt-1 text-[13.5px] leading-[1.55] text-ink-muted">{blurb}</p>
 
       {!inApp && (
         <>
@@ -139,7 +156,7 @@ export default function SaveAccount({ next }: { next: string }) {
         </label>
         {error && <p className="text-[13px] font-medium text-danger">{error}</p>}
         <button type="submit" disabled={busy} className="btn-primary w-full rounded-full !py-3 disabled:opacity-60">
-          {busy ? "Please wait…" : "Create account and continue"}
+          {busy ? "Please wait…" : submitLabel}
         </button>
       </form>
 
@@ -150,6 +167,7 @@ export default function SaveAccount({ next }: { next: string }) {
         </a>
         <span className="mt-1 block text-[12px]">You&apos;ll add your selfie again in that account.</span>
       </p>
+      {children}
     </div>
   );
 }

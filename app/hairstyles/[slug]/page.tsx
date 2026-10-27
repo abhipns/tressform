@@ -131,11 +131,12 @@ export default async function WorldStylePage({ params }: { params: { slug: strin
             </div>
 
             <div className="mt-6 flex flex-col gap-3">
-              <a href={tryLink(id, "all")} className="btn-primary w-full !py-3.5 !text-[16px]">
-                Full look on your face – {rupees(FULL_LOOK_PRICE_PAISE)}
+              {/* 27.10.2026 (owner): the ₹25 front view is the main offer everywhere a style is locked. */}
+              <a href={tryLink(id, "front")} className="btn-primary w-full !py-3.5 !text-[16px]">
+                See it on your face – {rupees(PICTURE_PRICE_PAISE.front)}
               </a>
-              <a href={tryLink(id, "front")} className="btn-secondary w-full !py-3 !text-[15px]">
-                Just the front view – {rupees(PICTURE_PRICE_PAISE.front)}
+              <a href={tryLink(id, "all")} className="btn-secondary w-full !py-3 !text-[15px]">
+                Full look {rupees(FULL_LOOK_PRICE_PAISE)} (best value)
               </a>
               <p className="text-[12.5px] text-ink-muted">
                 Upload a selfie first; we read your face shape and make this style on your own photo. The Full look is the

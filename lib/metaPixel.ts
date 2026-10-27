@@ -7,6 +7,7 @@
 //   CompleteRegistration  a new account signs in for the first time
 //   Lead                  a photo has been read (the hairstyle list is shown)
 //   Contact               a WhatsApp number was given
+//   AddToCart             /checkout opened, with the price (27.10.2026)
 //   InitiateCheckout      "Pay" was pressed (with the pack's price)
 //   Purchase              a payment was confirmed (price in INR), once per order
 // Nothing personal is sent: no name, email, phone or photo.

@@ -22,6 +22,7 @@ import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/prici
 import { financialYearStart } from "@/lib/referral";
 import { grantPictureViews } from "@/lib/pictures";
 import { linkCreditsSince } from "@/lib/linkVisits";
+import { sendResultsEmail } from "@/lib/resultsEmail";
 
 export type ConfirmResult =
   | { found: false }
@@ -69,6 +70,8 @@ export async function confirmPayuTxn(txnid: string, via: "return" | "webhook" | 
       await settleReferral(admin, order);
       // 26.10.2026: single pictures — the paid views, ready to be made (lib/pictures.ts).
       if (order.order_kind === "PICTURES") await grantPictureViews(admin, order.id);
+      // 27.10.2026: paid without an account and gave an email — one email with a link to their looks.
+      if (order.contact_email) await sendResultsEmail(admin, order);
     }
     return { found: true, orderId: order.id, tier: order.tier, status: "PAID" };
   }

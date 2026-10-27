@@ -1062,3 +1062,28 @@ grant all on public.world_pictures to service_role;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('world', 'world', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
+
+-- 27.10.2026: paying without an account, and the checkout funnel
+-- (supabase/migrations/20261027_checkout_without_account.sql)
+
+alter table public.orders
+  add column if not exists contact_email text,
+  add column if not exists results_email_sent_at timestamp with time zone;
+alter table public.orders drop constraint if exists orders_contact_email_check;
+alter table public.orders add constraint orders_contact_email_check
+  check (contact_email is null or (char_length(contact_email) <= 200 and contact_email like '%_@_%'));
+
+create table if not exists public.checkout_events (
+  id bigint generated always as identity primary key,
+  visitor text check (visitor is null or visitor ~ '^[A-Za-z0-9-]{8,64}$'),
+  step text not null check (step in ('opened', 'phone', 'pay', 'return_success', 'return_fail')),
+  user_id uuid references auth.users(id) on delete set null,
+  order_id uuid references public.orders(id) on delete set null,
+  created_at timestamp with time zone not null default now()
+);
+create index if not exists checkout_events_created_idx on public.checkout_events (created_at);
+create index if not exists checkout_events_order_idx on public.checkout_events (order_id) where order_id is not null;
+
+alter table public.checkout_events enable row level security;
+revoke all on public.checkout_events from anon, authenticated;
+grant all on public.checkout_events to service_role;

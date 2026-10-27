@@ -125,6 +125,7 @@ function LockIcon() {
 
 // 26.10.2026: each locked look also offers "See this on your face" — the
 // front ₹25 or the Full look ₹70, for that one hairstyle (PictureOffer).
+// 27.10.2026: that ₹25 button is the main offer; the packs box follows.
 export function LockedLooks({
   photo,
   photoId,
@@ -158,12 +159,15 @@ export function LockedLooks({
             </div>
             <p className="mt-2 text-[15px] font-semibold leading-snug text-ink-heading">{look.name}</p>
             <ReadyChip text={look.ready} now={look.readyNow} />
-            {photoId && look.styleId && <PictureOffer styleId={look.styleId} photoId={photoId} />}
+            {photoId && look.styleId && <PictureOffer styleId={look.styleId} photoId={photoId} compact />}
           </li>
         ))}
       </ol>
       <div className="mt-4 rounded-[20px] bg-[#16261C] px-5 py-5 text-white sm:px-6">
-        <p className="text-[18px] font-semibold leading-tight text-white">See these cuts on your own photo</p>
+        {/* 27.10.2026: packs come after the ₹25 single picture on each look above. */}
+        <p className="text-[18px] font-semibold leading-tight text-white">
+          {photoId ? "Or see several looks with a pack" : "See these cuts on your own photo"}
+        </p>
         <p className="mt-1.5 text-[14.5px] leading-[1.5] text-white/75">
           We make your best-matched looks right away. Tap any look to see it from both sides and the back, with the words
           for your barber.

@@ -35,6 +35,16 @@
 // order_kind 'PICTURES', no pack and no looks (preview_count 0), so it can't
 // be spent on other hairstyles, and it earns the referrer nothing. Credit,
 // PayU, the "already paid" re-check and the webhook work exactly as for packs.
+//
+// 27.10.2026 (no account wall, lib/checkoutSteps.ts): a visitor on the
+// anonymous account can now pay. The order is saved on that same account,
+// exactly as before, so their photo, list and pictures stay theirs. PayU is
+// given their own email if they typed one (kept on the order as
+// contact_email, for the one "your looks are saved" email after paying),
+// otherwise Tressform's support address. The mobile number still goes to
+// PayU only. "Pay pressed" is recorded for the checkout funnel (visitor id
+// only). Prices, credit, the "already paid" check and PayU's confirmation
+// are unchanged.
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
@@ -57,6 +67,9 @@ import { confirmPayuTxn } from "@/lib/payments";
 import { campaignColumns } from "@/lib/campaign";
 import { hairstyleById } from "@/lib/content/hairstyles";
 import { grantPictureViews, ownedPictureViews } from "@/lib/pictures";
+import { cleanEmail, payerEmail } from "@/lib/checkoutSteps";
+import { recordCheckoutStep } from "@/lib/checkoutEvents";
+import { BUSINESS } from "@/lib/business";
 
 const SELLABLE_TIERS: PackTier[] = ["STARTER", "STYLE"];
 
@@ -117,6 +130,10 @@ interface CreateOrderBody {
   campaign?: unknown;
   /** 26.10.2026: single pictures of one hairstyle on the customer's own photo. */
   pictures?: { styleId?: unknown; photoId?: unknown; views?: unknown };
+  /** 27.10.2026: optional email typed at checkout by a visitor without an account. */
+  email?: unknown;
+  /** 27.10.2026: this device's anonymous visitor id, for the checkout funnel. */
+  visitor?: unknown;
 }
 
 /** A 10-digit Indian mobile number, or null. Accepts +91 / 0 / spaces / dashes. */
@@ -144,12 +161,12 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req, body.userId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   // 23.10.2026: visitors try the upload before signing in (anonymous
-  // account); paying needs a real account, so the purchase and its pictures
-  // are never lost and PayU gets an email.
-  if (auth.anonymous) {
-    return NextResponse.json({ error: "Please create your account to continue.", needsAccount: true }, { status: 401 });
-  }
+  // account). 27.10.2026: they may now pay on that account too — the account
+  // wall before Pay was where they left. They are offered to save the
+  // account after paying (results page).
   const userId = auth.userId;
+  // The email typed at checkout, kept only for a buyer without an account's own email.
+  const contactEmail = auth.anonymous ? cleanEmail(body.email) : null;
 
   const isAddon = Boolean(addonKind);
   // 26.10.2026: single pictures — checked here, priced below once the views already owned are known.
@@ -263,6 +280,7 @@ export async function POST(req: NextRequest) {
       pictureViews: picture?.views ?? [],
     });
     if (free) mockStore.grantPictureViews(order.id);
+    await recordCheckoutStep(body.visitor, "pay", { userId, orderId: order.id });
 
     return NextResponse.json({
       mockMode: true,
@@ -331,9 +349,6 @@ export async function POST(req: NextRequest) {
   if (!phone) {
     return NextResponse.json({ error: "Please enter your 10-digit mobile number.", field: "phone" }, { status: 400 });
   }
-  if (!auth.email) {
-    return NextResponse.json({ error: "Your account has no email address. Please log in with Google again." }, { status: 400 });
-  }
 
   const { data: order, error } = await insertOrder(admin, "*", {
       id: internalOrderId,
@@ -357,6 +372,8 @@ export async function POST(req: NextRequest) {
       // Taken from the balance only when PayU confirms the payment (lib/payments.ts).
       credit_used_paise: split.creditPaise,
       ...pictureColumns,
+      // 27.10.2026: only for a buyer without an account who typed an email (the results email).
+      ...(contactEmail ? { contact_email: contactEmail } : {}),
     }, campaignColumns(body.campaign));
 
   if (error || !order) {
@@ -364,13 +381,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "We couldn't start your payment. Please try again." }, { status: 500 });
   }
 
+  await recordCheckoutStep(body.visitor, "pay", { userId, orderId: order.id });
+
   const returnUrl = `${req.nextUrl.origin}/api/payment/payu-return`;
   const payu = buildPaymentForm({
     txnid,
     amountPaise: split.duePaise,
     productinfo: picture ? "Tressform pictures" : tier ? `Tressform ${PACK_TIERS[tier].label}` : "Tressform add-on",
     firstname: cleanFirstName(auth.name),
-    email: auth.email,
+    email: payerEmail(auth.email, body.email, BUSINESS.supportEmail),
     phone,
     orderId: order.id,
     surl: returnUrl,

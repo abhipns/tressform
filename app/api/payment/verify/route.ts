@@ -30,6 +30,7 @@ import { NextRequest, NextResponse } from "next/server";
 // mode, where "Pay" completes instantly.
 import { calculateReferralCreditsPaiseWithCap, type PackTier } from "@/lib/pricing";
 import { mockStore } from "@/lib/mockStore";
+import { recordPayuReturn } from "@/lib/checkoutEvents";
 import { requireUser, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 
 interface VerifyBody {
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest) {
       const buyer = mockStore.getOrCreateProfile(order.userId);
       buyer.creditBalancePaise = Math.max(0, buyer.creditBalancePaise - (order.creditUsedPaise ?? 0));
     }
+
+    // 27.10.2026: the demo's "payment" counts as a return from PayU for the checkout funnel.
+    if (!wasPaid) await recordPayuReturn(order.id, true);
 
     // 26.10.2026: single pictures — the paid views, ready to be made.
     if (!wasPaid && order.orderKind === "PICTURES") mockStore.grantPictureViews(order.id);

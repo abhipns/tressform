@@ -81,6 +81,8 @@ function Dashboard() {
   const [taxRate, setTaxRate] = useState("30");
   // 26.10.2026: referral links that brought the most visitors (all time).
   const [sharers, setSharers] = useState<{ code: string; visitors: number; creditPaise: number }[]>([]);
+  // 27.10.2026: where people stop in the checkout (lib/checkoutSteps.ts).
+  const [checkout, setCheckout] = useState<{ step: string; label: string; visitors: number }[]>([]);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("tf_tax_rate");
@@ -114,6 +116,7 @@ function Dashboard() {
     setCommitted(data.committed ?? null);
     setGst(data.gst ?? null);
     setSharers(data.sharers ?? []);
+    setCheckout(data.checkout ?? []);
   }
 
   useEffect(() => {
@@ -211,6 +214,40 @@ function Dashboard() {
               );
             })}
           </ol>
+
+          {/* 27.10.2026: each checkout step, by different visitors (lib/checkoutSteps.ts). */}
+          <h2 className="mt-10 text-[21px] font-semibold">Checkout steps</h2>
+          <p className="mt-1 max-w-[66ch] text-[14.5px] text-ink-muted">
+            Different visitors who reached each step of the checkout in this period. Counting started on 27 October 2026.
+          </p>
+          {(() => {
+            const widestStep = Math.max(1, ...checkout.map((c) => c.visitors));
+            return (
+              <ol className="mt-4 flex max-w-[760px] flex-col gap-3">
+                {checkout.map((c, i) => {
+                  const prev = i > 0 && c.step !== "return_fail" ? checkout[c.step === "return_success" ? 2 : i - 1] : null;
+                  const rate = prev ? stepRate(c.visitors, prev.visitors) : null;
+                  return (
+                    <li key={c.step}>
+                      <div className="flex items-baseline justify-between gap-3 text-[15px]">
+                        <span className="font-semibold text-ink-heading">{c.label}</span>
+                        <span className="text-ink-muted">
+                          <strong className="font-heading text-[18px] text-ink-heading">{c.visitors.toLocaleString("en-IN")}</strong>
+                          {rate !== null && <span className="ml-2 text-[13.5px]">{rate}% of the step before</span>}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-3 rounded-full bg-bg-soft">
+                        <div
+                          className={`h-3 rounded-full ${c.step === "return_fail" ? "bg-danger/60" : "bg-mint"}`}
+                          style={{ width: `${Math.max(c.visitors ? 2 : 0, (c.visitors / widestStep) * 100)}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            );
+          })()}
 
           <h2 className="mt-10 text-[21px] font-semibold">Money</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

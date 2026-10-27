@@ -14,10 +14,17 @@
 //
 // No login is needed here: the browser arrives from PayU's site, and the
 // order is found by PayU's transaction id, not by who is asking.
+//
+// 27.10.2026: the return is recorded for the checkout funnel (paid / not
+// paid; lib/checkoutSteps.ts), and a failed single-picture order goes to its
+// results page ("Try again" for the same pictures) instead of a checkout
+// with no pack named.
 
 import { NextRequest, NextResponse } from "next/server";
 import { PAYU_MOCK_MODE, readPayuPost, responseHashOk } from "@/lib/integrations/payu";
 import { confirmPayuTxn } from "@/lib/payments";
+import { afterPayuPath } from "@/lib/checkoutSteps";
+import { recordPayuReturn } from "@/lib/checkoutEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +47,13 @@ export async function POST(req: NextRequest) {
   const otherPhone = req.nextUrl.searchParams.get("h") === "1";
   try {
     const r = await confirmPayuTxn(txnid, "return");
+    if (r.found && r.status !== "PENDING") await recordPayuReturn(r.orderId, r.status === "PAID");
     if (otherPhone) {
       const s = !r.found ? "unknown" : r.status === "FAILED" ? "failed" : r.status === "PENDING" ? "pending" : "paid";
       return go(req, `/pay/done?s=${s}`);
     }
     if (!r.found) return go(req, "/");
-    if (r.status === "FAILED") return go(req, `/checkout?tier=${r.tier ?? ""}&payment=failed`);
-    return go(req, `/results/${r.orderId}`);
+    return go(req, afterPayuPath(r));
   } catch (err) {
     console.error(`[Tressform] PayU return for ${txnid}: could not confirm.`, err);
     // The results page re-checks with PayU when it loads, so send them there if we know the order.

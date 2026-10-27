@@ -14,12 +14,21 @@
 //
 // 26.10.2026 (single pictures): an order for pictures of one hairstyle shows
 // those pictures here, made as the page opens (components/PictureResult.tsx).
+//
+// 27.10.2026 (paying without an account, lib/checkoutSteps.ts): after a
+// confirmed payment, a customer still on the anonymous account sees "Save
+// your looks to your account" (email + password, or Google;
+// components/SaveAccount.tsx) with "Skip for now". If they gave an email at
+// checkout, the page says the private link to their looks went there.
+// ?k=<key> (that email's link, lib/resultsLink.ts) opens the order on any
+// phone to view and download.
 
 "use client";
 
 import { useEffect, useState } from "react";
 import { paiseToRupees } from "@/lib/pricing";
-import { SUPABASE_MOCK_MODE, authHeaders, loginUrl } from "@/lib/authClient";
+import { SUPABASE_MOCK_MODE, authHeaders, isAnonymousSession, loginUrl, useSession } from "@/lib/authClient";
+import SaveAccount from "@/components/SaveAccount";
 import { trackPurchaseOnce } from "@/lib/metaPixel";
 import PictureResult, { type PictureOrderSummary } from "@/components/PictureResult";
 
@@ -37,7 +46,13 @@ interface OrderSummary {
   paidAt: string | null;
   /** 26.10.2026: set for single-picture orders. */
   pictures?: PictureOrderSummary | null;
+  /** 27.10.2026: opened from the private link (view and download only). */
+  readOnly?: boolean;
+  /** 27.10.2026: the email typed at checkout, where the link to these looks went. */
+  emailedTo?: string | null;
 }
+
+const SKIP_KEY = (orderId: string) => `tf_skip_save:${orderId}`;
 
 /** Where "Try again" goes: the same pack, or the same pictures. */
 function retryLink(order: OrderSummary): string {
@@ -54,6 +69,23 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
   const [error, setError] = useState<string | null>(null);
   const [checks, setChecks] = useState(0);
   const MAX_CHECKS = 12; // about a minute at 5 seconds apart
+  const { session, loading: sessionLoading } = useSession();
+  const [skipped, setSkipped] = useState(false);
+  useEffect(() => {
+    try {
+      setSkipped(window.localStorage.getItem(SKIP_KEY(params.orderId)) === "1");
+    } catch {
+      /* not remembered */
+    }
+  }, [params.orderId]);
+  function skip() {
+    setSkipped(true);
+    try {
+      window.localStorage.setItem(SKIP_KEY(params.orderId), "1");
+    } catch {
+      /* not remembered */
+    }
+  }
 
   // 21.10.2026: Meta Pixel — a confirmed payment, once per order on this device.
   useEffect(() => {
@@ -73,7 +105,11 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
       try {
         // 09.10.2026: orders are private to their owner once a real database
         // is connected, so send the login token and bounce to /login without one.
-        const res = await fetch(`/api/payment/order/${params.orderId}`, { headers: await authHeaders() });
+        // 27.10.2026: the private link from the "your looks are saved" email.
+        const key = new URLSearchParams(window.location.search).get("k");
+        const res = await fetch(`/api/payment/order/${params.orderId}${key ? `?k=${encodeURIComponent(key)}` : ""}`, {
+          headers: await authHeaders(),
+        });
         const data = await res.json();
         if (res.status === 401) {
           window.location.assign(loginUrl(`/results/${params.orderId}`));
@@ -169,7 +205,13 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
           <h1 className="mb-2 text-[clamp(24px,4vw,30px)]">Payment confirmed</h1>
           {order.pictures ? (
             <p className="mb-6 text-[14.5px] text-ink-muted">
-              Your pictures of {order.pictures.styleName ?? "this hairstyle"} are being made below. Keep this page open.
+              {order.readOnly
+                ? `Your pictures of ${order.pictures.styleName ?? "this hairstyle"}.`
+                : `Your pictures of ${order.pictures.styleName ?? "this hairstyle"} are being made below. Keep this page open.`}
+            </p>
+          ) : order.readOnly ? (
+            <p className="mb-6 text-[14.5px] text-ink-muted">
+              {order.tierLabel}: your hairstyles are saved. Open Tressform on the phone you paid with to see them.
             </p>
           ) : (
             <>
@@ -212,9 +254,32 @@ export default function ResultsPage({ params }: { params: { orderId: string } })
         </div>
       </section>
 
+      {/* 27.10.2026: paid without an account — offer to save it, never in the way. */}
+      {!order.readOnly && !SUPABASE_MOCK_MODE && !sessionLoading && isAnonymousSession(session) && !skipped && (
+        <section className="wrap mt-8">
+          <div className="mx-auto max-w-[480px]">
+            <SaveAccount
+              next={`/results/${order.id}`}
+              title="Save your looks to your account"
+              blurb={
+                order.emailedTo
+                  ? `We've emailed a private link to your looks to ${order.emailedTo}. Add a password (or use Google) to open them any time, on any phone.`
+                  : "So you can open your photo, hairstyles and pictures any time, on any phone."
+              }
+              submitLabel="Save my looks"
+              defaultEmail={order.emailedTo ?? ""}
+            >
+              <button type="button" onClick={skip} className="mt-3 w-full text-center text-[13.5px] font-semibold text-ink-muted underline underline-offset-4">
+                Skip for now
+              </button>
+            </SaveAccount>
+          </div>
+        </section>
+      )}
+
       {order.pictures && (
         <div className="mt-8">
-          <PictureResult orderId={order.id} pictures={order.pictures} />
+          <PictureResult orderId={order.id} pictures={order.pictures} readOnly={Boolean(order.readOnly)} />
         </div>
       )}
 

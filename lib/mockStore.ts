@@ -156,6 +156,8 @@ const pictureViews = new Map<string, MockPictureView>(); // keyed by `${orderId}
 const linkVisits = new Map<string, MockLinkVisit>(); // keyed by `${code}:${visitor}`
 const linkRewards = new Map<string, MockLinkReward>(); // keyed by `${code}:${milestone}`
 const sharerDevices = new Set<string>(); // `${userId}:${visitor}`
+// 27.10.2026: checkout steps (lib/checkoutEvents.ts).
+const checkoutEvents: { visitor: string | null; step: string; user_id: string | null; order_id: string | null; created_at: string }[] = [];
 // 26.10.2026: "Hairstyles of the World" pictures made in the demo Studio (lib/worldPictures.ts).
 const worldPictures = new Map<string, { kind: "model" | "style"; key: string; full_path: string | null; small_path: string | null; cost_paise: number }>();
 
@@ -171,6 +173,7 @@ export const mockStore = {
   linkRewards,
   sharerDevices,
   worldPictures,
+  checkoutEvents,
 
   addPhoto(photo: MockPhoto) {
     photos.set(photo.id, photo);

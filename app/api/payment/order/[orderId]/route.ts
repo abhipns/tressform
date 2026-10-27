@@ -14,6 +14,12 @@
 // hairstyle and photo it is for, and the state of each of the four views of
 // that hairstyle on that photo (this order's and any bought before or after),
 // with the front picture's link once it is made (lib/pictures.ts).
+//
+// 27.10.2026 (paying without an account): ?k=<key> from the "your looks are
+// saved" email (lib/resultsLink.ts) opens this one order without signing in,
+// to view and download only (readOnly). The answer also says whether an
+// email was given at checkout, so the results page can say where the link
+// went, and carries the links of every finished picture.
 
 import { NextRequest, NextResponse } from "next/server";
 import { mockStore } from "@/lib/mockStore";
@@ -24,6 +30,7 @@ import { confirmPayuTxn } from "@/lib/payments";
 import { hairstyleById } from "@/lib/content/hairstyles";
 import { pictureViewRows, viewState, type PictureViewState } from "@/lib/pictures";
 import { PICTURE_VIEWS, type PictureView } from "@/lib/pricing";
+import { resultsKeyOk } from "@/lib/resultsLink";
 
 const LINK_SECONDS = 3600;
 
@@ -34,12 +41,15 @@ type PictureSummary = {
   bought: PictureView[];
   views: Record<PictureView, PictureViewState>;
   frontUrl: string | null;
+  /** 27.10.2026: every finished picture's link (for the view-only page). */
+  urls: Partial<Record<PictureView, string>>;
 };
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { orderId: string } }) {
   const { orderId } = params;
+  const readOnly = resultsKeyOk(orderId, req.nextUrl.searchParams.get("k"));
 
   if (SUPABASE_MOCK_MODE) {
     const order = mockStore.getOrder(orderId);
@@ -54,6 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
         bought: order.pictureViews ?? [],
         views: Object.fromEntries(PICTURE_VIEWS.map((v) => [v, viewState(rows, v)])) as Record<PictureView, PictureViewState>,
         frontUrl: rows.find((r) => r.view === "front" && r.status === "DONE")?.resultUrl ?? null,
+        urls: Object.fromEntries(rows.filter((r) => r.status === "DONE" && r.resultUrl).map((r) => [r.view, r.resultUrl!])),
       };
     }
 
@@ -73,17 +84,20 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
         createdAt: order.createdAt,
         paidAt: order.paidAt,
         pictures,
+        readOnly,
+        emailedTo: null,
       },
     });
   }
 
-  const auth = await requireUser(req);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // The order's owner, signed in — or anyone with the order's private link (view only).
+  const auth = readOnly ? null : await requireUser(req);
+  if (auth && !auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { getSupabaseAdmin } = await import("@/lib/supabaseClient");
   const admin = getSupabaseAdmin();
   let { data: order, error } = await admin.from("orders").select("*").eq("id", orderId).maybeSingle();
-  if (error || !order || order.user_id !== auth.userId) {
+  if (error || !order || (!readOnly && order.user_id !== (auth as { userId: string }).userId)) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
   }
   if (order.status === "CREATED" && order.razorpay_order_id && !PAYU_MOCK_MODE) {
@@ -102,14 +116,18 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
   if (order.order_kind === "PICTURES" && order.picture_style_id) {
     const rows = order.picture_photo_id ? await pictureViewRows(admin, order.user_id, order.picture_photo_id, order.picture_style_id) : [];
     const frontPath = rows.find((r) => r.view === "front" && r.status === "DONE")?.result_storage_path ?? null;
-    let frontUrl: string | null = null;
-    if (frontPath) {
-      if (frontPath.startsWith("http")) frontUrl = frontPath;
-      else {
-        const { data } = await admin.storage.from("results").createSignedUrl(frontPath, LINK_SECONDS);
-        frontUrl = data?.signedUrl ?? null;
-      }
-    }
+    const urls: Partial<Record<PictureView, string>> = {};
+    await Promise.all(
+      rows
+        .filter((r) => r.status === "DONE" && r.result_storage_path)
+        .map(async (r) => {
+          const path = r.result_storage_path!;
+          if (path.startsWith("http")) return void (urls[r.view] = path);
+          const { data } = await admin.storage.from("results").createSignedUrl(path, LINK_SECONDS);
+          if (data?.signedUrl) urls[r.view] = data.signedUrl;
+        })
+    );
+    const frontUrl: string | null = frontPath ? urls.front ?? null : null;
     pictures = {
       styleId: order.picture_style_id,
       styleName: hairstyleById(order.picture_style_id)?.name ?? null,
@@ -117,6 +135,7 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
       bought: order.picture_views ?? [],
       views: Object.fromEntries(PICTURE_VIEWS.map((v) => [v, viewState(rows, v)])) as Record<PictureView, PictureViewState>,
       frontUrl,
+      urls,
     };
   }
 
@@ -136,6 +155,9 @@ export async function GET(req: NextRequest, { params }: { params: { orderId: str
       createdAt: order.created_at,
       paidAt: order.paid_at,
       pictures,
+      readOnly,
+      // Where the "your looks are saved" email went (only to the order's owner).
+      emailedTo: !readOnly && order.contact_email ? order.contact_email : null,
     },
   });
 }

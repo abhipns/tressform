@@ -147,3 +147,25 @@ async function sendWhatsApp(text: string): Promise<AlertResult["whatsapp"]> {
     return "failed";
   }
 }
+
+/**
+ * 27.10.2026: one email to a customer (the private link to their results
+ * after paying without an account; lib/resultsEmail.ts). Sent from the same
+ * Gmail account as the owner's alerts. Never throws.
+ */
+export async function sendCustomerEmail(to: string, subject: string, text: string): Promise<"sent" | "off" | "failed"> {
+  if (!process.env.GMAIL_USER?.trim() || !process.env.GMAIL_APP_PASSWORD?.trim()) return "off";
+  try {
+    const nodemailer = (await import("nodemailer")).default;
+    const user = process.env.GMAIL_USER!.trim();
+    const transport = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass: process.env.GMAIL_APP_PASSWORD!.replace(/\s+/g, "") },
+    });
+    await transport.sendMail({ from: `Tressform <${user}>`, replyTo: "support@tressform.co.in", to, subject, text });
+    return "sent";
+  } catch (err) {
+    console.error("[Tressform] Customer email failed:", (err as Error)?.message ?? err);
+    return "failed";
+  }
+}

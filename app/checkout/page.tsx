@@ -49,12 +49,21 @@
 // buys pictures of one hairstyle on the customer's own photo instead of a
 // pack. Same credit box, PayU page, QR code and "already paid" check. The
 // server prices it again itself, leaving out views already owned.
+//
+// 27.10.2026 (owner: 20 people reached checkout, 4 made an account, 0
+// pressed Pay): no account wall. A visitor on the anonymous account — or
+// with no session at all, who gets one here (lib/authClient.ts
+// ensureSession) — sees only the item and price, their mobile number (PayU
+// needs it), an optional email and Pay. Saving the account is offered
+// after paying, on the results page. The steps reached are recorded for the
+// owner's "Checkout steps" funnel (lib/checkoutSteps.ts), and Meta is told
+// "AddToCart" (with the price) when the page opens.
 
 "use client";
 
 import { saveWhatsAppNumber } from "@/components/WhatsAppOptIn";
 import { WHATSAPP_CONSENT } from "@/lib/whatsapp";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { setReloadBlocked } from "@/components/VersionWatch";
 import { clearPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
@@ -71,8 +80,9 @@ import {
   priceForPictures,
 } from "@/lib/pricing";
 import { hairstyleById } from "@/lib/content/hairstyles";
-import { SUPABASE_MOCK_MODE, authHeaders, getMockUserId, isAnonymousSession, loginUrl, useSession } from "@/lib/authClient";
-import SaveAccount from "@/components/SaveAccount";
+import { SUPABASE_MOCK_MODE, authHeaders, ensureSession, getMockUserId, isAnonymousSession, loginUrl, useSession } from "@/lib/authClient";
+import { visitorId } from "@/components/VisitBeacon";
+import { cleanEmail } from "@/lib/checkoutSteps";
 import { splitWithCredit } from "@/lib/credit";
 import { trackMeta } from "@/lib/metaPixel";
 import { currentCampaign } from "@/lib/campaign";
@@ -122,10 +132,15 @@ function CheckoutContent() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session, loading: sessionLoading } = useSession();
-  const needsLogin = !SUPABASE_MOCK_MODE && !sessionLoading && !session;
-  // 23.10.2026: tried the upload before signing in — create the account here, before paying.
-  const needsAccount = !SUPABASE_MOCK_MODE && !sessionLoading && isAnonymousSession(session);
+  // 27.10.2026: no account needed to pay. Still loading, or making an anonymous session for a new visitor:
+  const needsLogin = !SUPABASE_MOCK_MODE && (sessionLoading || !session);
+  const anonymous = !SUPABASE_MOCK_MODE && isAnonymousSession(session);
+  const [email, setEmail] = useState("");
   const userId = session?.user.id ?? null;
+  // A visitor with no session at all (e.g. straight from Pricing) gets the same anonymous account the upload uses.
+  useEffect(() => {
+    if (!SUPABASE_MOCK_MODE && !sessionLoading && !session) void ensureSession();
+  }, [sessionLoading, session]);
   const [phone, setPhone] = useState("");
   const [balancePaise, setBalancePaise] = useState(0);
   const [useCredit, setUseCredit] = useState(true);
@@ -247,8 +262,33 @@ function CheckoutContent() {
   const gstOnDuePaise = GST_REGISTERED ? Math.round(split.duePaise * GST_RATE) : 0;
   const rupees = (paise: number) => `₹${paiseToRupees(paise).split(".")[0]}`;
 
+  // 27.10.2026: the checkout funnel (lib/checkoutSteps.ts) and Meta's AddToCart, once per page.
+  const stepsSent = useRef<Set<string>>(new Set());
+  function step(name: "opened" | "phone") {
+    if (stepsSent.current.has(name)) return;
+    stepsSent.current.add(name);
+    fetch("/api/checkout/step", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitor: visitorId(), step: name }),
+      keepalive: true,
+    }).catch(() => undefined);
+  }
+  useEffect(() => {
+    if (!product) return;
+    step("opened");
+    trackMeta("AddToCart", { value: Math.round(product.pricePaise / 100), currency: "INR", content_name: product.label });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.label]);
+  useEffect(() => {
+    if (product && phoneOk(phone)) step("phone");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone, product?.label]);
+  const emailBad = anonymous && email.trim() !== "" && !cleanEmail(email);
+
   async function handlePay(where: "here" | "other" = "here") {
     if (!product) return;
+    if (emailBad) return;
     if (askPhone && !phoneOk(phone)) {
       setPhoneError(true);
       return;
@@ -274,20 +314,26 @@ function CheckoutContent() {
         headers,
         body: JSON.stringify(
           SUPABASE_MOCK_MODE
-            ? { userId: getMockUserId(), tier: validTier ?? undefined, pictures, useCredit }
-            : { tier: validTier ?? undefined, pictures, phone: free ? undefined : phone, useCredit, campaign: currentCampaign() }
+            ? { userId: getMockUserId(), tier: validTier ?? undefined, pictures, useCredit, visitor: visitorId() }
+            : {
+                tier: validTier ?? undefined,
+                pictures,
+                phone: free ? undefined : phone,
+                useCredit,
+                campaign: currentCampaign(),
+                visitor: visitorId(),
+                email: anonymous && email.trim() ? email.trim() : undefined,
+              }
         ),
       });
       const createData = await createRes.json();
       if (createRes.status === 401) {
-        if (createData.needsAccount) {
-          // Shouldn't happen (the account box shows first), but never send them to /login and lose their photo.
-          setStatus("idle");
-          setOtherBusy(false);
-          setError("Please create your account below to continue.");
-          return;
-        }
-        window.location.assign(loginUrl(here));
+        // 27.10.2026: no account is needed any more, so a "please sign in" here means the session
+        // lapsed. Never send them to /login and lose their photo: refresh it and let them press Pay again.
+        await ensureSession();
+        setStatus("idle");
+        setOtherBusy(false);
+        setError("Something interrupted the payment. Please press Pay again.");
         return;
       }
       // 20.10.2026: an earlier payment of theirs has just been confirmed — no second payment.
@@ -452,7 +498,7 @@ function CheckoutContent() {
           </div>
         )}
 
-        {askPhone && !needsLogin && !needsAccount && (
+        {askPhone && !needsLogin && (
           <label className="mb-5 block">
             <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">Mobile number</span>
             <input
@@ -476,7 +522,29 @@ function CheckoutContent() {
             </span>
           </label>
         )}
-        {askPhone && !needsLogin && !needsAccount && (
+        {/* 27.10.2026: optional, for buyers without an account — one email with a link to their looks. */}
+        {anonymous && !needsLogin && (
+          <label className="mb-5 block">
+            <span className="mb-1.5 block text-[13.5px] font-semibold text-ink-heading">
+              Email <span className="font-normal text-ink-muted">(optional)</span>
+            </span>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={`w-full rounded-sm2 border bg-surface px-4 py-3 text-[15px] outline-none focus:border-mint-deep ${
+                emailBad ? "border-danger" : "border-line"
+              }`}
+            />
+            <span className={`mt-1.5 block text-[12px] ${emailBad ? "text-danger" : "text-ink-muted"}`}>
+              {emailBad ? "Please check your email address, or leave it empty." : "We'll send you a private link to your looks, so you never lose them. No account or password needed."}
+            </span>
+          </label>
+        )}
+        {askPhone && !needsLogin && (
           <label className="-mt-2 mb-5 flex items-start gap-2.5 text-[13px] leading-[1.45] text-ink-muted">
             <input
               type="checkbox"
@@ -492,16 +560,14 @@ function CheckoutContent() {
           <div className="mb-5 rounded-sm2 bg-danger/10 px-4 py-3 text-[13.5px] font-medium text-danger">{error}</div>
         )}
 
-        {needsAccount && <SaveAccount next={here} />}
-
-        {needsAccount ? null : needsLogin ? (
-          <a href={loginUrl(here)} className="btn-primary w-full">
-            Log in to continue
-          </a>
+        {needsLogin ? (
+          <button className="btn-primary w-full" disabled>
+            One moment…
+          </button>
         ) : (
           <button
             className="btn-primary w-full"
-            disabled={status === "paying" || otherBusy || sessionLoading}
+            disabled={status === "paying" || otherBusy || sessionLoading || emailBad}
             onClick={() => handlePay("here")}
           >
             {status === "paying"
@@ -514,8 +580,17 @@ function CheckoutContent() {
           </button>
         )}
 
+        {anonymous && !needsLogin && (
+          <p className="mt-2.5 text-center text-[12.5px] text-ink-muted">
+            Have a Tressform account?{" "}
+            <a href={loginUrl(here)} className="font-semibold text-mint-deep">
+              Log in
+            </a>
+          </p>
+        )}
+
         {/* 17.10.2026: for a phone with no UPI app — someone else pays by scanning a QR code. */}
-        {!needsLogin && !needsAccount && askPhone && !other && (
+        {!needsLogin && askPhone && !other && (
           <button
             type="button"
             className="mt-3 w-full rounded-full border border-line bg-surface px-4 py-3 text-[14.5px] font-semibold text-ink-heading transition hover:border-ink-heading disabled:opacity-60"

@@ -1013,16 +1013,20 @@ export default function StylePicks({
                   See it on me
                 </button>
               )}
-              {!preview && allowanceSpent && (
-                <a href="#get-previews" className="btn-secondary !px-6 !py-2.5 !text-[15px]">
-                  Get a pack to see this
-                </a>
-              )}
-              {/* 26.10.2026: or just this one hairstyle, picture by picture. */}
+              {/* 26.10.2026: just this one hairstyle, picture by picture.
+                  27.10.2026 (owner): the ₹25 front first; packs after it. */}
               {!preview && allowanceSpent && photoId && !samples && (
                 <div className="w-full">
                   <PictureOffer styleId={pick.style.id} photoId={photoId} />
                 </div>
+              )}
+              {!preview && allowanceSpent && (
+                <a
+                  href="#get-previews"
+                  className={photoId && !samples ? "text-[14px] font-semibold text-mint-deep underline underline-offset-4" : "btn-secondary !px-6 !py-2.5 !text-[15px]"}
+                >
+                  {photoId && !samples ? "Or see several looks with a pack" : "Get a pack to see this"}
+                </a>
               )}
               {preview?.state === "failed" && (
                 <button

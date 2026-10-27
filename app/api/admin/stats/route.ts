@@ -19,11 +19,16 @@
 // 26.10.2026: also `sharers` — the referral links that brought the most
 // visitors, all time, and the ₹10-per-10-visitors credit each earned
 // (lib/linkVisits.ts). Codes only, nothing personal.
+//
+// 27.10.2026: also `checkout` — how many different visitors reached each
+// checkout step in the period (lib/checkoutSteps.ts), to see where people stop.
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, SUPABASE_MOCK_MODE } from "@/lib/serverAuth";
 import { committedCost, periodStart, topSharers, type Period } from "@/lib/stats";
 import { mockStore } from "@/lib/mockStore";
+import { checkoutFunnel } from "@/lib/checkoutSteps";
+import { checkoutEventsSince } from "@/lib/checkoutEvents";
 import { FALAI_COST_PER_IMAGE_PAISE } from "@/lib/integrations/falai";
 import { GST_RATE, GST_REGISTERED } from "@/lib/pricing";
 
@@ -66,6 +71,7 @@ export async function GET(req: NextRequest) {
       income: [],
       committed: committedCost(0, 0, FALAI_COST_PER_IMAGE_PAISE),
       gst: { registered: GST_REGISTERED, duePaise: 0, ifRegisteredPaise: 0 },
+      checkout: checkoutFunnel(await checkoutEventsSince(since)),
       sharers: topSharers(
         [...mockStore.linkVisits.values()],
         [...mockStore.linkRewards.values()].map((r) => ({ code: r.code, credits_paise: r.creditsPaise }))
@@ -108,5 +114,6 @@ export async function GET(req: NextRequest) {
     committed: committedCost(unopenedLooks, unmadeLooks, FALAI_COST_PER_IMAGE_PAISE),
     gst: { registered: GST_REGISTERED, duePaise: gstDuePaise, ifRegisteredPaise: Math.round(revenuePaise * GST_RATE) },
     sharers: topSharers(linkVisits ?? [], linkRewards ?? []),
+    checkout: checkoutFunnel(await checkoutEventsSince(since)),
   });
 }

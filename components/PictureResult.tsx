@@ -9,6 +9,10 @@
 // for the barber. Views not bought show as blurred, locked tiles, each
 // "Add for ₹15". A picture that fails can be tried again for free; after 3
 // failures it is marked for a refund and the customer is told so.
+//
+// 27.10.2026: `readOnly` — opened from the private link in the "your looks
+// are saved" email on another phone: the finished pictures to view and
+// download, nothing is made or bought from here.
 
 import { useCallback, useEffect, useState } from "react";
 import BarberPointText from "@/components/BarberPointText";
@@ -27,6 +31,8 @@ export interface PictureOrderSummary {
   bought: PictureView[];
   views: Record<PictureView, ViewState>;
   frontUrl: string | null;
+  /** 27.10.2026: every finished picture's link. */
+  urls?: Partial<Record<PictureView, string>>;
 }
 
 const SIDES: Side[] = ["left", "right", "back"];
@@ -49,16 +55,24 @@ async function download(url: string, name: string) {
   }
 }
 
-export default function PictureResult({ orderId, pictures }: { orderId: string; pictures: PictureOrderSummary }) {
+export default function PictureResult({
+  orderId,
+  pictures,
+  readOnly = false,
+}: {
+  orderId: string;
+  pictures: PictureOrderSummary;
+  readOnly?: boolean;
+}) {
   const style = hairstyleById(pictures.styleId);
   const [front, setFront] = useState<{ state: ViewState; url: string | null }>({
     state: pictures.views.front,
     url: pictures.frontUrl,
   });
   const [sides, setSides] = useState<Record<Side, { state: ViewState; url: string | null }>>(() => ({
-    left: { state: pictures.views.left, url: null },
-    right: { state: pictures.views.right, url: null },
-    back: { state: pictures.views.back, url: null },
+    left: { state: pictures.views.left, url: pictures.urls?.left ?? null },
+    right: { state: pictures.views.right, url: pictures.urls?.right ?? null },
+    back: { state: pictures.views.back, url: pictures.urls?.back ?? null },
   }));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -140,12 +154,12 @@ export default function PictureResult({ orderId, pictures }: { orderId: string; 
 
   // Make the front first (if paid and not made), then the paid sides.
   useEffect(() => {
-    if (front.state === "ready" && !front.url && !error) void makeFront();
+    if (!readOnly && front.state === "ready" && !front.url && !error) void makeFront();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const anySidePaid = SIDES.some((s) => sides[s].state !== "locked");
   useEffect(() => {
-    if (front.state === "done" && front.url) void makeSides();
+    if (!readOnly && front.state === "done" && front.url) void makeSides();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [front.state, front.url]);
 
@@ -192,12 +206,12 @@ export default function PictureResult({ orderId, pictures }: { orderId: string; 
             Download
           </button>
         )}
-        {s.state === "locked" && (
+        {s.state === "locked" && !readOnly && (
           <a href={addLink(view)} className="btn-secondary mt-1.5 !px-4 !py-2 !text-[14px]">
             Add for {rupees(PICTURE_PRICE_PAISE[view])}
           </a>
         )}
-        {s.state === "ready" && (
+        {s.state === "ready" && !readOnly && (
           <button
             type="button"
             className="btn-secondary mt-1.5 !px-4 !py-2 !text-[14px]"
@@ -240,7 +254,7 @@ export default function PictureResult({ orderId, pictures }: { orderId: string; 
             Download all {done.length} pictures
           </button>
         )}
-        {!anySidePaid && front.state === "done" && (
+        {!readOnly && !anySidePaid && front.state === "done" && (
           <p className="mt-3 text-[14px] text-ink-muted">See it from every side: add the left side, right side or back for {rupees(PICTURE_PRICE_PAISE.left)} each.</p>
         )}
 
